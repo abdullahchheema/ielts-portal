@@ -1,0 +1,1123 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ───────── Enums ─────────
+enum AccountStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  SUSPENDED
+  BLOCKED
+  DEACTIVATED
+}
+
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum VersionStatus {
+  DRAFT
+  PUBLISHED
+  RETIRED
+}
+
+enum ContentType {
+  VIDEO
+  PDF
+  TEXT
+  AUDIO
+  QUIZ
+  ASSIGNMENT
+  LISTENING_TEST
+  READING_TEST
+  WRITING_TASK
+  SPEAKING_TASK
+  LIVE_SESSION
+  EXTERNAL_LINK
+  DOWNLOAD
+  MOCK_TEST
+}
+
+enum ReleaseType {
+  IMMEDIATE
+  BATCH_DATE
+  RELATIVE
+  PREREQUISITE
+  SCORE_BASED
+  MANUAL
+}
+
+enum ContentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum BatchStatus {
+  DRAFT
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  ARCHIVED
+}
+
+enum DeliveryMode {
+  ONLINE
+  ONSITE
+  HYBRID
+}
+
+enum MentorRole {
+  MAIN
+  WRITING
+  SPEAKING
+}
+
+enum EnrollmentStatus {
+  PENDING_PAYMENT
+  ACTIVE
+  PAUSED
+  COMPLETED
+  EXPIRED
+  CANCELLED
+  REFUNDED
+  SUSPENDED
+  REJECTED
+}
+
+enum EnrollmentSource {
+  ONLINE_PURCHASE
+  ADMIN
+  SCHOLARSHIP
+  CORPORATE
+  PROMOTION
+  MIGRATION
+}
+
+enum ProgressStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  LOCKED
+}
+
+enum OrderStatus {
+  AWAITING_PAYMENT
+  PENDING_REVIEW
+  PAID
+  CANCELLED
+  EXPIRED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  CREATED
+  PENDING
+  AUTHORIZED
+  PAID
+  FAILED
+  CANCELLED
+  REFUNDED
+  PARTIALLY_REFUNDED
+  CHARGEBACK
+}
+
+enum PaymentProvider {
+  BANK_TRANSFER
+  MANUAL
+}
+
+enum ProofStatus {
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED
+}
+
+enum RefundStatus {
+  REQUESTED
+  APPROVED
+  PROCESSED
+  REJECTED
+}
+
+enum AssessmentType {
+  PRACTICE
+  QUIZ
+  LISTENING
+  READING
+  WRITING
+  SPEAKING
+  MOCK
+  DIAGNOSTIC
+  FINAL
+}
+
+enum AttemptStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  SUBMITTED
+  AUTO_GRADED
+  PENDING_MANUAL_GRADING
+  GRADED
+  EXPIRED
+  INVALIDATED
+}
+
+enum SessionAttendance {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_FOR_STUDENT
+  RESOLVED
+  CLOSED
+}
+
+enum TicketCategory {
+  ACCOUNT
+  PAYMENT
+  COURSE
+  TECHNICAL
+  CLASS
+  ASSESSMENT
+  MENTOR
+  OTHER
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  SMS
+  WHATSAPP
+  PUSH
+}
+
+
+// ───────── Identity ─────────
+model User {
+  id              String        @id @default(uuid()) @db.Uuid
+  email           String        @unique
+  phone           String?
+  passwordHash    String        @map("password_hash")
+  status          AccountStatus @default(PENDING_VERIFICATION)
+  emailVerifiedAt DateTime?     @map("email_verified_at")
+  phoneVerifiedAt DateTime?     @map("phone_verified_at")
+  lastLoginAt     DateTime?     @map("last_login_at")
+  failedLogins    Int           @default(0) @map("failed_logins")
+  lockedUntil     DateTime?     @map("locked_until")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  deletedAt       DateTime?     @map("deleted_at")
+
+  student       StudentProfile?
+  mentor        MentorProfile?
+  roles         UserRole[]
+  refreshTokens RefreshToken[]
+  emailTokens   EmailVerificationToken[]
+  resetTokens   PasswordResetToken[]
+  mfa           MfaSecret?
+  notifications Notification[]
+  tickets       SupportTicket[]
+  auditLogs     AuditLog[]
+
+  @@map("users")
+}
+
+model StudentProfile {
+  id                    String    @id @default(uuid()) @db.Uuid
+  userId                String    @unique @map("user_id") @db.Uuid
+  firstName             String    @map("first_name")
+  lastName              String    @map("last_name")
+  country               String?
+  city                  String?
+  timezone              String?
+  currentBand           Decimal?  @map("current_band") @db.Decimal(3, 1)
+  targetBand            Decimal?  @map("target_band") @db.Decimal(3, 1)
+  ieltsExamDate         DateTime? @map("ielts_exam_date") @db.Date
+  academicOrGeneral     String?   @map("academic_or_general")
+  preferredLearningMode String?   @map("preferred_learning_mode")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  user         User                   @relation(fields: [userId], references: [id])
+  enrollments  Enrollment[]
+  orders       Order[]
+  progress     ContentProgress[]
+  attempts     AssessmentAttempt[]
+  submissions  Submission[]
+  attendance   Attendance[]
+  redemptions  CouponRedemption[]
+  timeline     StudentTimelineEvent[]
+  certificates Certificate[]
+
+  @@map("student_profiles")
+}
+
+model MentorProfile {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @unique @map("user_id") @db.Uuid
+  displayName     String   @map("display_name")
+  bio             String?
+  specializations String[]
+  status          String   @default("ACTIVE")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  user     User          @relation(fields: [userId], references: [id])
+  batches  BatchMentor[]
+  sessions LiveSession[]
+
+  @@map("mentor_profiles")
+}
+
+model Role {
+  id          String           @id @default(uuid()) @db.Uuid
+  name        String           @unique
+  description String?
+  isSystem    Boolean          @default(true) @map("is_system")
+  users       UserRole[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id    String           @id @default(uuid()) @db.Uuid
+  key   String           @unique
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model UserRole {
+  userId String @map("user_id") @db.Uuid
+  roleId String @map("role_id") @db.Uuid
+  user   User   @relation(fields: [userId], references: [id])
+  role   Role   @relation(fields: [roleId], references: [id])
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  roleId       String     @map("role_id") @db.Uuid
+  permissionId String     @map("permission_id") @db.Uuid
+  role         Role       @relation(fields: [roleId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model RefreshToken {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  familyId   String    @map("family_id") @db.Uuid
+  tokenHash  String    @unique @map("token_hash")
+  expiresAt  DateTime  @map("expires_at")
+  revokedAt  DateTime? @map("revoked_at")
+  replacedBy String?   @map("replaced_by") @db.Uuid
+  userAgent  String?   @map("user_agent")
+  ip         String?
+  createdAt  DateTime  @default(now()) @map("created_at")
+  user       User      @relation(fields: [userId], references: [id])
+
+  @@index([familyId])
+  @@map("refresh_tokens")
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@map("email_verification_tokens")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@map("password_reset_tokens")
+}
+
+model MfaSecret {
+  userId      String    @id @map("user_id") @db.Uuid
+  secretEnc   String    @map("secret_enc")
+  confirmedAt DateTime? @map("confirmed_at")
+  user        User      @relation(fields: [userId], references: [id])
+
+  @@map("mfa_secrets")
+}
+
+// ───────── Academic ─────────
+model Course {
+  id                String       @id @default(uuid()) @db.Uuid
+  code              String       @unique
+  title             String
+  slug              String       @unique
+  description       String?
+  courseType        String       @default("BAND_BASED") @map("course_type")
+  durationWeeks     Int?         @map("duration_weeks")
+  defaultAccessDays Int          @default(180) @map("default_access_days")
+  price             Decimal      @db.Decimal(12, 2)
+  currency          String       @default("PKR")
+  status            CourseStatus @default(DRAFT)
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+  deletedAt         DateTime?    @map("deleted_at")
+
+  versions    CourseVersion[]
+  batches     Batch[]
+  enrollments Enrollment[]
+
+  @@map("courses")
+}
+
+model CourseVersion {
+  id            String        @id @default(uuid()) @db.Uuid
+  courseId      String        @map("course_id") @db.Uuid
+  versionNumber Int           @map("version_number")
+  status        VersionStatus @default(DRAFT)
+  publishedAt   DateTime?     @map("published_at")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  revision      Int           @default(1)
+
+  course      Course          @relation(fields: [courseId], references: [id])
+  sections    CourseSection[]
+  batches     Batch[]
+  enrollments Enrollment[]
+  assessments Assessment[]
+
+  @@unique([courseId, versionNumber])
+  @@map("course_versions")
+}
+
+model CourseSection {
+  id              String        @id @default(uuid()) @db.Uuid
+  courseVersionId String        @map("course_version_id") @db.Uuid
+  parentSectionId String?       @map("parent_section_id") @db.Uuid
+  title           String
+  description     String?
+  sequence        Int           @default(0)
+  status          ContentStatus @default(PUBLISHED)
+
+  version  CourseVersion   @relation(fields: [courseVersionId], references: [id])
+  parent   CourseSection?  @relation("SectionTree", fields: [parentSectionId], references: [id])
+  children CourseSection[] @relation("SectionTree")
+  items    ContentItem[]
+
+  @@index([courseVersionId, parentSectionId, sequence])
+  @@map("course_sections")
+}
+
+model ContentItem {
+  id               String        @id @default(uuid()) @db.Uuid
+  sectionId        String        @map("section_id") @db.Uuid
+  title            String
+  contentType      ContentType   @map("content_type")
+  sequence         Int           @default(0)
+  isRequired       Boolean       @default(true) @map("is_required")
+  estimatedMinutes Int?          @map("estimated_minutes")
+  releaseType      ReleaseType   @default(IMMEDIATE) @map("release_type")
+  releaseValue     Json?         @map("release_value")
+  status           ContentStatus @default(PUBLISHED)
+  metadataJson     Json?         @map("metadata_json")
+  createdAt        DateTime      @default(now()) @map("created_at")
+
+  section     CourseSection     @relation(fields: [sectionId], references: [id])
+  progress    ContentProgress[]
+  assignment  Assignment?
+
+  @@index([sectionId, sequence])
+  @@map("content_items")
+}
+
+model Batch {
+  id                String       @id @default(uuid()) @db.Uuid
+  courseId          String       @map("course_id") @db.Uuid
+  courseVersionId   String       @map("course_version_id") @db.Uuid
+  name              String
+  startAt           DateTime     @map("start_at")
+  endAt             DateTime?    @map("end_at")
+  timezone          String       @default("Asia/Karachi")
+  days              String[]     @default([])
+  classTime         String?      @map("class_time")
+  description       String?
+  deliveryMode      DeliveryMode @default(ONLINE) @map("delivery_mode")
+  enrollmentOpenAt  DateTime?    @map("enrollment_open_at")
+  enrollmentCloseAt DateTime?    @map("enrollment_close_at")
+  status            BatchStatus  @default(DRAFT)
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+  deletedAt         DateTime?    @map("deleted_at")
+
+  course       Course            @relation(fields: [courseId], references: [id])
+  version      CourseVersion     @relation(fields: [courseVersionId], references: [id])
+  mentors      BatchMentor[]
+  enrollments  Enrollment[]
+  sessions     LiveSession[]
+  orderItems   OrderItem[]
+
+  @@map("batches")
+}
+
+model BatchMentor {
+  batchId    String     @map("batch_id") @db.Uuid
+  mentorId   String     @map("mentor_id") @db.Uuid
+  mentorRole MentorRole @default(MAIN) @map("mentor_role")
+  assignedAt DateTime   @default(now()) @map("assigned_at")
+
+  batch  Batch         @relation(fields: [batchId], references: [id])
+  mentor MentorProfile @relation(fields: [mentorId], references: [id])
+
+  @@id([batchId, mentorId, mentorRole])
+  @@map("batch_mentors")
+}
+
+model ContentProgress {
+  id               String         @id @default(uuid()) @db.Uuid
+  enrollmentId     String         @map("enrollment_id") @db.Uuid
+  studentId        String         @map("student_id") @db.Uuid
+  contentItemId    String         @map("content_item_id") @db.Uuid
+  status           ProgressStatus @default(NOT_STARTED)
+  progressPercent  Int            @default(0) @map("progress_percent")
+  timeSpentSeconds Int            @default(0) @map("time_spent_seconds")
+  lastPosition     Int?           @map("last_position")
+  startedAt        DateTime?      @map("started_at")
+  completedAt      DateTime?      @map("completed_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+
+  enrollment  Enrollment     @relation(fields: [enrollmentId], references: [id])
+  student     StudentProfile @relation(fields: [studentId], references: [id])
+  contentItem ContentItem    @relation(fields: [contentItemId], references: [id])
+
+  @@unique([studentId, enrollmentId, contentItemId])
+  @@map("content_progress")
+}
+
+// ───────── Commerce ─────────
+model Enrollment {
+  id              String           @id @default(uuid()) @db.Uuid
+  studentId       String           @map("student_id") @db.Uuid
+  courseId        String           @map("course_id") @db.Uuid
+  courseVersionId String           @map("course_version_id") @db.Uuid
+  batchId         String           @map("batch_id") @db.Uuid
+  orderItemId     String?          @unique @map("order_item_id") @db.Uuid
+  status          EnrollmentStatus @default(PENDING_PAYMENT)
+  source          EnrollmentSource @default(ONLINE_PURCHASE)
+  enrolledAt      DateTime?        @map("enrolled_at")
+  accessStartsAt  DateTime?        @map("access_starts_at")
+  accessEndsAt    DateTime?        @map("access_ends_at")
+  completedAt     DateTime?        @map("completed_at")
+  progressPercent Decimal          @default(0) @map("progress_percent") @db.Decimal(5, 2)
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  deletedAt       DateTime?        @map("deleted_at")
+
+  student   StudentProfile        @relation(fields: [studentId], references: [id])
+  course    Course                @relation(fields: [courseId], references: [id])
+  version   CourseVersion         @relation(fields: [courseVersionId], references: [id])
+  batch     Batch                 @relation(fields: [batchId], references: [id])
+  orderItem OrderItem?            @relation(fields: [orderItemId], references: [id])
+  progress  ContentProgress[]
+  transfers EnrollmentTransfer[]
+  attempts  AssessmentAttempt[]
+  submissions Submission[]
+  certificate Certificate?
+
+  @@index([studentId, status])
+  @@map("enrollments")
+}
+
+model EnrollmentTransfer {
+  id            String   @id @default(uuid()) @db.Uuid
+  enrollmentId  String   @map("enrollment_id") @db.Uuid
+  fromBatchId   String   @map("from_batch_id") @db.Uuid
+  toBatchId     String   @map("to_batch_id") @db.Uuid
+  reason        String
+  approvedBy    String   @map("approved_by") @db.Uuid
+  transferredAt DateTime @default(now()) @map("transferred_at")
+
+  enrollment Enrollment @relation(fields: [enrollmentId], references: [id])
+
+  @@map("enrollment_transfers")
+}
+
+model Order {
+  id        String      @id @default(uuid()) @db.Uuid
+  reference String      @unique
+  studentId String      @map("student_id") @db.Uuid
+  subtotal  Decimal     @db.Decimal(12, 2)
+  discount  Decimal     @default(0) @db.Decimal(12, 2)
+  tax       Decimal     @default(0) @db.Decimal(12, 2)
+  total     Decimal     @db.Decimal(12, 2)
+  currency  String
+  status    OrderStatus @default(AWAITING_PAYMENT)
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+
+  student      StudentProfile     @relation(fields: [studentId], references: [id])
+  items        OrderItem[]
+  payments     Payment[]
+  redemptions  CouponRedemption[]
+
+  @@index([studentId, status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id            String  @id @default(uuid()) @db.Uuid
+  orderId       String  @map("order_id") @db.Uuid
+  courseId      String  @map("course_id") @db.Uuid
+  batchId       String  @map("batch_id") @db.Uuid
+  originalPrice Decimal @map("original_price") @db.Decimal(12, 2)
+  discount      Decimal @default(0) @db.Decimal(12, 2)
+  finalPrice    Decimal @map("final_price") @db.Decimal(12, 2)
+
+  order      Order       @relation(fields: [orderId], references: [id])
+  batch      Batch       @relation(fields: [batchId], references: [id])
+  enrollment Enrollment?
+
+  @@map("order_items")
+}
+
+model Payment {
+  id         String          @id @default(uuid()) @db.Uuid
+  orderId    String          @map("order_id") @db.Uuid
+  provider   PaymentProvider @default(BANK_TRANSFER)
+  reference  String?
+  amount     Decimal         @db.Decimal(12, 2)
+  currency   String
+  status     PaymentStatus   @default(CREATED)
+  paidAt     DateTime?       @map("paid_at")
+  verifiedBy String?         @map("verified_by") @db.Uuid
+  verifiedAt DateTime?       @map("verified_at")
+  createdAt  DateTime        @default(now()) @map("created_at")
+  updatedAt  DateTime        @updatedAt @map("updated_at")
+
+  order   Order          @relation(fields: [orderId], references: [id])
+  proofs  PaymentProof[]
+  events  PaymentEvent[]
+  refunds Refund[]
+
+  @@map("payments")
+}
+
+model PaymentProof {
+  id               String      @id @default(uuid()) @db.Uuid
+  paymentId        String      @map("payment_id") @db.Uuid
+  senderName       String      @map("sender_name")
+  paymentMethod    String      @default("BANK_TRANSFER") @map("payment_method")
+  senderBank       String?     @map("sender_bank")
+  bankTxnReference String      @map("bank_txn_reference")
+  claimedAmount    Decimal     @map("claimed_amount") @db.Decimal(12, 2)
+  transferDate     DateTime    @map("transfer_date") @db.Date
+  fileKey          String      @map("file_key")
+  fileMime         String      @map("file_mime")
+  status           ProofStatus @default(SUBMITTED)
+  flags            String[]
+  rejectionReason  String?     @map("rejection_reason")
+  allowResubmit    Boolean     @default(true) @map("allow_resubmit")
+  reviewedBy       String?     @map("reviewed_by") @db.Uuid
+  reviewedAt       DateTime?   @map("reviewed_at")
+  createdAt        DateTime    @default(now()) @map("created_at")
+
+  payment Payment @relation(fields: [paymentId], references: [id])
+
+  @@index([status, createdAt])
+  @@map("payment_proofs")
+}
+
+model PaymentEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  paymentId String   @map("payment_id") @db.Uuid
+  type      String
+  payload   Json?
+  actorId   String?  @map("actor_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  payment Payment @relation(fields: [paymentId], references: [id])
+
+  @@map("payment_events")
+}
+
+model Refund {
+  id                String       @id @default(uuid()) @db.Uuid
+  paymentId         String       @map("payment_id") @db.Uuid
+  amount            Decimal      @db.Decimal(12, 2)
+  reason            String
+  status            RefundStatus @default(REQUESTED)
+  providerReference String?      @map("provider_reference")
+  requestedBy       String       @map("requested_by") @db.Uuid
+  approvedBy        String?      @map("approved_by") @db.Uuid
+  processedAt       DateTime?    @map("processed_at")
+  decisionNote      String?      @map("decision_note")
+  createdAt         DateTime     @default(now()) @map("created_at")
+
+  payment Payment @relation(fields: [paymentId], references: [id])
+
+  @@map("refunds")
+}
+
+model Coupon {
+  id                String       @id @default(uuid()) @db.Uuid
+  code              String       @unique
+  discountType      DiscountType @map("discount_type")
+  value             Decimal      @db.Decimal(12, 2)
+  courseId          String?      @map("course_id") @db.Uuid
+  batchId           String?      @map("batch_id") @db.Uuid
+  userId            String?      @map("user_id") @db.Uuid
+  firstPurchaseOnly Boolean      @default(false) @map("first_purchase_only")
+  maxRedemptions    Int?         @map("max_redemptions")
+  perUserLimit      Int          @default(1) @map("per_user_limit")
+  redeemedCount     Int          @default(0) @map("redeemed_count")
+  minPurchase       Decimal?     @map("min_purchase") @db.Decimal(12, 2)
+  startsAt          DateTime?    @map("starts_at")
+  expiresAt         DateTime?    @map("expires_at")
+  active            Boolean      @default(true)
+  createdAt         DateTime     @default(now()) @map("created_at")
+
+  redemptions CouponRedemption[]
+
+  @@map("coupons")
+}
+
+model CouponRedemption {
+  id        String   @id @default(uuid()) @db.Uuid
+  couponId  String   @map("coupon_id") @db.Uuid
+  studentId String   @map("student_id") @db.Uuid
+  orderId   String   @map("order_id") @db.Uuid
+  status    String   @default("RESERVED")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  coupon  Coupon         @relation(fields: [couponId], references: [id])
+  student StudentProfile @relation(fields: [studentId], references: [id])
+  order   Order          @relation(fields: [orderId], references: [id])
+
+  @@map("coupon_redemptions")
+}
+
+// ───────── Assessment (schema only in pass 1) ─────────
+model Assessment {
+  id              String         @id @default(uuid()) @db.Uuid
+  courseVersionId String?        @map("course_version_id") @db.Uuid
+  type            AssessmentType
+  title           String
+  maxAttempts     Int?           @map("max_attempts")
+  timeLimitMin    Int?           @map("time_limit_min")
+  skill           String?
+  passPercent     Int            @default(0) @map("pass_percent")
+  showAnswers     Boolean        @default(true) @map("show_answers")
+  createdAt       DateTime       @default(now()) @map("created_at")
+
+  courseVersion CourseVersion?        @relation(fields: [courseVersionId], references: [id])
+  versions      AssessmentVersion[]
+  attempts      AssessmentAttempt[]
+
+  @@map("assessments")
+}
+
+model AssessmentVersion {
+  id           String    @id @default(uuid()) @db.Uuid
+  assessmentId String    @map("assessment_id") @db.Uuid
+  version      Int
+  publishedAt  DateTime? @map("published_at")
+
+  assessment Assessment          @relation(fields: [assessmentId], references: [id])
+  sections   AssessmentSection[]
+  attempts   AssessmentAttempt[]
+
+  @@unique([assessmentId, version])
+  @@map("assessment_versions")
+}
+
+model AssessmentSection {
+  id                  String @id @default(uuid()) @db.Uuid
+  assessmentVersionId String @map("assessment_version_id") @db.Uuid
+  title               String
+  sequence            Int    @default(0)
+  content             Json?
+
+  version   AssessmentVersion @relation(fields: [assessmentVersionId], references: [id])
+  questions Question[]
+
+  @@map("assessment_sections")
+}
+
+model Question {
+  id           String    @id @default(uuid()) @db.Uuid
+  sectionId    String?   @map("section_id") @db.Uuid
+  questionType String    @map("question_type")
+  sequence     Int       @default(0)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  section  AssessmentSection? @relation(fields: [sectionId], references: [id])
+  versions QuestionVersion[]
+
+  @@map("questions")
+}
+
+model QuestionVersion {
+  id         String  @id @default(uuid()) @db.Uuid
+  questionId String  @map("question_id") @db.Uuid
+  version    Int
+  prompt     Json
+  answerKey  Json?   @map("answer_key")
+  marks      Decimal @default(1) @db.Decimal(6, 2)
+
+  question Question         @relation(fields: [questionId], references: [id])
+  options  QuestionOption[]
+  answers  AttemptAnswer[]
+
+  @@unique([questionId, version])
+  @@map("question_versions")
+}
+
+model QuestionOption {
+  id                String  @id @default(uuid()) @db.Uuid
+  questionVersionId String  @map("question_version_id") @db.Uuid
+  label             String
+  isCorrect         Boolean @default(false) @map("is_correct")
+  sequence          Int     @default(0)
+
+  questionVersion QuestionVersion @relation(fields: [questionVersionId], references: [id])
+
+  @@map("question_options")
+}
+
+model AssessmentAttempt {
+  id                  String        @id @default(uuid()) @db.Uuid
+  assessmentId        String        @map("assessment_id") @db.Uuid
+  assessmentVersionId String        @map("assessment_version_id") @db.Uuid
+  studentId           String        @map("student_id") @db.Uuid
+  enrollmentId        String?       @map("enrollment_id") @db.Uuid
+  attemptNumber       Int           @map("attempt_number")
+  startedAt           DateTime?     @map("started_at")
+  submittedAt         DateTime?     @map("submitted_at")
+  status              AttemptStatus @default(NOT_STARTED)
+  rawScore            Decimal?      @map("raw_score") @db.Decimal(6, 2)
+  maxScore            Decimal?      @map("max_score") @db.Decimal(6, 2)
+  bandScore           Decimal?      @map("band_score") @db.Decimal(3, 1)
+  revision            Int           @default(0)
+  expiresAt           DateTime?     @map("expires_at")
+  percent             Decimal?      @db.Decimal(5, 2)
+
+  assessment   Assessment        @relation(fields: [assessmentId], references: [id])
+  version      AssessmentVersion @relation(fields: [assessmentVersionId], references: [id])
+  student      StudentProfile    @relation(fields: [studentId], references: [id])
+  enrollment   Enrollment?       @relation(fields: [enrollmentId], references: [id])
+  answers      AttemptAnswer[]
+  rubricScores RubricScore[]
+
+  @@unique([assessmentId, studentId, attemptNumber])
+  @@index([studentId, status])
+  @@map("assessment_attempts")
+}
+
+model AttemptAnswer {
+  id                String   @id @default(uuid()) @db.Uuid
+  attemptId         String   @map("attempt_id") @db.Uuid
+  questionVersionId String   @map("question_version_id") @db.Uuid
+  answer            Json
+  revision          Int      @default(0)
+  isCorrect         Boolean? @map("is_correct")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  attempt         AssessmentAttempt @relation(fields: [attemptId], references: [id])
+  questionVersion QuestionVersion   @relation(fields: [questionVersionId], references: [id])
+
+  @@unique([attemptId, questionVersionId])
+  @@map("attempt_answers")
+}
+
+model Rubric {
+  id       String            @id @default(uuid()) @db.Uuid
+  name     String
+  skill    String
+  version  Int               @default(1)
+  criteria RubricCriterion[]
+  assignments Assignment[]
+
+  @@map("rubrics")
+}
+
+model RubricCriterion {
+  id       String @id @default(uuid()) @db.Uuid
+  rubricId String @map("rubric_id") @db.Uuid
+  name     String
+  sequence Int    @default(0)
+
+  rubric Rubric        @relation(fields: [rubricId], references: [id])
+  scores RubricScore[]
+
+  @@map("rubric_criteria")
+}
+
+model RubricScore {
+  id           String   @id @default(uuid()) @db.Uuid
+  attemptId    String?  @map("attempt_id") @db.Uuid
+  submissionId String?  @map("submission_id") @db.Uuid
+  feedbackId   String?  @map("feedback_id") @db.Uuid
+  criterionId  String   @map("criterion_id") @db.Uuid
+  score        Decimal  @db.Decimal(3, 1)
+  comment      String?
+  gradedBy     String   @map("graded_by") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  attempt    AssessmentAttempt? @relation(fields: [attemptId], references: [id])
+  submission Submission?        @relation(fields: [submissionId], references: [id])
+  feedback   SubmissionFeedback? @relation(fields: [feedbackId], references: [id])
+  criterion  RubricCriterion    @relation(fields: [criterionId], references: [id])
+
+  @@map("rubric_scores")
+}
+
+model BandConversionTable {
+  id            String   @id @default(uuid()) @db.Uuid
+  testType      String   @map("test_type")
+  rawMin        Int      @map("raw_min")
+  rawMax        Int      @map("raw_max")
+  band          Decimal  @db.Decimal(3, 1)
+  version       Int      @default(1)
+  effectiveDate DateTime @map("effective_date") @db.Date
+
+  @@map("band_conversion_tables")
+}
+
+model Assignment {
+  id            String    @id @default(uuid()) @db.Uuid
+  contentItemId String    @unique @map("content_item_id") @db.Uuid
+  instructions  String?
+  dueAt         DateTime? @map("due_at")
+  skill         String    @default("WRITING")
+  rubricId      String?   @map("rubric_id") @db.Uuid
+  minWords      Int?      @map("min_words")
+
+  contentItem ContentItem  @relation(fields: [contentItemId], references: [id])
+  rubric      Rubric?      @relation(fields: [rubricId], references: [id])
+  submissions Submission[]
+
+  @@map("assignments")
+}
+
+model Submission {
+  id           String   @id @default(uuid()) @db.Uuid
+  assignmentId String   @map("assignment_id") @db.Uuid
+  studentId    String   @map("student_id") @db.Uuid
+  body         String?
+  fileKey      String?  @map("file_key")
+  status       String   @default("SUBMITTED")
+  revision     Int      @default(1)
+  submittedAt  DateTime @default(now()) @map("submitted_at")
+  enrollmentId String?  @map("enrollment_id") @db.Uuid
+  wordCount    Int?     @map("word_count")
+  fileMime     String?  @map("file_mime")
+  late         Boolean  @default(false)
+  gradedAt     DateTime? @map("graded_at")
+  finalBand    Decimal? @map("final_band") @db.Decimal(3, 1)
+
+  assignment   Assignment           @relation(fields: [assignmentId], references: [id])
+  student      StudentProfile       @relation(fields: [studentId], references: [id])
+  enrollment   Enrollment?          @relation(fields: [enrollmentId], references: [id])
+  feedback     SubmissionFeedback[]
+  rubricScores RubricScore[]
+
+  @@map("submissions")
+}
+
+model SubmissionFeedback {
+  id           String   @id @default(uuid()) @db.Uuid
+  submissionId String   @map("submission_id") @db.Uuid
+  mentorId     String   @map("mentor_id") @db.Uuid
+  comment      String?
+  finalBand    Decimal? @map("final_band") @db.Decimal(3, 1)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  submission   Submission    @relation(fields: [submissionId], references: [id])
+  rubricScores RubricScore[]
+
+  @@map("submission_feedback")
+}
+
+// ───────── Live ─────────
+model LiveSession {
+  id           String   @id @default(uuid()) @db.Uuid
+  batchId      String   @map("batch_id") @db.Uuid
+  mentorId     String?  @map("mentor_id") @db.Uuid
+  topic        String
+  startsAt     DateTime @map("starts_at")
+  endsAt       DateTime @map("ends_at")
+  provider     String?
+  meetingUrl   String?  @map("meeting_url")
+  recordingUrl String?  @map("recording_url")
+
+  batch      Batch          @relation(fields: [batchId], references: [id])
+  mentor     MentorProfile? @relation(fields: [mentorId], references: [id])
+  attendance Attendance[]
+
+  @@index([batchId, startsAt])
+  @@map("live_sessions")
+}
+
+model Attendance {
+  id              String            @id @default(uuid()) @db.Uuid
+  sessionId       String            @map("session_id") @db.Uuid
+  studentId       String            @map("student_id") @db.Uuid
+  status          SessionAttendance
+  joinedAt        DateTime?         @map("joined_at")
+  leftAt          DateTime?         @map("left_at")
+  minutesAttended Int?              @map("minutes_attended")
+  markedBy        String?           @map("marked_by") @db.Uuid
+
+  session LiveSession    @relation(fields: [sessionId], references: [id])
+  student StudentProfile @relation(fields: [studentId], references: [id])
+
+  @@unique([sessionId, studentId])
+  @@map("attendance")
+}
+
+// ───────── Ops ─────────
+model Notification {
+  id        String              @id @default(uuid()) @db.Uuid
+  userId    String              @map("user_id") @db.Uuid
+  channel   NotificationChannel @default(IN_APP)
+  type      String
+  title     String
+  body      String?
+  readAt    DateTime?           @map("read_at")
+  dedupeKey String?             @map("dedupe_key")
+  createdAt DateTime            @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+model NotificationPreference {
+  userId  String              @map("user_id") @db.Uuid
+  type    String
+  channel NotificationChannel
+  enabled Boolean             @default(true)
+
+  @@id([userId, type, channel])
+  @@map("notification_preferences")
+}
+
+model SupportTicket {
+  id          String         @id @default(uuid()) @db.Uuid
+  studentId   String         @map("student_id") @db.Uuid
+  category    TicketCategory
+  priority    String         @default("NORMAL")
+  subject     String
+  description String
+  status      TicketStatus   @default(OPEN)
+  assignedTo  String?        @map("assigned_to") @db.Uuid
+  createdAt   DateTime       @default(now()) @map("created_at")
+  resolvedAt  DateTime?      @map("resolved_at")
+
+  user     User            @relation(fields: [studentId], references: [id])
+  messages TicketMessage[]
+
+  @@index([status, createdAt])
+  @@map("support_tickets")
+}
+
+model TicketMessage {
+  id        String   @id @default(uuid()) @db.Uuid
+  ticketId  String   @map("ticket_id") @db.Uuid
+  authorId  String   @map("author_id") @db.Uuid
+  body      String
+  internal  Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id])
+
+  @@index([ticketId, createdAt])
+  @@map("ticket_messages")
+}
+
+model Certificate {
+  id           String   @id @default(uuid()) @db.Uuid
+  enrollmentId String   @unique @map("enrollment_id") @db.Uuid
+  studentId    String   @map("student_id") @db.Uuid
+  code         String   @unique
+  studentName  String   @map("student_name")
+  courseTitle  String   @map("course_title")
+  issuedAt     DateTime @default(now()) @map("issued_at")
+
+  enrollment Enrollment     @relation(fields: [enrollmentId], references: [id])
+  student    StudentProfile @relation(fields: [studentId], references: [id])
+
+  @@index([studentId])
+  @@map("certificates")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String?  @map("user_id") @db.Uuid
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String?  @map("entity_id")
+  beforeJson Json?    @map("before_json")
+  afterJson  Json?    @map("after_json")
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}
+
+model StudentTimelineEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  studentId String   @map("student_id") @db.Uuid
+  type      String
+  summary   String
+  meta      Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  student StudentProfile @relation(fields: [studentId], references: [id])
+
+  @@index([studentId, createdAt])
+  @@map("student_timeline_events")
+}

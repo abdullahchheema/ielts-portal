@@ -1,0 +1,32 @@
+{
+  "name": "ielts-portal",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run build:packages && concurrently --kill-others-on-fail -n api,web -c blue,green \"npm run dev -w @ielts/api\" \"npm run dev -w @ielts/web\"",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "db:migrate": "npm run migrate --workspace @ielts/db",
+    "db:seed": "npm run seed --workspace @ielts/db",
+    "build:packages": "npm run build -w @ielts/types -w @ielts/config -w @ielts/validation -w @ielts/db",
+    "typecheck": "npx tsc --noEmit -p apps/api/tsconfig.json && npm run lint -w @ielts/web",
+    "db:reset": "npm run reset -w @ielts/db",
+    "db:seed:demo": "npm run seed:demo -w @ielts/db"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "concurrently": "^10.0.5",
+    "prettier": "^3.3.0",
+    "turbo": "^2.3.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "npm@11.13.0"
+}
