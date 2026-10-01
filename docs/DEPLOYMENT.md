@@ -72,8 +72,8 @@ To run them on one instance only, set `DISABLE_SWEEPER=true` on the others.
 
 ## Deploying on Vercel (one project)
 
-The NestJS backend runs inside the Next.js app:  starts it on a private loopback port and forwards  to it, so there is a single Vercel project.
+The NestJS backend runs inside the Next.js app: `apps/web/src/app/api/[...path]/route.ts` starts it on a private loopback port and forwards `/api/*` to it, so there is a single Vercel project.
 
-1. Import the repo, set **Root Directory** to  and the framework preset to **Next.js**.  holds the install/build commands and the daily cron.
-2. Environment variables: , , , ,  (the site's own URL), , , , and the five  variables (Supabase Storage S3 works). Local disk storage does not work on Vercel. Do **not** set  (setting it makes the site use that external server instead).
+1. Import the repo, set **Root Directory** to `apps/web` and the framework preset to **Next.js**. `apps/web/vercel.json` holds the install/build commands and the daily cron.
+2. Environment variables: `DATABASE_URL`, `DIRECT_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `APP_URL` (the site's own URL), `NODE_ENV=production`, `CRON_SECRET`, `TWO_FACTOR_ENABLED`, and the five `S3_*` variables (Supabase Storage S3 works). Local disk storage does not work on Vercel. Do **not** set `API_URL` (setting it makes the site use that external server instead).
 3. Limits on Vercel: request bodies max about 4.5 MB (receipts are limited to 4 MB; long speaking recordings may fail); the periodic sweep (enrollment expiry, reminders, auto-submit of timed tests) runs once a day via cron on the Hobby plan.
