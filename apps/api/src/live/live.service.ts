@@ -45,7 +45,11 @@ export class LiveService {
     });
     // Tell enrolled students (in-app; best effort).
     const students = await this.prisma.enrollment.findMany({ where: { batchId, status: 'ACTIVE', deletedAt: null }, select: { student: { select: { userId: true } } } });
-    for (const e of students) await this.notify.notifyUser(e.student.userId, 'SESSION_SCHEDULED', 'New live class', `${input.topic} — ${new Date(input.startsAt).toUTCString()} (${batch.name})`);
+    for (const e of students) {
+      await this.notify.notifyUser(e.student.userId, 'SESSION_SCHEDULED', 'New live class', `${input.topic} — ${new Date(input.startsAt).toUTCString()} (${batch.name})`, {
+        entityType: 'SESSION', entityId: session.id, link: '/student/schedule',
+      });
+    }
     return session;
   }
 

@@ -20,7 +20,9 @@ export class SupportService {
   // ───────── student ─────────
   async create(userId: string, input: TicketCreateInput) {
     const t = await this.prisma.supportTicket.create({ data: { studentId: userId, category: input.category, subject: input.subject, description: input.description, priority: input.priority } });
-    await this.notify.notifyPermission('ticket.manage', 'TICKET_OPENED', 'New support ticket', `${input.category}: ${input.subject}`);
+    await this.notify.notifyPermission('ticket.manage', 'TICKET_OPENED', 'New support ticket', `${input.category}: ${input.subject}`, {
+      entityType: 'TICKET', entityId: t.id, link: `/admin/tickets/${t.id}`,
+    });
     return t;
   }
 
@@ -42,7 +44,9 @@ export class SupportService {
       await tx.ticketMessage.create({ data: { ticketId: id, authorId: userId, body: input.body } });
       if (t.status === 'WAITING_FOR_STUDENT' || t.status === 'RESOLVED') await tx.supportTicket.update({ where: { id }, data: { status: 'OPEN', resolvedAt: null } });
     });
-    await this.notify.notifyPermission('ticket.manage', 'TICKET_REPLY', 'Student replied to a ticket', t.subject);
+    await this.notify.notifyPermission('ticket.manage', 'TICKET_REPLY', 'Student replied to a ticket', t.subject, {
+      entityType: 'TICKET', entityId: id, link: `/admin/tickets/${id}`,
+    });
     return { ok: true };
   }
 
@@ -83,7 +87,9 @@ export class SupportService {
       await tx.ticketMessage.create({ data: { ticketId: id, authorId: actor.userId, body: input.body, internal: input.internal } });
       if (!input.internal && (t.status === 'OPEN' || t.status === 'IN_PROGRESS')) await tx.supportTicket.update({ where: { id }, data: { status: 'WAITING_FOR_STUDENT' } });
     });
-    if (!input.internal) await this.notify.notifyUser(t.studentId, 'TICKET_REPLY', `Support replied: ${t.subject}`, input.body.slice(0, 500), { email: true });
+    if (!input.internal) await this.notify.notifyUser(t.studentId, 'TICKET_REPLY', `Support replied: ${t.subject}`, input.body.slice(0, 500), {
+      email: true, entityType: 'TICKET', entityId: id, link: `/student/support/${id}`,
+    });
     return { ok: true };
   }
 }

@@ -3,6 +3,7 @@ import { ContentType, Enrollment, Prisma, ProgressStatus } from '@ielts/db';
 import { z } from 'zod';
 import { studentProfileSchema } from '@ielts/validation';
 import { AppError, notFound } from '../common/app-error';
+import { ieltsSummary } from '../common/ielts';
 import { StorageService } from '../integrations/storage.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReleaseState, evaluateRelease, progressPercent } from './release';
@@ -354,6 +355,7 @@ export class LearningService {
       profile: {
         firstName: profile.firstName, lastName: profile.lastName, currentBand: profile.currentBand, targetBand: profile.targetBand,
         ieltsExamDate: profile.ieltsExamDate, academicOrGeneral: profile.academicOrGeneral,
+        ielts: ieltsSummary(profile),
       },
       overallProgressPercent: overall, courses, pendingOrders,
     };
@@ -362,15 +364,40 @@ export class LearningService {
   async getProfile(studentId: string) {
     const p = await this.prisma.studentProfile.findUniqueOrThrow({ where: { id: studentId }, include: { user: { select: { email: true, phone: true } } } });
     const { user, ...rest } = p;
-    return { ...rest, email: user.email, phone: user.phone };
+    return { ...rest, email: user.email, phone: user.phone, ielts: ieltsSummary(p) };
   }
 
   async updateProfile(studentId: string, input: z.infer<typeof studentProfileSchema>) {
-    const { ieltsExamDate, phone, ...rest } = input;
+    const { ieltsExamDate, ieltsTestDate, dateOfBirth, phone, ieltsHistory, ieltsOverall, ...rest } = input;
     return this.prisma.$transaction(async (tx) => {
+      // Mirror the deprecated currentBand field from the new ielts* fields so existing band
+      // charts/reports keep working: TAKEN -> currentBand = overall, NEVER -> currentBand = null.
+      const bandMirror =
+        ieltsHistory === 'NEVER'
+          ? {
+              currentBand: null,
+              ieltsOverall: null,
+              ieltsListening: null,
+              ieltsReading: null,
+              ieltsWriting: null,
+              ieltsSpeaking: null,
+              ieltsTestDate: null,
+              ieltsAttempts: null,
+            }
+          : ieltsHistory === 'TAKEN' && ieltsOverall !== undefined
+            ? { currentBand: ieltsOverall }
+            : {};
       const profile = await tx.studentProfile.update({
         where: { id: studentId },
-        data: { ...rest, ...(ieltsExamDate ? { ieltsExamDate: new Date(ieltsExamDate) } : {}) },
+        data: {
+          ...rest,
+          ...(ieltsHistory !== undefined ? { ieltsHistory } : {}),
+          ...(ieltsOverall !== undefined ? { ieltsOverall } : {}),
+          ...bandMirror,
+          ...(ieltsExamDate ? { ieltsExamDate: new Date(ieltsExamDate) } : {}),
+          ...(ieltsTestDate ? { ieltsTestDate: new Date(ieltsTestDate) } : {}),
+          ...(dateOfBirth ? { dateOfBirth: new Date(dateOfBirth) } : {}),
+        },
       });
       if (phone) await tx.user.update({ where: { id: profile.userId }, data: { phone } });
       return profile;

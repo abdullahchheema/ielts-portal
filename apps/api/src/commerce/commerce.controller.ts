@@ -97,6 +97,9 @@ export class AdminCommerceController {
     return this.applications.reject(id, body, actor(u, req));
   }
 
+  @RequirePermission('payment.view') @Get('payments/:id')
+  payment(@Param('id', uuid) id: string) { return this.applications.paymentDetail(id); }
+
   @RequirePermission('payment.view') @Get('orders')
   orders(@Query(new ZodPipe(ordersQuery)) q: z.infer<typeof ordersQuery>) { return this.enrollments.listOrders(q.status); }
 

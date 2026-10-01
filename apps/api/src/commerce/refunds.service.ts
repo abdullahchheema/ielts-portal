@@ -48,7 +48,9 @@ export class RefundsService {
       await tx.paymentEvent.create({ data: { paymentId: payment.id, type: 'REFUND_REQUESTED', actorId: user.userId, payload: { refundId: r.id, reason } } });
       return r;
     });
-    await this.notify.notifyPermission('payment.refund', 'REFUND_REQUESTED', 'Refund request', `Order ${order.reference}: ${reason.slice(0, 120)}`);
+    await this.notify.notifyPermission('payment.refund', 'REFUND_REQUESTED', 'Refund request', `Order ${order.reference}: ${reason.slice(0, 120)}`, {
+      entityType: 'REFUND', entityId: refund.id, link: `/admin/refunds?open=${refund.id}`,
+    });
     return { id: refund.id, status: refund.status, amount: refund.amount };
   }
 
@@ -100,7 +102,9 @@ export class RefundsService {
       await this.audit.record({ ...actor, action: 'ADMIN_ISSUED_REFUND', entityType: 'Refund', entityId: refundId, before: { status: r.status }, after: { status: 'PROCESSED', amount: r.amount.toString(), full, providerReference: input.providerReference } }, tx);
       return { userId: order.student.userId, reference: order.reference, amount: r.amount.toString(), full };
     });
-    await this.notify.notifyUser(info.userId, 'REFUND_PROCESSED', 'Your refund has been sent', `Order ${info.reference}: ${info.amount} has been refunded to your bank account.${info.full ? ' Your course access has ended.' : ''}`, { email: true });
+    await this.notify.notifyUser(info.userId, 'REFUND_PROCESSED', 'Your refund has been sent', `Order ${info.reference}: ${info.amount} has been refunded to your bank account.${info.full ? ' Your course access has ended.' : ''}`, {
+      email: true, entityType: 'REFUND', entityId: refundId, link: '/student/application',
+    });
     return { ok: true };
   }
 
@@ -113,7 +117,9 @@ export class RefundsService {
       await this.audit.record({ ...actor, action: 'ADMIN_REJECTED_REFUND', entityType: 'Refund', entityId: refundId, after: { note: input.note } }, tx);
       return { userId: r.payment.order.student.userId, reference: r.payment.order.reference };
     });
-    await this.notify.notifyUser(info.userId, 'REFUND_REJECTED', 'Your refund request was declined', `Order ${info.reference}: ${input.note}`, { email: true });
+    await this.notify.notifyUser(info.userId, 'REFUND_REJECTED', 'Your refund request was declined', `Order ${info.reference}: ${input.note}`, {
+      email: true, entityType: 'REFUND', entityId: refundId, link: '/student/application',
+    });
     return { ok: true };
   }
 }

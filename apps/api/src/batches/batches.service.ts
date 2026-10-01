@@ -5,8 +5,10 @@ import type { AssignMentorInput, CreateBatchInput, CreateMentorInput, UpdateBatc
 import { AuditService } from '../audit/audit.service';
 import { randomToken, sha256 } from '../auth/tokens';
 import { AppError, conflict, forbidden, notFound } from '../common/app-error';
+import { ieltsSummary } from '../common/ielts';
 import { APP_CONFIG, AppConfig } from '../config/config.module';
 import { MailService } from '../integrations/mail.service';
+import { StorageService } from '../integrations/storage.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UserContextService } from '../roles/user-context.service';
 import { getMainCourse } from '../courses/main-course';
@@ -32,6 +34,7 @@ export class BatchesService {
     private readonly audit: AuditService,
     private readonly mail: MailService,
     private readonly ctx: UserContextService,
+    private readonly storage: StorageService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
@@ -224,7 +227,8 @@ export class BatchesService {
     });
   }
 
-  async createMentor(input: CreateMentorInput, actor: Actor) {
+  /** `applicationId` links the created MentorProfile back to the TeacherApplication that produced it (teacher-applications approve flow). */
+  async createMentor(input: CreateMentorInput, actor: Actor, applicationId?: string) {
     const exists = await this.prisma.user.findUnique({ where: { email: input.email } });
     if (exists) throw new AppError('EMAIL_ALREADY_REGISTERED', 409, 'An account with this email already exists.');
 
@@ -237,7 +241,7 @@ export class BatchesService {
         data: {
           email: input.email, passwordHash, status: 'ACTIVE', emailVerifiedAt: new Date(),
           roles: { create: { roleId: role.id } },
-          mentor: { create: { displayName: input.displayName, bio: input.bio, specializations: input.specializations } },
+          mentor: { create: { displayName: input.displayName, bio: input.bio, specializations: input.specializations, applicationId } },
         },
         include: { mentor: true },
       });
@@ -252,6 +256,31 @@ export class BatchesService {
     const link = `${this.config.APP_URL}/reset-password?token=${resetToken}`;
     await this.mail.send(input.email, 'You have been added as a mentor', `<p>Hello ${input.displayName}, your mentor account is ready. Set your password here (valid 7 days):</p><p><a href="${link}">${link}</a></p>`);
     return mentor;
+  }
+
+  /** Teacher profile detail: the mentor record plus its linked application (if any) and the application's children. */
+  async mentorDetail(mentorId: string) {
+    const mentor = await this.prisma.mentorProfile.findUnique({
+      where: { id: mentorId },
+      include: {
+        user: { select: { id: true, email: true, phone: true, status: true, createdAt: true, lastLoginAt: true } },
+        batches: { include: { batch: { select: { id: true, name: true, status: true } } } },
+        application: {
+          include: {
+            educations: true, experiences: true, certifications: true, references: true,
+            documents: { orderBy: { createdAt: 'desc' } },
+          },
+        },
+      },
+    });
+    if (!mentor) throw notFound('Mentor');
+    const application = mentor.application
+      ? {
+          ...mentor.application,
+          documents: await Promise.all(mentor.application.documents.map(async (d) => ({ ...d, fileUrl: await this.storage.signedUrl(d.fileKey, 300) }))),
+        }
+      : null;
+    return { ...mentor, application };
   }
 
   // ───────── teacher portal (scoped to assigned batches) ─────────
@@ -289,7 +318,15 @@ export class BatchesService {
     await this.assertBatchAccess(batchId, user);
     const enrollments = await this.prisma.enrollment.findMany({
       where: { batchId, deletedAt: null, status: { in: ['ACTIVE', 'PAUSED', 'COMPLETED'] } },
-      select: { studentId: true, progressPercent: true, student: { select: { firstName: true, lastName: true, targetBand: true } } },
+      select: {
+        studentId: true, progressPercent: true,
+        student: {
+          select: {
+            firstName: true, lastName: true, targetBand: true,
+            ieltsHistory: true, ieltsOverall: true, ieltsListening: true, ieltsReading: true, ieltsWriting: true, ieltsSpeaking: true, ieltsTestDate: true, ieltsAttempts: true,
+          },
+        },
+      },
       orderBy: { enrolledAt: 'asc' },
     });
     const ids = enrollments.map((e) => e.studentId);
@@ -319,6 +356,7 @@ export class BatchesService {
       const lastMock = mocks[mocks.length - 1];
       return {
         studentId: e.studentId, name: `${e.student.firstName} ${e.student.lastName}`, targetBand: e.student.targetBand === null ? null : Number(e.student.targetBand),
+        ielts: ieltsSummary(e.student),
         progressPercent: Number(e.progressPercent), skills,
         lastMock: lastMock ? { title: lastMock.assessment.title, percent: lastMock.percent === null ? null : Number(lastMock.percent), at: lastMock.submittedAt } : null,
       };

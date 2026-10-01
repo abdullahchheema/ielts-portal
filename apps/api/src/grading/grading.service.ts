@@ -5,6 +5,7 @@ import type { AssignmentSettingsInput, DraftInput, GradeInput } from '@ielts/val
 import { roundIeltsBand } from '../assessments/grading';
 import { AuditService } from '../audit/audit.service';
 import { AppError, forbidden, notFound } from '../common/app-error';
+import { ieltsSummary } from '../common/ielts';
 import { Actor } from '../courses/courses.service';
 import { StorageService, sniffFileType } from '../integrations/storage.service';
 import { LearningService } from '../learning/learning.service';
@@ -132,7 +133,9 @@ export class GradingService {
     const roles = a.skill === 'WRITING' ? ['MAIN', 'WRITING'] : ['MAIN', 'SPEAKING'];
     const mentors = await this.prisma.batchMentor.findMany({ where: { batchId, mentorRole: { in: roles as never } }, include: { mentor: { select: { userId: true } } } });
     for (const uid of new Set(mentors.map((m) => m.mentor.userId))) {
-      await this.notify.notifyUser(uid, 'SUBMISSION_RECEIVED', 'New submission to grade', `A student submitted a ${a.skill.toLowerCase()} task.`);
+      await this.notify.notifyUser(uid, 'SUBMISSION_RECEIVED', 'New submission to grade', `A student submitted a ${a.skill.toLowerCase()} task.`, {
+        entityType: 'SUBMISSION', entityId: submissionId, link: `/teacher/grading/${submissionId}`,
+      });
     }
   }
 
@@ -156,7 +159,12 @@ export class GradingService {
   private detailInclude() {
     return {
       assignment: { include: { contentItem: { select: { title: true } }, rubric: { include: { criteria: { orderBy: { sequence: 'asc' as const } } } } } },
-      student: { select: { firstName: true, lastName: true, currentBand: true, targetBand: true } },
+      student: {
+        select: {
+          firstName: true, lastName: true, currentBand: true, targetBand: true,
+          ieltsHistory: true, ieltsOverall: true, ieltsListening: true, ieltsReading: true, ieltsWriting: true, ieltsSpeaking: true, ieltsTestDate: true, ieltsAttempts: true,
+        },
+      },
       feedback: { orderBy: { createdAt: 'desc' as const }, include: { rubricScores: { include: { criterion: { select: { name: true, sequence: true } } } } } },
     } satisfies Prisma.SubmissionInclude;
   }
@@ -206,7 +214,7 @@ export class GradingService {
       audioUrl: s.fileKey ? await this.storage.signedUrl(s.fileKey, 600) : null, finalBand: s.finalBand === null ? null : Number(s.finalBand), gradedAt: s.gradedAt,
       assignment: { id: s.assignment.id, title: s.assignment.contentItem.title, skill: s.assignment.skill, instructions: s.assignment.instructions, minWords: s.assignment.minWords },
       rubric: rubric ? { id: rubric.id, name: rubric.name, criteria: rubric.criteria.map((c) => ({ id: c.id, name: c.name })) } : null,
-      student: forStudent ? undefined : { name: `${s.student.firstName} ${s.student.lastName}`, currentBand: s.student.currentBand === null ? null : Number(s.student.currentBand), targetBand: s.student.targetBand === null ? null : Number(s.student.targetBand) },
+      student: forStudent ? undefined : { name: `${s.student.firstName} ${s.student.lastName}`, currentBand: s.student.currentBand === null ? null : Number(s.student.currentBand), targetBand: s.student.targetBand === null ? null : Number(s.student.targetBand), ielts: ieltsSummary(s.student) },
       feedback, // newest first; older gradings are kept as history
     };
   }
@@ -241,7 +249,9 @@ export class GradingService {
       await this.audit.record({ ...actor, action: s.status === 'GRADED' ? 'MENTOR_CHANGED_GRADE' : 'MENTOR_GRADED_SUBMISSION', entityType: 'Submission', entityId: id, before, after: { finalBand: band, scores: input.scores.map((x) => x.score) } }, tx);
       return { studentUserId: s.student.userId, title: s.assignment.contentItem.title, band };
     });
-    await this.notify.notifyUser(info.studentUserId, 'SUBMISSION_GRADED', 'Your work has been graded', `“${info.title}”: Band ${info.band.toFixed(1)}. Open it to read your mentor’s feedback.`, { email: true });
+    await this.notify.notifyUser(info.studentUserId, 'SUBMISSION_GRADED', 'Your work has been graded', `“${info.title}”: Band ${info.band.toFixed(1)}. Open it to read your mentor’s feedback.`, {
+      email: true, entityType: 'SUBMISSION', entityId: id, link: `/student/submissions/${id}`,
+    });
     return this.detail(r, id);
   }
 }

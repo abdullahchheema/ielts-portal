@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Global, HttpCode, Injectable, Logger, Module, Post } from '@nestjs/common';
+import { Body, Controller, Get, Global, HttpCode, Injectable, Logger, Module, Param, Post } from '@nestjs/common';
 import { Prisma } from '@ielts/db';
 import { z } from 'zod';
 import { AuthUser, CurrentUser } from '../common/decorators';
@@ -21,7 +21,10 @@ export class NotificationsService {
   /** Latest in-app notifications plus the unread count. */
   async feed(userId: string) {
     const [items, unread] = await Promise.all([
-      this.prisma.notification.findMany({ where: { userId, channel: 'IN_APP' }, orderBy: { createdAt: 'desc' }, take: 30, select: { id: true, type: true, title: true, body: true, readAt: true, createdAt: true } }),
+      this.prisma.notification.findMany({
+        where: { userId, channel: 'IN_APP' }, orderBy: { createdAt: 'desc' }, take: 30,
+        select: { id: true, type: true, title: true, body: true, readAt: true, createdAt: true, entityType: true, entityId: true, link: true },
+      }),
       this.prisma.notification.count({ where: { userId, channel: 'IN_APP', readAt: null } }),
     ]);
     return { unread, items };
@@ -47,6 +50,12 @@ export class NotificationsService {
     return { updated: r.count };
   }
 
+  /** Marks a single notification read. Verifies ownership so a user can never mark someone else's row. */
+  async markOneRead(userId: string, id: string) {
+    const r = await this.prisma.notification.updateMany({ where: { id, userId, readAt: null }, data: { readAt: new Date() } });
+    return { updated: r.count };
+  }
+
   /**
    * Creates an in-app notification (and optionally an email).
    *  - `dedupeKey`: sending the same key to the same user twice is a no-op (returns false) — reminders rely on this.
@@ -55,7 +64,7 @@ export class NotificationsService {
    */
   async notifyUser(
     userId: string, type: string, title: string, body?: string,
-    opts: { email?: boolean; dedupeKey?: string; optional?: boolean } = {}, db: Db = this.prisma,
+    opts: { email?: boolean; dedupeKey?: string; optional?: boolean; entityType?: string; entityId?: string; link?: string } = {}, db: Db = this.prisma,
   ): Promise<boolean> {
     try {
       let showInApp = true;
@@ -69,7 +78,12 @@ export class NotificationsService {
       if (!showInApp && !sendEmail) return false;
       try {
         // The row doubles as the de-duplication anchor; when in-app is switched off it is stored as an EMAIL-channel record so the bell hides it.
-        await db.notification.create({ data: { userId, type, title, body, channel: showInApp ? 'IN_APP' : 'EMAIL', dedupeKey: opts.dedupeKey } });
+        await db.notification.create({
+          data: {
+            userId, type, title, body, channel: showInApp ? 'IN_APP' : 'EMAIL', dedupeKey: opts.dedupeKey,
+            entityType: opts.entityType, entityId: opts.entityId, link: opts.link,
+          },
+        });
       } catch (e) {
         if ((e as { code?: string }).code === 'P2002') return false; // already sent
         throw e;
@@ -86,14 +100,19 @@ export class NotificationsService {
   }
 
   /** Notify everyone who holds a permission (e.g. finance staff when a payment proof arrives). */
-  async notifyPermission(permission: string, type: string, title: string, body?: string) {
+  async notifyPermission(
+    permission: string, type: string, title: string, body?: string,
+    opts: { entityType?: string; entityId?: string; link?: string } = {},
+  ) {
     try {
       const users = await this.prisma.user.findMany({
         where: { deletedAt: null, status: 'ACTIVE', roles: { some: { role: { permissions: { some: { permission: { key: permission } } } } } } },
         select: { id: true },
       });
       if (users.length) {
-        await this.prisma.notification.createMany({ data: users.map((u) => ({ userId: u.id, type, title, body, channel: 'IN_APP' as const })) });
+        await this.prisma.notification.createMany({
+          data: users.map((u) => ({ userId: u.id, type, title, body, channel: 'IN_APP' as const, entityType: opts.entityType, entityId: opts.entityId, link: opts.link })),
+        });
       }
     } catch (e) {
       this.logger.warn(`notifyPermission(${type}) failed: ${(e as Error).message}`);
@@ -138,6 +157,9 @@ export class NotificationsController {
 
   @HttpCode(200) @Post('read')
   read(@Body(new ZodPipe(readSchema)) body: { ids?: string[] }, @CurrentUser() u: AuthUser) { return this.notifications.markRead(u.id, body.ids); }
+
+  @HttpCode(200) @Post(':id/read')
+  readOne(@Param('id') id: string, @CurrentUser() u: AuthUser) { return this.notifications.markOneRead(u.id, id); }
 }
 
 @Global()

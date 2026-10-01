@@ -1,9 +1,11 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { EnrollmentBadge, METHOD_TEXT } from '@/components/student';
-import { Alert, Badge, Button, Card, Dialog, Empty, Field, Loading, PageHeader, Textarea } from '@/components/ui';
+import { Alert, Badge, Button, Card, ClickableRow, Dialog, Empty, Field, Loading, PageHeader, Table, Td, Textarea } from '@/components/ui';
+import { TeacherApplicationDetailDialog } from '@/components/TeacherApplicationDetailDialog';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { date, money } from '@/lib/format';
@@ -102,15 +104,23 @@ function ApplicationCard({ a, onChanged }: { a: Application; onChanged: () => vo
   );
 }
 
-export default function ApplicationsPage() {
+interface TeacherAppRow { id: string; fullName: string; email: string; phone: string; city: string | null; status: string; subjects: string[]; submittedAt: string; reviewedAt: string | null }
+interface TeacherAppPage { total: number; counts: { pending: number; approved: number; rejected: number }; items: TeacherAppRow[] }
+const TEACHER_TABS = [['PENDING', 'Pending', 'pending'], ['APPROVED', 'Approved', 'approved'], ['REJECTED', 'Rejected', 'rejected'], ['ALL', 'All', null]] as const;
+
+function StudentApplications({ openId }: { openId: string | null }) {
   const qc = useQueryClient();
   const [status, setStatus] = useState<(typeof TABS)[number][0]>('PENDING');
   const { data, isLoading, isError } = useQuery({ queryKey: ['applications-admin', status], queryFn: () => api<Page>(`/admin/applications?status=${status}&take=50`) });
   const changed = () => { qc.invalidateQueries({ queryKey: ['applications-admin'] }); qc.invalidateQueries({ queryKey: ['admin-dashboard'] }); };
+  const refs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  useEffect(() => {
+    if (openId && refs.current[openId]) refs.current[openId]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [openId, data]);
 
   return (
     <>
-      <PageHeader title="Applications" subtitle="Check each payment, then verify it. Verifying enrolls the student and opens their portal." />
       <div role="tablist" aria-label="Application status" className="mb-4 flex flex-wrap gap-2">
         {TABS.map(([k, l, c]) => (
           <button key={k} role="tab" aria-selected={status === k} onClick={() => setStatus(k)}
@@ -122,8 +132,71 @@ export default function ApplicationsPage() {
       {isLoading && <Loading />}
       {isError && <Alert>Could not load applications.</Alert>}
       {data && (data.items.length === 0 ? <Empty>{status === 'PENDING' ? 'No applications are waiting. You are all caught up.' : 'Nothing here.'}</Empty> : (
-        <div className="space-y-4">{data.items.map((a) => <ApplicationCard key={a.id} a={a} onChanged={changed} />)}</div>
+        <div className="space-y-4">
+          {data.items.map((a) => (
+            <div key={a.id} ref={(el) => { refs.current[a.id] = el; }} className={a.id === openId ? 'rounded-lg ring-2 ring-indigo-500' : undefined}>
+              <ApplicationCard a={a} onChanged={changed} />
+            </div>
+          ))}
+        </div>
       ))}
     </>
   );
+}
+
+function TeacherApplications({ openId }: { openId: string | null }) {
+  const qc = useQueryClient();
+  const [status, setStatus] = useState<(typeof TEACHER_TABS)[number][0]>('PENDING');
+  const [viewId, setViewId] = useState<string | null>(openId);
+  const { data, isLoading, isError } = useQuery({ queryKey: ['teacher-applications-admin', status], queryFn: () => api<TeacherAppPage>(`/admin/teacher-applications?status=${status}`) });
+
+  useEffect(() => { if (openId) setViewId(openId); }, [openId]);
+  const changed = () => qc.invalidateQueries({ queryKey: ['teacher-applications-admin'] });
+
+  return (
+    <>
+      <div role="tablist" aria-label="Teacher application status" className="mb-4 flex flex-wrap gap-2">
+        {TEACHER_TABS.map(([k, l, c]) => (
+          <button key={k} role="tab" aria-selected={status === k} onClick={() => setStatus(k)}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium ${status === k ? 'bg-indigo-600 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50'}`}>
+            {l}{c && data ? ` (${data.counts[c]})` : ''}
+          </button>
+        ))}
+      </div>
+      {isLoading && <Loading />}
+      {isError && <Alert>Could not load teacher applications.</Alert>}
+      {data && (data.items.length === 0 ? <Empty>Nothing here.</Empty> : (
+        <Table head={['Name', 'Email', 'Phone', 'City', 'Subjects', 'Status', 'Submitted']}>
+          {data.items.map((a) => (
+            <ClickableRow key={a.id} onClick={() => setViewId(a.id)} className={a.id === openId ? 'ring-2 ring-inset ring-indigo-500' : undefined}>
+              <Td className="font-medium">{a.fullName}</Td><Td>{a.email}</Td><Td>{a.phone}</Td><Td>{a.city ?? '—'}</Td>
+              <Td>{a.subjects.join(', ') || '—'}</Td><Td><Badge status={a.status} /></Td><Td>{date(a.submittedAt)}</Td>
+            </ClickableRow>
+          ))}
+        </Table>
+      ))}
+      <TeacherApplicationDetailDialog applicationId={viewId} onClose={() => setViewId(null)} onChanged={changed} />
+    </>
+  );
+}
+
+function ApplicationsPageInner() {
+  const params = useSearchParams();
+  const [mode, setMode] = useState<'students' | 'teachers'>(params.get('tab') === 'teachers' ? 'teachers' : 'students');
+  const openId = params.get('open');
+
+  return (
+    <>
+      <PageHeader title="Applications" subtitle="Check each payment, then verify it. Verifying enrolls the student and opens their portal." />
+      <div className="mb-5 inline-flex rounded-md bg-slate-100 p-1 text-sm">
+        <button className={`rounded px-3 py-1.5 font-medium ${mode === 'students' ? 'bg-white shadow-sm' : 'text-slate-600'}`} onClick={() => setMode('students')}>Students</button>
+        <button className={`rounded px-3 py-1.5 font-medium ${mode === 'teachers' ? 'bg-white shadow-sm' : 'text-slate-600'}`} onClick={() => setMode('teachers')}>Teachers</button>
+      </div>
+      {mode === 'students' ? <StudentApplications openId={openId} /> : <TeacherApplications openId={openId} />}
+    </>
+  );
+}
+
+export default function ApplicationsPage() {
+  return <Suspense fallback={<Loading />}><ApplicationsPageInner /></Suspense>;
 }

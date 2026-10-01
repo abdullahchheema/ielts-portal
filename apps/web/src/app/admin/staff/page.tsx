@@ -5,7 +5,8 @@ import { useState } from 'react';
 import { Alert, Badge, Button, Card, Dialog, Field, Input, Loading, PageHeader, Table, Td } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
-import { date, label } from '@/lib/format';
+import { date } from '@/lib/format';
+import { roleLabel } from '@/lib/roles';
 
 interface Staff { id: string; email: string; status: string; lastLoginAt: string | null; mfaEnabled: boolean; roles: string[] }
 interface Role { id: string; name: string; description: string | null; users: number; permissions: string[] }
@@ -17,7 +18,7 @@ function RolePicker({ value, onChange }: { value: string[]; onChange: (v: string
       <legend className="sr-only">Roles</legend>
       {ASSIGNABLE.map((r) => (
         <label key={r} className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={value.includes(r)} onChange={(e) => onChange(e.target.checked ? [...value, r] : value.filter((x) => x !== r))} /> {label(r)}
+          <input type="checkbox" checked={value.includes(r)} onChange={(e) => onChange(e.target.checked ? [...value, r] : value.filter((x) => x !== r))} /> {roleLabel(r)}
         </label>
       ))}
     </fieldset>
@@ -51,7 +52,7 @@ export default function StaffPage() {
           {staff.data.map((s) => (
             <tr key={s.id}>
               <Td className="font-medium">{s.email}</Td>
-              <Td>{s.roles.filter((r) => ASSIGNABLE.includes(r)).map((r) => label(r)).join(', ')}</Td>
+              <Td>{s.roles.filter((r) => ASSIGNABLE.includes(r)).map((r) => roleLabel(r)).join(', ')}</Td>
               <Td>{s.mfaEnabled ? <Badge status="ACTIVE" tone="green" /> : <Badge status="PENDING" tone="amber" />}</Td>
               <Td>{date(s.lastLoginAt, true)}</Td><Td><Badge status={s.status} /></Td>
               <Td><Button variant="ghost" className="!py-1" onClick={() => { setPicked(s.roles.filter((r) => ASSIGNABLE.includes(r))); setError(null); setEdit(s); }}>Edit roles</Button></Td>
@@ -66,7 +67,7 @@ export default function StaffPage() {
           <div className="grid gap-4 md:grid-cols-2">
             {roles.data.filter((r) => ASSIGNABLE.includes(r.name)).map((r) => (
               <Card key={r.id}>
-                <div className="mb-1 flex items-center justify-between"><h3 className="font-medium">{label(r.name)}</h3><span className="text-xs text-slate-500">{r.users} user{r.users === 1 ? '' : 's'}</span></div>
+                <div className="mb-1 flex items-center justify-between"><h3 className="font-medium">{roleLabel(r.name)}</h3><span className="text-xs text-slate-500">{r.users} user{r.users === 1 ? '' : 's'}</span></div>
                 <p className="mb-2 text-sm text-slate-500">{r.description}</p>
                 <p className="flex flex-wrap gap-1">{r.permissions.map((p) => <code key={p} className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">{p}</code>)}</p>
               </Card>

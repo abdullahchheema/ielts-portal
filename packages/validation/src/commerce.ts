@@ -19,20 +19,58 @@ export const applicationPaymentSchema = z.object({
   couponCode: z.preprocess(blank, z.string().trim().toUpperCase().min(2).max(40).optional()),
 });
 
+const optionalInt = (min: number) => z.preprocess(blank, z.coerce.number().int().min(min).optional());
+const optionalDate = z.preprocess(blank, z.string().date().optional());
+
 /** Details for a new student (skipped when the applicant is already signed in). */
-export const applicantSchema = z.object({
-  firstName: z.string().trim().min(1, 'Enter your first name').max(80),
-  lastName: z.string().trim().min(1, 'Enter your last name').max(80),
-  email: z.string().trim().toLowerCase().email('Enter a valid email address').max(254),
-  password: z.string().min(10, 'Use at least 10 characters').max(128).refine((p) => /[A-Za-z]/.test(p) && /\d/.test(p), 'Include a letter and a number'),
-  phone: z.string().trim().min(6, 'Enter a phone number we can reach you on').max(20),
-  city: z.string().trim().min(1, 'Enter your city').max(80),
-  country: z.string().trim().min(1, 'Enter your country').max(80),
-  currentBand: optionalBand,
-  targetBand: optionalBand,
-  testType: z.preprocess(blank, z.enum(['ACADEMIC', 'GENERAL']).optional()),
-  examDate: z.preprocess(blank, z.string().date().optional()),
-});
+export const applicantSchema = z
+  .object({
+    firstName: z.string().trim().min(1, 'Enter your first name').max(80),
+    lastName: z.string().trim().min(1, 'Enter your last name').max(80),
+    email: z.string().trim().toLowerCase().email('Enter a valid email address').max(254),
+    password: z.string().min(10, 'Use at least 10 characters').max(128).refine((p) => /[A-Za-z]/.test(p) && /\d/.test(p), 'Include a letter and a number'),
+    phone: z.string().trim().min(6, 'Enter a phone number we can reach you on').max(20),
+    city: z.string().trim().min(1, 'Enter your city').max(80),
+    country: z.string().trim().min(1, 'Enter your country').max(80),
+    currentBand: optionalBand,
+    targetBand: optionalBand,
+    testType: z.preprocess(blank, z.enum(['ACADEMIC', 'GENERAL']).optional()),
+    examDate: z.preprocess(blank, z.string().date().optional()),
+    ieltsHistory: z.preprocess(blank, z.enum(['NEVER', 'TAKEN']).optional()),
+    ieltsOverall: optionalBand,
+    ieltsListening: optionalBand,
+    ieltsReading: optionalBand,
+    ieltsWriting: optionalBand,
+    ieltsSpeaking: optionalBand,
+    ieltsTestDate: optionalDate,
+    ieltsAttempts: optionalInt(1),
+  })
+  .refine(
+    (v) => {
+      if (v.ieltsHistory === 'NEVER') {
+        return (
+          v.ieltsOverall === undefined &&
+          v.ieltsListening === undefined &&
+          v.ieltsReading === undefined &&
+          v.ieltsWriting === undefined &&
+          v.ieltsSpeaking === undefined &&
+          v.ieltsTestDate === undefined &&
+          v.ieltsAttempts === undefined
+        );
+      }
+      return true;
+    },
+    { message: 'Remove IELTS scores, test date and attempts when you have never taken the test.', path: ['ieltsHistory'] },
+  )
+  .refine(
+    (v) => {
+      if (v.ieltsHistory === 'TAKEN') {
+        return v.ieltsOverall !== undefined;
+      }
+      return true;
+    },
+    { message: 'Enter your overall band score.', path: ['ieltsOverall'] },
+  );
 
 export const approveProofSchema = z.object({
   /** Required when the claimed amount differs from the order total. */

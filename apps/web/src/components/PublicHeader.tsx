@@ -13,6 +13,7 @@ export function PublicHeader() {
           <Link href="/#course" className="hidden text-slate-700 hover:text-indigo-700 sm:inline">The course</Link>
           <Link href="/#batches" className="hidden text-slate-700 hover:text-indigo-700 sm:inline">Batches</Link>
           <Link href="/#how" className="hidden text-slate-700 hover:text-indigo-700 md:inline">How it works</Link>
+          <Link href="/apply-teacher" className="hidden text-slate-700 hover:text-indigo-700 lg:inline">Teach with us</Link>
           {me ? (
             <Link href={homeFor(me as Me)} className="rounded-md bg-indigo-600 px-3.5 py-2 font-medium text-white hover:bg-indigo-700">My portal</Link>
           ) : (

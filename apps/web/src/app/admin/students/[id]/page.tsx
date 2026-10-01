@@ -3,11 +3,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
 import { Alert, Badge, Card, Loading, PageHeader, Table, Td } from '@/components/ui';
+import { IeltsSummary, IeltsSummaryLike } from '@/components/IeltsSummary';
 import { api } from '@/lib/api';
-import { band, date, money } from '@/lib/format';
+import { date, money } from '@/lib/format';
 
 interface Detail {
   id: string; firstName: string; lastName: string; currentBand: string | null; targetBand: string | null; ieltsExamDate: string | null; country: string | null;
+  ielts?: IeltsSummaryLike;
   user: { email: string; phone: string | null; status: string; createdAt: string; lastLoginAt: string | null };
   enrollments: { id: string; status: string; progressPercent: string; course: { title: string }; batch: { name: string } }[];
   orders: { id: string; reference: string; status: string; total: string; currency: string; createdAt: string }[];
@@ -22,10 +24,9 @@ export default function StudentDetailPage() {
   return (
     <>
       <PageHeader title={`${s.firstName} ${s.lastName}`} subtitle={`${s.user.email}${s.user.phone ? ` · ${s.user.phone}` : ''}`} actions={<Badge status={s.user.status} />} />
-      <div className="mb-6 grid gap-4 sm:grid-cols-4">
-        <Card><p className="text-sm text-slate-500">Current</p><p className="text-2xl font-semibold">{band(s.currentBand)}</p></Card>
-        <Card><p className="text-sm text-slate-500">Target</p><p className="text-2xl font-semibold">{band(s.targetBand)}</p></Card>
-        <Card><p className="text-sm text-slate-500">Exam date</p><p className="text-lg font-semibold">{date(s.ieltsExamDate)}</p></Card>
+      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+        <Card><p className="mb-1 text-sm text-slate-500">IELTS</p><IeltsSummary ielts={s.ielts} /></Card>
+        <Card><p className="text-sm text-slate-500">Planned exam date</p><p className="text-lg font-semibold">{date(s.ieltsExamDate)}</p></Card>
         <Card><p className="text-sm text-slate-500">Last login</p><p className="text-lg font-semibold">{date(s.user.lastLoginAt, true)}</p></Card>
       </div>
       <div className="grid gap-6 lg:grid-cols-2">

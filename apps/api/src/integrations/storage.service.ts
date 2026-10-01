@@ -59,7 +59,11 @@ export class StorageService {
     }
     const exp = Math.floor(Date.now() / 1000) + ttlSec;
     const sig = this.sign(key, exp);
-    return `${this.config.API_URL}/files/local?key=${encodeURIComponent(key)}&exp=${exp}&sig=${sig}`;
+    // Relative path (no origin): the browser reaches the API through the Next.js same-origin `/api/*` proxy
+    // (apps/web/src/app/api/[...path]/route.ts). An absolute URL built from API_URL would default to
+    // http://localhost:4000 in production (the single-project Vercel deploy has no separate API host), which
+    // the browser cannot reach — so this must stay relative to resolve correctly in every environment.
+    return `/api/files/local?key=${encodeURIComponent(key)}&exp=${exp}&sig=${sig}`;
   }
 
   // ── local-fallback support (used by FilesController) ──

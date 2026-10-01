@@ -1,19 +1,22 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { date } from '@/lib/format';
 
-interface Item { id: string; type: string; title: string; body: string | null; readAt: string | null; createdAt: string }
+interface Item { id: string; type: string; title: string; body: string | null; readAt: string | null; createdAt: string; entityType?: string | null; entityId?: string | null; link?: string | null }
 interface Feed { unread: number; items: Item[] }
 
 export function NotificationBell() {
   const qc = useQueryClient();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   const { data } = useQuery({ queryKey: ['notifications'], queryFn: () => api<Feed>('/me/notifications'), refetchInterval: 60_000 });
   const readAll = useMutation({ mutationFn: () => api('/me/notifications/read', { method: 'POST', body: {} }), onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications'] }) });
+  const readOne = useMutation({ mutationFn: (id: string) => api(`/me/notifications/${id}/read`, { method: 'POST' }), onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications'] }) });
 
   useEffect(() => {
     if (!open) return;
@@ -22,6 +25,12 @@ export function NotificationBell() {
     document.addEventListener('mousedown', onDoc); document.addEventListener('keydown', onKey);
     return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
   }, [open]);
+
+  function onItemClick(n: Item) {
+    if (!n.readAt) readOne.mutate(n.id);
+    setOpen(false);
+    if (n.link) router.push(n.link);
+  }
 
   const unread = data?.unread ?? 0;
   return (
@@ -36,10 +45,16 @@ export function NotificationBell() {
           <ul className="max-h-96 divide-y divide-slate-100 overflow-auto">
             {!data?.items.length && <li className="px-4 py-6 text-center text-sm text-slate-500">Nothing yet.</li>}
             {data?.items.map((n) => (
-              <li key={n.id} className={'px-4 py-3 text-sm ' + (n.readAt ? '' : 'bg-indigo-50/50')}>
-                <p className="font-medium text-slate-900">{n.title}</p>
-                {n.body && <p className="text-slate-600">{n.body}</p>}
-                <p className="mt-0.5 text-xs text-slate-400">{date(n.createdAt, true)}</p>
+              <li key={n.id}>
+                <button
+                  type="button"
+                  onClick={() => onItemClick(n)}
+                  className={'block w-full px-4 py-3 text-left text-sm hover:bg-slate-50 ' + (n.readAt ? '' : 'bg-indigo-50/50')}
+                >
+                  <p className="font-medium text-slate-900">{n.title}</p>
+                  {n.body && <p className="text-slate-600">{n.body}</p>}
+                  <p className="mt-0.5 text-xs text-slate-400">{date(n.createdAt, true)}</p>
+                </button>
               </li>
             ))}
           </ul>

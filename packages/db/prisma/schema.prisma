@@ -256,6 +256,18 @@ model StudentProfile {
   ieltsExamDate         DateTime? @map("ielts_exam_date") @db.Date
   academicOrGeneral     String?   @map("academic_or_general")
   preferredLearningMode String?   @map("preferred_learning_mode")
+  ieltsHistory          String?   @map("ielts_history")
+  ieltsOverall          Decimal?  @map("ielts_overall") @db.Decimal(3, 1)
+  ieltsListening        Decimal?  @map("ielts_listening") @db.Decimal(3, 1)
+  ieltsReading          Decimal?  @map("ielts_reading") @db.Decimal(3, 1)
+  ieltsWriting          Decimal?  @map("ielts_writing") @db.Decimal(3, 1)
+  ieltsSpeaking         Decimal?  @map("ielts_speaking") @db.Decimal(3, 1)
+  ieltsTestDate         DateTime? @map("ielts_test_date") @db.Date
+  ieltsAttempts         Int?      @map("ielts_attempts")
+  fatherName            String?   @map("father_name")
+  dateOfBirth           DateTime? @map("date_of_birth") @db.Date
+  gender                String?
+  notes                 String?
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
 
@@ -280,13 +292,155 @@ model MentorProfile {
   bio             String?
   specializations String[]
   status          String   @default("ACTIVE")
+  applicationId   String?  @unique @map("application_id") @db.Uuid
   createdAt       DateTime @default(now()) @map("created_at")
 
-  user     User          @relation(fields: [userId], references: [id])
-  batches  BatchMentor[]
-  sessions LiveSession[]
+  user        User                @relation(fields: [userId], references: [id])
+  application TeacherApplication? @relation(fields: [applicationId], references: [id])
+  batches     BatchMentor[]
+  sessions    LiveSession[]
 
   @@map("mentor_profiles")
+}
+
+model TeacherApplication {
+  id                 String    @id @default(uuid()) @db.Uuid
+  status             String    @default("PENDING")
+  fullName           String    @map("full_name")
+  fatherName         String?   @map("father_name")
+  dateOfBirth        DateTime? @map("date_of_birth") @db.Date
+  gender             String?
+  nationality        String?
+  idNumber           String?   @map("id_number")
+  maritalStatus      String?   @map("marital_status")
+  phone              String
+  email              String
+  currentAddress     String?   @map("current_address")
+  permanentAddress   String?   @map("permanent_address")
+  city               String?
+  emergencyName      String?   @map("emergency_name")
+  emergencyRelation  String?   @map("emergency_relation")
+  emergencyPhone     String?   @map("emergency_phone")
+  subjects           String[]
+  ieltsModules       String[]  @map("ielts_modules")
+  teachingYears      Decimal?  @map("teaching_years") @db.Decimal(4, 1)
+  ieltsYears         Decimal?  @map("ielts_years") @db.Decimal(4, 1)
+  otherEnglishYears  Decimal?  @map("other_english_years") @db.Decimal(4, 1)
+  levelsTaught       String?   @map("levels_taught")
+  onlineExperience   Boolean?  @map("online_experience")
+  inPersonExperience Boolean?  @map("in_person_experience")
+  preferredMode      String?   @map("preferred_mode")
+  languages          String[]
+  availableDays      String[]  @map("available_days")
+  availableTime      String?   @map("available_time")
+  employmentType     String?   @map("employment_type")
+  workingHours       String?   @map("working_hours")
+  joiningDate        DateTime? @map("joining_date") @db.Date
+  noticePeriod       String?   @map("notice_period")
+  expectedSalary     Decimal?  @map("expected_salary") @db.Decimal(12, 2)
+  expectedHourlyRate Decimal?  @map("expected_hourly_rate") @db.Decimal(12, 2)
+  skills             String[]
+  achievements       String?
+  publications       String?
+  memberships        String?
+  personalStatement  String?   @map("personal_statement")
+  notes              String?
+  internalNotes      String?   @map("internal_notes")
+  rejectionReason    String?   @map("rejection_reason")
+  reviewedBy         String?   @map("reviewed_by") @db.Uuid
+  reviewedAt         DateTime? @map("reviewed_at")
+  submittedAt        DateTime  @default(now()) @map("submitted_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  mentor         MentorProfile?
+  educations     TeacherEducation[]
+  experiences    TeacherExperience[]
+  certifications TeacherCertification[]
+  references     TeacherReference[]
+  documents      TeacherDocument[]
+
+  @@index([status, submittedAt])
+  @@map("teacher_applications")
+}
+
+model TeacherEducation {
+  id            String  @id @default(uuid()) @db.Uuid
+  applicationId String  @map("application_id") @db.Uuid
+  degree        String
+  field         String?
+  institution   String
+  country       String?
+  startYear     Int?    @map("start_year")
+  endYear       Int?    @map("end_year")
+  grade         String?
+
+  application TeacherApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@map("teacher_educations")
+}
+
+model TeacherExperience {
+  id               String    @id @default(uuid()) @db.Uuid
+  applicationId    String    @map("application_id") @db.Uuid
+  organization     String
+  jobTitle         String    @map("job_title")
+  employmentType   String?   @map("employment_type")
+  startDate        DateTime? @map("start_date") @db.Date
+  endDate          DateTime? @map("end_date") @db.Date
+  current          Boolean   @default(false)
+  responsibilities String?
+  reasonForLeaving String?   @map("reason_for_leaving")
+
+  application TeacherApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@map("teacher_experiences")
+}
+
+model TeacherCertification {
+  id            String    @id @default(uuid()) @db.Uuid
+  applicationId String    @map("application_id") @db.Uuid
+  name          String
+  issuer        String?
+  issuedAt      DateTime? @map("issued_at") @db.Date
+  expiresAt     DateTime? @map("expires_at") @db.Date
+
+  application TeacherApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@map("teacher_certifications")
+}
+
+model TeacherReference {
+  id            String  @id @default(uuid()) @db.Uuid
+  applicationId String  @map("application_id") @db.Uuid
+  name          String
+  organization  String?
+  position      String?
+  relationship  String?
+  phone         String?
+  email         String?
+
+  application TeacherApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@map("teacher_references")
+}
+
+model TeacherDocument {
+  id            String   @id @default(uuid()) @db.Uuid
+  applicationId String   @map("application_id") @db.Uuid
+  kind          String
+  label         String?
+  fileKey       String   @map("file_key")
+  fileMime      String   @map("file_mime")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  application TeacherApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@map("teacher_documents")
 }
 
 model Role {
@@ -1013,9 +1167,12 @@ model Notification {
   type      String
   title     String
   body      String?
-  readAt    DateTime?           @map("read_at")
-  dedupeKey String?             @map("dedupe_key")
-  createdAt DateTime            @default(now()) @map("created_at")
+  readAt     DateTime?           @map("read_at")
+  dedupeKey  String?             @map("dedupe_key")
+  entityType String?             @map("entity_type")
+  entityId   String?             @map("entity_id") @db.Uuid
+  link       String?
+  createdAt  DateTime            @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id])
 

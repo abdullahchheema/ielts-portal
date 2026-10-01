@@ -2,27 +2,82 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Alert, Badge, Button, Dialog, Empty, Field, Input, Loading, PageHeader, Table, Td, Textarea } from '@/components/ui';
+import { TeacherApplicationInput } from '@ielts/validation';
+import { TeacherApplicationForm } from '@/components/TeacherApplicationForm';
+import { TeacherDetailDialog } from '@/components/TeacherDetailDialog';
+import { TeacherDocumentsUploader } from '@/components/TeacherDocumentsUploader';
+import { Alert, Badge, Button, ClickableRow, DetailDialog, Empty, Loading, PageHeader, Table, Td } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 
 interface Mentor { id: string; displayName: string; status: string; specializations: string[]; user: { email: string }; _count: { batches: number } }
+interface AdminMentorDetail { application: (Record<string, unknown> & { id: string }) | null }
+
+/** Drops child-record arrays and coerces dates/numbers so an application record can seed the edit form. */
+function toFormDefaults(app: Record<string, unknown>): Partial<TeacherApplicationInput> {
+  const { educations: _e, experiences: _x, certifications: _c, references: _r, documents: _d, mentor: _m, id: _id, status: _s, submittedAt: _sa, reviewedAt: _ra, reviewedBy: _rb, createdAt: _ca, updatedAt: _ua, ...rest } = app as Record<string, unknown>;
+  const out: Record<string, unknown> = { ...rest };
+  for (const key of ['dateOfBirth', 'joiningDate']) {
+    const v = out[key];
+    if (typeof v === 'string') out[key] = v.slice(0, 10);
+  }
+  for (const key of ['expectedSalary', 'expectedHourlyRate', 'teachingYears', 'ieltsYears', 'otherEnglishYears']) {
+    if (out[key] !== null && out[key] !== undefined) out[key] = String(out[key]);
+  }
+  return out as Partial<TeacherApplicationInput>;
+}
 
 export default function TeachersPage() {
   const qc = useQueryClient();
   const { data, isLoading, isError } = useQuery({ queryKey: ['admin-mentors'], queryFn: () => api<Mentor[]>('/admin/mentors') });
   const [open, setOpen] = useState(false);
-  const [f, setF] = useState({ email: '', displayName: '', bio: '', specializations: '' });
+  const [stage, setStage] = useState<'form' | 'documents'>('form');
+  const [newId, setNewId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [viewId, setViewId] = useState<string | null>(null);
+  const [editMentor, setEditMentor] = useState<Mentor | null>(null);
+  const [editApplicationId, setEditApplicationId] = useState<string | null>(null);
+  const [editDefaults, setEditDefaults] = useState<Partial<TeacherApplicationInput> | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editBusy, setEditBusy] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
-  async function create() {
+  async function create(values: TeacherApplicationInput) {
     setBusy(true); setError(null);
     try {
-      await api('/admin/mentors', { method: 'POST', body: { email: f.email, displayName: f.displayName, bio: f.bio || undefined, specializations: f.specializations.split(',').map((s) => s.trim()).filter(Boolean) } });
+      const res = await api<{ id: string; mentorId: string }>('/admin/teachers', { body: values });
       await qc.invalidateQueries({ queryKey: ['admin-mentors'] });
-      setOpen(false); setF({ email: '', displayName: '', bio: '', specializations: '' });
+      setNewId(res.id);
+      setStage('documents');
     } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
+  }
+
+  function closeCreate() {
+    setOpen(false); setStage('form'); setNewId(null); setError(null);
+  }
+
+  async function startEdit(m: Mentor) {
+    setEditMentor(m); setEditError(null); setEditLoading(true); setEditApplicationId(null); setEditDefaults(null);
+    try {
+      const detail = await api<AdminMentorDetail>(`/admin/mentors/${m.id}`);
+      if (detail.application) {
+        setEditApplicationId(detail.application.id);
+        setEditDefaults(toFormDefaults(detail.application));
+      }
+    } finally { setEditLoading(false); }
+  }
+
+  async function saveEdit(values: TeacherApplicationInput) {
+    if (!editApplicationId) return;
+    setEditBusy(true); setEditError(null);
+    const { educations: _e, experiences: _x, certifications: _c, references: _r, ...scalars } = values;
+    try {
+      await api(`/admin/teacher-applications/${editApplicationId}`, { method: 'PATCH', body: scalars });
+      await qc.invalidateQueries({ queryKey: ['admin-mentors'] });
+      await qc.invalidateQueries({ queryKey: ['admin-mentor', editMentor?.id] });
+      setEditMentor(null); setEditApplicationId(null);
+    } catch (e) { setEditError(errorMessage(e)); } finally { setEditBusy(false); }
   }
 
   return (
@@ -31,22 +86,38 @@ export default function TeachersPage() {
       {isLoading && <Loading />}
       {isError && <Alert>Could not load teachers.</Alert>}
       {data && (data.length === 0 ? <Empty>No teachers yet.</Empty> : (
-        <Table head={['Name', 'Email', 'Specializations', 'Batches', 'Status']}>
+        <Table head={['Name', 'Email', 'Specializations', 'Batches', 'Status', '']}>
           {data.map((m) => (
-            <tr key={m.id}><Td className="font-medium">{m.displayName}</Td><Td>{m.user.email}</Td><Td>{m.specializations.join(', ') || '—'}</Td><Td>{m._count.batches}</Td><Td><Badge status={m.status} /></Td></tr>
+            <ClickableRow key={m.id} onClick={() => setViewId(m.id)}>
+              <Td className="font-medium">{m.displayName}</Td><Td>{m.user.email}</Td><Td>{m.specializations.join(', ') || '—'}</Td><Td>{m._count.batches}</Td><Td><Badge status={m.status} /></Td>
+              <Td><Button variant="ghost" className="!py-1" onClick={(e) => { e.stopPropagation(); startEdit(m); }}>Edit</Button></Td>
+            </ClickableRow>
           ))}
         </Table>
       ))}
-      <Dialog open={open} onClose={() => setOpen(false)} title="Add teacher">
-        <div className="space-y-3">
-          {error && <Alert>{error}</Alert>}
-          <Field label="Display name">{(p) => <Input {...p} value={f.displayName} onChange={(e) => setF({ ...f, displayName: e.target.value })} />}</Field>
-          <Field label="Email" hint="They will receive a link to set their password.">{(p) => <Input {...p} type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />}</Field>
-          <Field label="Specializations" hint="Comma separated, e.g. Writing, Speaking">{(p) => <Input {...p} value={f.specializations} onChange={(e) => setF({ ...f, specializations: e.target.value })} />}</Field>
-          <Field label="Bio (optional)">{(p) => <Textarea {...p} rows={3} value={f.bio} onChange={(e) => setF({ ...f, bio: e.target.value })} />}</Field>
-          <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button><Button busy={busy} disabled={!f.email || f.displayName.trim().length < 2} onClick={create}>Create & invite</Button></div>
-        </div>
-      </Dialog>
+
+      <DetailDialog open={open} onClose={closeCreate} title="Add teacher" subtitle={stage === 'documents' ? 'Attach supporting documents (optional)' : undefined}>
+        {stage === 'form' && <TeacherApplicationForm onSubmit={create} busy={busy} serverError={error} submitLabel="Create & invite" />}
+        {stage === 'documents' && newId && <TeacherDocumentsUploader applicationId={newId} onDone={closeCreate} />}
+      </DetailDialog>
+
+      <DetailDialog open={!!editMentor} onClose={() => setEditMentor(null)} title={`Edit — ${editMentor?.displayName ?? ''}`}>
+        {editLoading && <Loading />}
+        {editMentor && !editLoading && editApplicationId === null && (
+          <Alert kind="info">This teacher has no linked application record (created before the detailed form existed), so inline editing is not available here. Use the Staff or Batches pages for basic changes.</Alert>
+        )}
+        {editMentor && !editLoading && editApplicationId && editDefaults && (
+          <TeacherApplicationForm
+            defaultValues={editDefaults}
+            onSubmit={saveEdit}
+            busy={editBusy}
+            serverError={editError}
+            submitLabel="Save changes"
+          />
+        )}
+      </DetailDialog>
+
+      <TeacherDetailDialog mentorId={viewId} onClose={() => setViewId(null)} />
     </>
   );
 }

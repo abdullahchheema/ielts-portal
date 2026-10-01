@@ -52,7 +52,9 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
       if (claimed.count === 0) continue;
       n++;
       await this.prisma.studentTimelineEvent.create({ data: { studentId: e.studentId, type: 'ACCESS_EXPIRED', summary: `Access to ${e.course.title} ended`, meta: { enrollmentId: e.id } } });
-      await this.notify.notifyUser(e.student.userId, 'ENROLLMENT_EXPIRED', 'Your course access has ended', `Your access to ${e.course.title} has expired. Contact us if you would like to extend it.`, { email: true });
+      await this.notify.notifyUser(e.student.userId, 'ENROLLMENT_EXPIRED', 'Your course access has ended', `Your access to ${e.course.title} has expired. Contact us if you would like to extend it.`, {
+        email: true, entityType: 'ENROLLMENT', entityId: e.id, link: `/student/application?open=${e.id}`,
+      });
     }
     return n;
   }
@@ -68,7 +70,9 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
       const days = (e.accessEndsAt!.getTime() - now.getTime()) / DAY;
       for (const [threshold, key] of [[7, 'expiry7'], [1, 'expiry1']] as const) {
         if (days > threshold) continue;
-        const sent = await this.notify.notifyUser(e.student.userId, 'EXPIRY_REMINDER', `${e.course.title}: access ends ${threshold === 1 ? 'tomorrow' : 'in about a week'}`, `Your access ends on ${e.accessEndsAt!.toDateString()}. Finish your remaining lessons and tests before then.`, { email: true, optional: true, dedupeKey: `${key}:${e.id}` });
+        const sent = await this.notify.notifyUser(e.student.userId, 'EXPIRY_REMINDER', `${e.course.title}: access ends ${threshold === 1 ? 'tomorrow' : 'in about a week'}`, `Your access ends on ${e.accessEndsAt!.toDateString()}. Finish your remaining lessons and tests before then.`, {
+          email: true, optional: true, dedupeKey: `${key}:${e.id}`, entityType: 'ENROLLMENT', entityId: e.id, link: `/student/application?open=${e.id}`,
+        });
         if (sent) n++;
       }
     }
@@ -82,8 +86,12 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
       const students = await this.prisma.enrollment.findMany({ where: { batchId: s.batchId, status: 'ACTIVE', deletedAt: null }, select: { student: { select: { userId: true } } } });
       const minutes = (s.startsAt.getTime() - now.getTime()) / 60_000;
       for (const e of students) {
-        if (await this.notify.notifyUser(e.student.userId, 'CLASS_REMINDER', `Class tomorrow: ${s.topic}`, `Starts ${s.startsAt.toUTCString()}.`, { email: true, optional: true, dedupeKey: `class24:${s.id}` })) n++;
-        if (minutes <= 30 && await this.notify.notifyUser(e.student.userId, 'CLASS_REMINDER', `Starting soon: ${s.topic}`, 'Your class starts in about 30 minutes. The join link is on your Live classes page.', { email: true, optional: true, dedupeKey: `class30:${s.id}` })) n++;
+        if (await this.notify.notifyUser(e.student.userId, 'CLASS_REMINDER', `Class tomorrow: ${s.topic}`, `Starts ${s.startsAt.toUTCString()}.`, {
+          email: true, optional: true, dedupeKey: `class24:${s.id}`, entityType: 'SESSION', entityId: s.id, link: '/student/schedule',
+        })) n++;
+        if (minutes <= 30 && await this.notify.notifyUser(e.student.userId, 'CLASS_REMINDER', `Starting soon: ${s.topic}`, 'Your class starts in about 30 minutes. The join link is on your Live classes page.', {
+          email: true, optional: true, dedupeKey: `class30:${s.id}`, entityType: 'SESSION', entityId: s.id, link: '/student/schedule',
+        })) n++;
       }
     }
     return n;
@@ -101,7 +109,9 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
         select: { student: { select: { userId: true } } },
       });
       for (const e of students) {
-        if (await this.notify.notifyUser(e.student.userId, 'DEADLINE_REMINDER', `Due tomorrow: ${a.contentItem.title}`, 'Submit your work before the deadline.', { email: true, optional: true, dedupeKey: `due:${a.id}` })) n++;
+        if (await this.notify.notifyUser(e.student.userId, 'DEADLINE_REMINDER', `Due tomorrow: ${a.contentItem.title}`, 'Submit your work before the deadline.', {
+          email: true, optional: true, dedupeKey: `due:${a.id}`, entityType: 'ENROLLMENT', entityId: a.id, link: '/student/application',
+        })) n++;
       }
     }
     return n;
@@ -133,7 +143,9 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
       await this.audit.record({ ...actor, action: 'ADMIN_CHANGED_ENROLLMENT', entityType: 'Enrollment', entityId: enrollmentId, before: { status: e.status, accessEndsAt: e.accessEndsAt }, after: { status: after.status, accessEndsAt: after.accessEndsAt, action: input.action, note: input.note } }, tx);
       return { userId: e.student.userId, title: e.course.title, after };
     });
-    if (input.action === 'EXTEND') await this.notify.notifyUser(info.userId, 'ENROLLMENT_EXTENDED', 'Your access was extended', `${info.title} is available until ${info.after.accessEndsAt!.toDateString()}.`, { email: true });
+    if (input.action === 'EXTEND') await this.notify.notifyUser(info.userId, 'ENROLLMENT_EXTENDED', 'Your access was extended', `${info.title} is available until ${info.after.accessEndsAt!.toDateString()}.`, {
+      email: true, entityType: 'ENROLLMENT', entityId: enrollmentId, link: `/student/application?open=${enrollmentId}`,
+    });
     return info.after;
   }
 
@@ -160,7 +172,9 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
       await this.audit.record({ ...actor, action: 'ADMIN_TRANSFERRED_ENROLLMENT', entityType: 'Enrollment', entityId: enrollmentId, before: { batchId: e.batchId }, after: { batchId: to.id, reason: input.reason } }, tx);
       return { userId: e.student.userId, from: e.batch.name, to: to.name };
     });
-    await this.notify.notifyUser(info.userId, 'BATCH_TRANSFERRED', 'You have been moved to another batch', `From ${info.from} to ${info.to}. Check your Live classes page for the new schedule.`, { email: true });
+    await this.notify.notifyUser(info.userId, 'BATCH_TRANSFERRED', 'You have been moved to another batch', `From ${info.from} to ${info.to}. Check your Live classes page for the new schedule.`, {
+      email: true, entityType: 'ENROLLMENT', entityId: enrollmentId, link: `/student/application?open=${enrollmentId}`,
+    });
     return { ok: true };
   }
 }

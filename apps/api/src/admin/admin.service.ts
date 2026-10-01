@@ -4,6 +4,7 @@ import * as argon2 from 'argon2';
 import { AuditService } from '../audit/audit.service';
 import { randomToken, sha256 } from '../auth/tokens';
 import { AppError, conflict, notFound } from '../common/app-error';
+import { ieltsSummary } from '../common/ielts';
 import { ADMIN_ROLES } from '../common/roles';
 import { APP_CONFIG, AppConfig } from '../config/config.module';
 import { Actor } from '../courses/courses.service';
@@ -59,12 +60,17 @@ export class AdminService {
         where, skip: q.skip, take: q.take, orderBy: { createdAt: 'desc' },
         select: {
           id: true, email: true, status: true, createdAt: true, lastLoginAt: true,
-          student: { select: { id: true, firstName: true, lastName: true, currentBand: true, targetBand: true, ieltsExamDate: true, _count: { select: { enrollments: true } } } },
+          student: {
+            select: {
+              id: true, firstName: true, lastName: true, currentBand: true, targetBand: true, ieltsExamDate: true, _count: { select: { enrollments: true } },
+              ieltsHistory: true, ieltsOverall: true, ieltsListening: true, ieltsReading: true, ieltsWriting: true, ieltsSpeaking: true, ieltsTestDate: true, ieltsAttempts: true,
+            },
+          },
         },
       }),
       this.prisma.user.count({ where }),
     ]);
-    return { total, items: rows };
+    return { total, items: rows.map((r) => ({ ...r, student: r.student ? { ...r.student, ielts: ieltsSummary(r.student) } : null })) };
   }
 
   async studentDetail(studentId: string) {
@@ -73,12 +79,18 @@ export class AdminService {
       include: {
         user: { select: { id: true, email: true, phone: true, status: true, createdAt: true, lastLoginAt: true } },
         enrollments: { include: { course: { select: { title: true } }, batch: { select: { name: true } } }, orderBy: { createdAt: 'desc' } },
-        orders: { orderBy: { createdAt: 'desc' }, take: 20, select: { id: true, reference: true, status: true, total: true, currency: true, createdAt: true } },
+        orders: {
+          orderBy: { createdAt: 'desc' }, take: 20,
+          select: {
+            id: true, reference: true, status: true, total: true, currency: true, createdAt: true,
+            payments: { select: { id: true, status: true, provider: true } },
+          },
+        },
         timeline: { orderBy: { createdAt: 'desc' }, take: 50 },
       },
     });
     if (!s) throw notFound('Student');
-    return s;
+    return { ...s, ielts: ieltsSummary(s) };
   }
 
   async setStudentStatus(userId: string, status: 'ACTIVE' | 'SUSPENDED' | 'BLOCKED', actor: Actor) {

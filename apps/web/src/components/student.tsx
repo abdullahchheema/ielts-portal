@@ -12,7 +12,7 @@ export interface Application {
   id: string; status: string; displayStatus: string; createdAt: string; enrolledAt: string | null; accessEndsAt: string | null;
   batch: { id: string; name: string; startAt: string; days: string[]; classTime: string | null; timezone: string; deliveryMode: string; mentors: { name: string; role: string }[] };
   order: { id: string; reference: string; total: string; currency: string; status: string } | null;
-  payment: { proofId: string; method: string; reference: string; claimedAmount: string; status: string; rejectionReason: string | null; submittedAt: string } | null;
+  payment: { proofId: string; method: string; reference: string; claimedAmount: string; status: string; rejectionReason: string | null; submittedAt: string; fileUrl?: string | null; fileMime?: string | null } | null;
   canResubmit: boolean;
 }
 

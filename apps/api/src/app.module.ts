@@ -26,6 +26,7 @@ import { CommerceModule } from './commerce/commerce.module';
 import { LearningModule } from './learning/learning.module';
 import { NotificationsModule } from './notifications/notifications.service';
 import { SettingsModule } from './settings/settings.module';
+import { TeachersModule } from './teachers/teachers.module';
 
 @Controller('health')
 class HealthController {
@@ -41,7 +42,7 @@ class HealthController {
 @Module({
   imports: [
     ConfigModule, PrismaModule, IntegrationsModule, AuditModule, EventEmitterModule.forRoot(), JwtModule.register({}),
-    AuthModule, RolesModule, SettingsModule, NotificationsModule, CoursesModule, BatchesModule, CommerceModule, LearningModule, AssessmentsModule, GradingModule, LiveModule, SupportModule, ReportsModule, LifecycleModule, CertificatesModule, AdminModule,
+    AuthModule, RolesModule, SettingsModule, NotificationsModule, CoursesModule, BatchesModule, CommerceModule, LearningModule, AssessmentsModule, GradingModule, LiveModule, SupportModule, ReportsModule, LifecycleModule, CertificatesModule, AdminModule, TeachersModule,
   ],
   controllers: [HealthController],
   providers: [

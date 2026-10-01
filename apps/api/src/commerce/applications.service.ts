@@ -180,8 +180,19 @@ export class ApplicationsService {
               email: a.email, phone: a.phone, passwordHash: passwordHash!, status: 'ACTIVE', // can log in at once; email is verified later
               roles: { create: { roleId: role.id } },
               student: { create: {
-                firstName: a.firstName, lastName: a.lastName, city: a.city, country: a.country, currentBand: a.currentBand, targetBand: a.targetBand,
+                firstName: a.firstName, lastName: a.lastName, city: a.city, country: a.country,
+                // currentBand is kept as a deprecated mirror of ieltsOverall for existing band charts/reports.
+                currentBand: a.ieltsHistory === 'TAKEN' ? (a.ieltsOverall ?? a.currentBand) : a.ieltsHistory === 'NEVER' ? null : a.currentBand,
+                targetBand: a.targetBand,
                 academicOrGeneral: a.testType, ieltsExamDate: a.examDate ? new Date(a.examDate) : undefined,
+                ieltsHistory: a.ieltsHistory,
+                ieltsOverall: a.ieltsHistory === 'NEVER' ? null : a.ieltsOverall,
+                ieltsListening: a.ieltsHistory === 'NEVER' ? null : a.ieltsListening,
+                ieltsReading: a.ieltsHistory === 'NEVER' ? null : a.ieltsReading,
+                ieltsWriting: a.ieltsHistory === 'NEVER' ? null : a.ieltsWriting,
+                ieltsSpeaking: a.ieltsHistory === 'NEVER' ? null : a.ieltsSpeaking,
+                ieltsTestDate: a.ieltsTestDate ? new Date(a.ieltsTestDate) : undefined,
+                ieltsAttempts: a.ieltsHistory === 'NEVER' ? null : a.ieltsAttempts,
               } },
             },
             include: { student: true },
@@ -227,7 +238,9 @@ export class ApplicationsService {
     }
 
     if (applicant) await this.auth.sendVerification(created.userId, created.email).catch((e) => this.logger.warn(`verification email failed: ${e.message}`));
-    await this.notify.notifyPermission('payment.verify', 'APPLICATION_SUBMITTED', 'New enrollment application', `Order ${created.reference} is waiting for payment verification.`);
+    await this.notify.notifyPermission('payment.verify', 'APPLICATION_SUBMITTED', 'New enrollment application', `Order ${created.reference} is waiting for payment verification.`, {
+      entityType: 'ENROLLMENT', entityId: created.enrollmentId, link: `/admin/applications?open=${created.enrollmentId}`,
+    });
     const session = applicant ? await this.auth.startSession(created.userId, meta) : undefined;
     return { enrollmentId: created.enrollmentId, status: 'PENDING_PAYMENT_VERIFICATION', session };
   }
@@ -241,7 +254,7 @@ export class ApplicationsService {
         orderItem: { include: { order: { include: { payments: { include: { proofs: { orderBy: { createdAt: 'desc' } } } } } } } },
       },
     });
-    return rows.map((e) => {
+    return Promise.all(rows.map(async (e) => {
       const order = e.orderItem?.order;
       const proofs = order?.payments.flatMap((p) => p.proofs).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()) ?? [];
       const latest = proofs[0];
@@ -250,10 +263,13 @@ export class ApplicationsService {
         batch: { id: e.batch.id, name: e.batch.name, startAt: e.batch.startAt, days: e.batch.days, classTime: e.batch.classTime, timezone: e.batch.timezone, deliveryMode: e.batch.deliveryMode,
           mentors: e.batch.mentors.map((m) => ({ name: m.mentor.displayName, role: m.mentorRole })) },
         order: order ? { id: order.id, reference: order.reference, total: order.total, currency: order.currency, status: order.status } : null,
-        payment: latest ? { proofId: latest.id, method: latest.paymentMethod, reference: latest.bankTxnReference, claimedAmount: latest.claimedAmount, status: latest.status, rejectionReason: latest.rejectionReason, submittedAt: latest.createdAt } : null,
+        payment: latest ? {
+          proofId: latest.id, method: latest.paymentMethod, reference: latest.bankTxnReference, claimedAmount: latest.claimedAmount, status: latest.status,
+          rejectionReason: latest.rejectionReason, submittedAt: latest.createdAt, fileMime: latest.fileMime, fileUrl: await this.storage.signedUrl(latest.fileKey, 300),
+        } : null,
         canResubmit: e.status === 'PENDING_PAYMENT' && latest?.status === 'REJECTED' && latest.allowResubmit,
       };
-    });
+    }));
   }
 
   /** After a rejection that allowed it, the student sends a corrected proof for the same application. */
@@ -287,7 +303,9 @@ export class ApplicationsService {
       });
       await tx.paymentEvent.create({ data: { paymentId: payment.id, type: 'PROOF_RESUBMITTED', actorId: userId, payload: { proofId: proof.id, flags } } });
     });
-    await this.notify.notifyPermission('payment.verify', 'APPLICATION_SUBMITTED', 'Payment proof resubmitted', `Order ${order.reference} has a new payment proof to verify.`);
+    await this.notify.notifyPermission('payment.verify', 'APPLICATION_SUBMITTED', 'Payment proof resubmitted', `Order ${order.reference} has a new payment proof to verify.`, {
+      entityType: 'ENROLLMENT', entityId: e.id, link: `/admin/applications?open=${e.id}`,
+    });
     return { ok: true };
   }
 
@@ -328,6 +346,30 @@ export class ApplicationsService {
       };
     }));
     return { total, counts: { pending, enrolled, rejected }, items };
+  }
+
+  /** Full payment + proof detail for a single payment, for the admin payment detail view. */
+  async paymentDetail(paymentId: string) {
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+      include: {
+        proofs: { orderBy: { createdAt: 'desc' } },
+        order: {
+          include: {
+            student: { select: { id: true, firstName: true, lastName: true, user: { select: { id: true, email: true, phone: true } } } },
+            items: { include: { batch: { select: { id: true, name: true, course: { select: { title: true } } } } } },
+          },
+        },
+      },
+    });
+    if (!payment) throw notFound('Payment');
+    const { order, proofs, ...rest } = payment;
+    return {
+      ...rest,
+      order: order ? { id: order.id, reference: order.reference, total: order.total, discount: order.discount, currency: order.currency, status: order.status,
+        student: order.student, items: order.items.map((i) => ({ batch: i.batch, originalPrice: i.originalPrice, discount: i.discount, finalPrice: i.finalPrice })) } : null,
+      proofs: await Promise.all(proofs.map(async (p) => ({ ...p, fileUrl: await this.storage.signedUrl(p.fileKey, 300) }))),
+    };
   }
 
   /** Verify = payment confirmed AND the student is enrolled, in one atomic step. Safe to double-click. */
@@ -407,12 +449,13 @@ export class ApplicationsService {
       }
       await tx.paymentEvent.create({ data: { paymentId: payment.id, type: 'PAYMENT_REJECTED', actorId: actor.userId, payload: { proofId: proof.id, reason: input.reason, allowResubmit: input.allowResubmit } } });
       await this.audit.record({ ...actor, action: 'ADMIN_REJECTED_PAYMENT', entityType: 'Payment', entityId: payment.id, after: { proofId: proof.id, reason: input.reason, allowResubmit: input.allowResubmit } }, tx);
-      return { userId: order.student.userId, reference: order.reference };
+      const enrollment = await tx.enrollment.findFirst({ where: { orderItemId: { in: order.items.map((i) => i.id) } } });
+      return { userId: order.student.userId, reference: order.reference, enrollmentId: enrollment?.id };
     });
     await this.notify.notifyUser(
       info.userId, 'PAYMENT_REJECTED', 'Your payment could not be verified',
       `Order ${info.reference}: ${input.reason}.${input.allowResubmit ? ' Please upload a corrected payment proof from your student portal.' : ' Your application has been closed.'}`,
-      { email: true },
+      { email: true, entityType: 'ENROLLMENT', entityId: info.enrollmentId, link: info.enrollmentId ? `/student/application?open=${info.enrollmentId}` : '/student/application' },
     );
     return { ok: true };
   }

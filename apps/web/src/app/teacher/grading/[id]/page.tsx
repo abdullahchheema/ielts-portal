@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Alert, Badge, Button, Card, Field, Loading, PageHeader, Select, Textarea } from '@/components/ui';
+import { IeltsBadge, IeltsSummaryLike } from '@/components/IeltsSummary';
 import { ApiError, api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { band, date } from '@/lib/format';
@@ -13,7 +14,7 @@ interface Detail {
   id: string; status: string; revision: number; submittedAt: string; late: boolean; wordCount: number | null; body: string | null; audioUrl: string | null; finalBand: number | null;
   assignment: { title: string; skill: string; instructions: string | null; minWords: number | null };
   rubric: { name: string; criteria: { id: string; name: string }[] } | null;
-  student: { name: string; currentBand: number | null; targetBand: number | null };
+  student: { name: string; currentBand: number | null; targetBand: number | null; ielts?: IeltsSummaryLike };
   feedback: { id: string; createdAt: string; comment: string | null; finalBand: number | null; scores: { criterionId: string; criterion: string; score: number; comment: string | null }[] }[];
 }
 
@@ -67,7 +68,7 @@ export default function GradePage() {
       <div className="grid gap-6 lg:grid-cols-[1fr_24rem]">
         <div className="space-y-4">
           <Card>
-            <p className="mb-2 text-xs text-slate-500">Student level: {band(s.student.currentBand)} → target {band(s.student.targetBand)}{s.wordCount ? ` · ${s.wordCount} words${s.assignment.minWords ? ` (min ${s.assignment.minWords})` : ''}` : ''}</p>
+            <p className="mb-2 flex items-center gap-2 text-xs text-slate-500">Student level: {band(s.student.currentBand)} → target {band(s.student.targetBand)}{s.wordCount ? ` · ${s.wordCount} words${s.assignment.minWords ? ` (min ${s.assignment.minWords})` : ''}` : ''} <IeltsBadge ielts={s.student.ielts} /></p>
             {s.assignment.instructions && <details className="mb-3 text-sm"><summary className="cursor-pointer text-indigo-700">Task instructions</summary><p className="mt-1 whitespace-pre-wrap text-slate-700">{s.assignment.instructions}</p></details>}
             {s.body && <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-900">{s.body}</p>}
             {s.audioUrl && <audio controls className="w-full" src={s.audioUrl} />}

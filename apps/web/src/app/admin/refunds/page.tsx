@@ -1,7 +1,8 @@
 'use client';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { Alert, Badge, Button, Dialog, Empty, Field, Input, Loading, PageHeader, Select, Table, Td, Textarea } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
@@ -13,7 +14,14 @@ interface Refund {
 }
 
 export default function RefundsPage() {
+  return <Suspense fallback={<Loading />}><RefundsPageInner /></Suspense>;
+}
+
+function RefundsPageInner() {
   const qc = useQueryClient();
+  const params = useSearchParams();
+  const openId = params.get('open');
+  const refs = useRef<Record<string, HTMLTableRowElement | null>>({});
   const [status, setStatus] = useState('REQUESTED');
   const { data, isLoading, isError } = useQuery({ queryKey: ['refunds', status], queryFn: () => api<Refund[]>('/admin/refunds' + (status ? '?status=' + status : '')) });
   const [target, setTarget] = useState<{ r: Refund; mode: 'process' | 'reject' } | null>(null);
@@ -21,6 +29,10 @@ export default function RefundsPage() {
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (openId && refs.current[openId]) refs.current[openId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [openId, data]);
 
   async function act() {
     if (!target) return;
@@ -40,7 +52,7 @@ export default function RefundsPage() {
       {data && (data.length === 0 ? <Empty>Nothing here.</Empty> : (
         <Table head={['Order', 'Student', 'Amount', 'Reason', 'Requested', 'Status', '']}>
           {data.map((r) => (
-            <tr key={r.id}>
+            <tr key={r.id} ref={(el) => { refs.current[r.id] = el; }} className={r.id === openId ? 'bg-indigo-50' : undefined}>
               <Td className="font-mono text-xs">{r.payment.order.reference}</Td>
               <Td>{r.payment.order.student.firstName} {r.payment.order.student.lastName}<span className="block text-xs text-slate-500">{r.payment.order.student.user.email}</span></Td>
               <Td>{money(r.amount, r.payment.currency)}<span className="block text-xs text-slate-500">of {money(r.payment.amount, r.payment.currency)}</span></Td>

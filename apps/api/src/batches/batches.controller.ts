@@ -60,6 +60,9 @@ export class AdminBatchesController {
   @RequirePermission('mentor.assign') @Get('mentors')
   mentors() { return this.batches.listMentors(); }
 
+  @RequirePermission('mentor.assign') @Get('mentors/:id')
+  mentorDetail(@Param('id', uuid) id: string) { return this.batches.mentorDetail(id); }
+
   @RequirePermission('mentor.assign') @Post('mentors')
   createMentor(@Body(new ZodPipe(createMentorSchema)) body: CreateMentorInput, @CurrentUser() u: AuthUser, @Req() req: Request) {
     return this.batches.createMentor(body, actor(u, req));

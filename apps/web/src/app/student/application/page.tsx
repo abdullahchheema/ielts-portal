@@ -1,10 +1,12 @@
 'use client';
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { Alert, Badge, Button, Card, Field, Loading, PageHeader, Textarea } from '@/components/ui';
 import { Application, EnrollmentBadge, METHOD_TEXT, PaymentPendingNotice, scheduleText, teacherText, useApplications } from '@/components/student';
 import { PaymentSection, PaymentValues, emptyPayment, paymentFormData, validatePayment } from '@/components/PaymentSection';
+import { ReceiptViewer } from '@/components/ReceiptViewer';
 import { api } from '@/lib/api';
 import { errorMessage, fieldErrors } from '@/lib/errors';
 import { date, money } from '@/lib/format';
@@ -67,7 +69,19 @@ function RefundRequest({ orderId }: { orderId: string }) {
 }
 
 export default function ApplicationPage() {
+  return <Suspense fallback={<Loading />}><ApplicationPageInner /></Suspense>;
+}
+
+function ApplicationPageInner() {
   const apps = useApplications();
+  const params = useSearchParams();
+  const openId = params.get('open');
+  const refs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  useEffect(() => {
+    if (openId && refs.current[openId]) refs.current[openId]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [openId, apps.data]);
+
   if (apps.isLoading) return <Loading />;
   if (apps.isError) return <Alert>Could not load your application.</Alert>;
   if (!apps.data?.length) return <><PageHeader title="Application & Payment" /><PaymentPendingNotice app={null} /></>;
@@ -77,7 +91,8 @@ export default function ApplicationPage() {
       <PageHeader title="Application & Payment" subtitle="Where your enrollment stands and the payment you submitted." />
       <div className="space-y-6">
         {apps.data.map((a) => (
-          <Card key={a.id}>
+          <Card key={a.id} className={a.id === openId ? 'ring-2 ring-indigo-500' : undefined}>
+            <div ref={(el) => { refs.current[a.id] = el; }} />
             <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
               <div><h2 className="text-lg font-semibold text-slate-900">{a.batch.name}</h2><p className="text-sm text-slate-500">Applied {date(a.createdAt)} · starts {date(a.batch.startAt)} · {scheduleText(a.batch)}</p></div>
               <EnrollmentBadge status={a.status} />
@@ -99,6 +114,13 @@ export default function ApplicationPage() {
                 <div><dt className="text-slate-500">Proof status</dt><dd><Badge status={a.payment.status} /></dd></div>
               </>}
             </dl>
+
+            {a.payment && (
+              <div className="mt-4 max-w-sm">
+                <h3 className="mb-2 text-sm font-semibold text-slate-700">Your receipt</h3>
+                <ReceiptViewer fileUrl={a.payment.fileUrl} fileMime={a.payment.fileMime} alt="Your payment receipt" />
+              </div>
+            )}
 
             {a.canResubmit && <Resubmit app={a} />}
             {a.status === 'ACTIVE' && a.order?.status === 'PAID' && <div className="mt-4"><RefundRequest orderId={a.order.id} /></div>}

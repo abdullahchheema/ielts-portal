@@ -6,7 +6,7 @@ export const prisma = new PrismaClient();
 const PERMISSIONS = [
   'course.view', 'course.create', 'course.edit', 'course.publish',
   'content.manage',
-  'batch.view', 'batch.create', 'batch.edit', 'mentor.assign', 'teaching.view',
+  'batch.view', 'batch.create', 'batch.edit', 'mentor.assign', 'teaching.view', 'teacher.manage',
   'student.view', 'student.edit',
   'enrollment.view', 'enrollment.create',
   'payment.view', 'payment.verify', 'payment.refund',
@@ -23,7 +23,7 @@ const ROLES: Record<string, { description: string; permissions: readonly string[
   ACADEMIC_ADMIN: {
     description: 'Courses, curriculum, batches, mentors, academic reports',
     permissions: ['course.view', 'course.create', 'course.edit', 'course.publish', 'content.manage',
-      'batch.view', 'batch.create', 'batch.edit', 'mentor.assign', 'teaching.view', 'student.view',
+      'batch.view', 'batch.create', 'batch.edit', 'mentor.assign', 'teaching.view', 'teacher.manage', 'student.view',
       'enrollment.view', 'enrollment.create', 'report.academic.view', 'dashboard.view', 'assessment.manage'],
   },
   CONTENT_MANAGER: {

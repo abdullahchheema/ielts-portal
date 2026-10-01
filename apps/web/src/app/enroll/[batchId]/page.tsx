@@ -18,9 +18,13 @@ interface PublicCourse { title: string; price: string; currency: string }
 interface Details {
   firstName: string; lastName: string; email: string; password: string; phone: string; city: string; country: string;
   currentBand: string; targetBand: string; testType: string; examDate: string;
+  ieltsHistory: '' | 'NEVER' | 'TAKEN'; ieltsOverall: string; ieltsListening: string; ieltsReading: string; ieltsWriting: string; ieltsSpeaking: string; ieltsTestDate: string; ieltsAttempts: string;
 }
 const BANDS = Array.from({ length: 19 }, (_, i) => (i * 0.5).toFixed(1));
-const EMPTY: Details = { firstName: '', lastName: '', email: '', password: '', phone: '', city: '', country: 'Pakistan', currentBand: '', targetBand: '', testType: '', examDate: '' };
+const EMPTY: Details = {
+  firstName: '', lastName: '', email: '', password: '', phone: '', city: '', country: 'Pakistan', currentBand: '', targetBand: '', testType: '', examDate: '',
+  ieltsHistory: '', ieltsOverall: '', ieltsListening: '', ieltsReading: '', ieltsWriting: '', ieltsSpeaking: '', ieltsTestDate: '', ieltsAttempts: '',
+};
 const DAY: Record<string, string> = { MON: 'Mon', TUE: 'Tue', WED: 'Wed', THU: 'Thu', FRI: 'Fri', SAT: 'Sat', SUN: 'Sun' };
 
 function Steps({ step, labels }: { step: number; labels: string[] }) {
@@ -148,6 +152,34 @@ export default function EnrollPage() {
                   <Field label="Test type" error={errors.testType}>{(p) => <Select {...p} {...text('testType')}><option value="">Select</option><option value="ACADEMIC">Academic</option><option value="GENERAL">General Training</option></Select>}</Field>
                   <Field label="Exam date" error={errors.examDate}>{(p) => <Input {...p} type="date" {...text('examDate')} />}</Field>
                 </div>
+              </fieldset>
+
+              <fieldset className="rounded-md bg-slate-50 p-4">
+                <legend className="px-1 text-sm font-medium text-slate-700">Have you taken IELTS before?</legend>
+                <div className="flex gap-4 text-sm">
+                  <label className="flex items-center gap-2">
+                    <input type="radio" name="ieltsHistory" checked={d.ieltsHistory === 'NEVER'} onChange={() => set({ ieltsHistory: 'NEVER', ieltsOverall: '', ieltsListening: '', ieltsReading: '', ieltsWriting: '', ieltsSpeaking: '', ieltsTestDate: '', ieltsAttempts: '' })} /> No, never
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input type="radio" name="ieltsHistory" checked={d.ieltsHistory === 'TAKEN'} onChange={() => set({ ieltsHistory: 'TAKEN' })} /> Yes, I have
+                  </label>
+                </div>
+                {errors.ieltsHistory && <p className="mt-1 text-xs text-red-600">{errors.ieltsHistory}</p>}
+                {d.ieltsHistory === 'TAKEN' && (
+                  <div className="mt-3 space-y-3">
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                      <Field label="Overall" error={errors.ieltsOverall}>{(p) => <Select {...p} {...text('ieltsOverall')}><option value="">Select</option>{BANDS.map((b) => <option key={b}>{b}</option>)}</Select>}</Field>
+                      <Field label="Listening">{(p) => <Select {...p} {...text('ieltsListening')}><option value="">—</option>{BANDS.map((b) => <option key={b}>{b}</option>)}</Select>}</Field>
+                      <Field label="Reading">{(p) => <Select {...p} {...text('ieltsReading')}><option value="">—</option>{BANDS.map((b) => <option key={b}>{b}</option>)}</Select>}</Field>
+                      <Field label="Writing">{(p) => <Select {...p} {...text('ieltsWriting')}><option value="">—</option>{BANDS.map((b) => <option key={b}>{b}</option>)}</Select>}</Field>
+                      <Field label="Speaking">{(p) => <Select {...p} {...text('ieltsSpeaking')}><option value="">—</option>{BANDS.map((b) => <option key={b}>{b}</option>)}</Select>}</Field>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="Test date" error={errors.ieltsTestDate}>{(p) => <Input {...p} type="date" {...text('ieltsTestDate')} />}</Field>
+                      <Field label="Attempts" error={errors.ieltsAttempts}>{(p) => <Input {...p} type="number" min={1} {...text('ieltsAttempts')} />}</Field>
+                    </div>
+                  </div>
+                )}
               </fieldset>
               <p className="text-sm text-slate-600">Already have an account? <Link href={`/login?next=${encodeURIComponent(`/enroll/${batchId}`)}`} className="font-medium text-indigo-700 underline">Log in</Link></p>
             </div>

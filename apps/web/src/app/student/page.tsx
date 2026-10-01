@@ -4,11 +4,12 @@ import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { Alert, Card, Empty, LinkButton, Loading, PageHeader, ProgressBar } from '@/components/ui';
 import { EnrollmentBadge, PaymentPendingNotice, primaryApplication, scheduleText, teacherText, useApplications } from '@/components/student';
+import { IeltsSummary, IeltsSummaryLike } from '@/components/IeltsSummary';
 import { api } from '@/lib/api';
 import { band, date } from '@/lib/format';
 
 interface Dashboard {
-  profile: { firstName: string; currentBand: string | null; targetBand: string | null; ieltsExamDate: string | null };
+  profile: { firstName: string; currentBand: string | null; targetBand: string | null; ieltsExamDate: string | null; ielts?: IeltsSummaryLike };
   overallProgressPercent: number;
   courses: { enrollmentId: string; status: string; progressPercent: string; skills: Record<'listening' | 'reading' | 'writing' | 'speaking', number | null> }[];
 }
@@ -36,8 +37,8 @@ export default function DashboardPage() {
 
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <Card><p className="text-sm text-slate-500">Target band</p><p className="mt-1 text-3xl font-semibold">{band(profile.targetBand)}</p></Card>
-        <Card><p className="text-sm text-slate-500">Current level</p><p className="mt-1 text-3xl font-semibold">{band(profile.currentBand)}</p></Card>
-        <Card><p className="text-sm text-slate-500">Exam date</p><p className="mt-1 text-xl font-semibold">{date(profile.ieltsExamDate)}</p></Card>
+        <Card><p className="mb-1 text-sm text-slate-500">IELTS</p><IeltsSummary ielts={profile.ielts} /></Card>
+        <Card><p className="text-sm text-slate-500">Planned exam date</p><p className="mt-1 text-xl font-semibold">{date(profile.ieltsExamDate)}</p></Card>
       </div>
 
       {app && (

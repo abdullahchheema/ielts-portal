@@ -76,7 +76,7 @@ export class EnrollmentsService {
       orderBy: { createdAt: 'desc' }, take: 200,
       include: {
         student: { select: { firstName: true, lastName: true, user: { select: { email: true } } } },
-        payments: { select: { status: true, provider: true } },
+        payments: { select: { id: true, status: true, provider: true } },
         items: { select: { batch: { select: { name: true, course: { select: { title: true } } } } } },
       },
     });
@@ -84,6 +84,8 @@ export class EnrollmentsService {
 
   @OnEvent(ENROLLMENT_ACTIVATED)
   async onActivated(ev: EnrollmentActivatedEvent) {
-    await this.notify.notifyUser(ev.userId, 'ENROLLMENT_CONFIRMED', 'You are enrolled!', 'Your enrollment is active. Open your dashboard to start learning.', { email: true });
+    await this.notify.notifyUser(ev.userId, 'ENROLLMENT_CONFIRMED', 'You are enrolled!', 'Your enrollment is active. Open your dashboard to start learning.', {
+      email: true, entityType: 'ENROLLMENT', entityId: ev.enrollmentId, link: `/student/application?open=${ev.enrollmentId}`,
+    });
   }
 }

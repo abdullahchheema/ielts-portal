@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import { Alert, Badge, Button, Card, Dialog, Empty, Field, Input, Loading, PageHeader, ProgressBar, Select, Table, Td } from '@/components/ui';
+import { IeltsBadge, IeltsSummaryLike } from '@/components/IeltsSummary';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { band, date, label } from '@/lib/format';
@@ -11,7 +12,7 @@ import { band, date, label } from '@/lib/format';
 interface Student { enrollmentId: string; status: string; progressPercent: string; enrolledAt: string | null; student: { firstName: string; lastName: string; currentBand: string | null; targetBand: string | null } }
 interface Session { id: string; topic: string; startsAt: string; endsAt: string; provider: string | null; meetingUrl: string | null; recordingUrl: string | null; _count: { attendance: number } }
 interface Sheet { session: { id: string; topic: string }; roster: { studentId: string; name: string; status: string | null; minutesAttended: number | null }[] }
-interface ResultRow { studentId: string; name: string; targetBand: number | null; progressPercent: number; skills: Record<string, { latest: number | null; best: number | null }>; lastMock: { title: string; percent: number | null; at: string } | null }
+interface ResultRow { studentId: string; name: string; targetBand: number | null; progressPercent: number; skills: Record<string, { latest: number | null; best: number | null }>; lastMock: { title: string; percent: number | null; at: string } | null; ielts?: IeltsSummaryLike }
 const STATUSES = ['PRESENT', 'LATE', 'ABSENT', 'EXCUSED'];
 
 function AttendanceDialog({ sessionId, onClose }: { sessionId: string | null; onClose: () => void }) {
@@ -89,10 +90,11 @@ function Results({ batchId }: { batchId: string }) {
   if (!data.length) return <Empty>No enrolled students yet.</Empty>;
   const SK = ['LISTENING', 'READING', 'WRITING', 'SPEAKING'];
   return (
-    <Table head={['Student', 'Target', ...SK.map((k) => label(k)), 'Last mock', 'Progress']}>
+    <Table head={['Student', 'IELTS', 'Target', ...SK.map((k) => label(k)), 'Last mock', 'Progress']}>
       {data.map((r) => (
         <tr key={r.studentId}>
           <Td className="font-medium">{r.name}</Td>
+          <Td><IeltsBadge ielts={r.ielts} /></Td>
           <Td>{band(r.targetBand)}</Td>
           {SK.map((k) => <Td key={k}>{r.skills[k]?.latest === null || r.skills[k] === undefined ? '—' : <span title={`Best ${band(r.skills[k].best)}`}>{band(r.skills[k].latest)}</span>}</Td>)}
           <Td>{r.lastMock ? <span title={r.lastMock.title}>{r.lastMock.percent === null ? '—' : `${Math.round(r.lastMock.percent)}%`} <span className="text-xs text-slate-400">{date(r.lastMock.at)}</span></span> : '—'}</Td>
