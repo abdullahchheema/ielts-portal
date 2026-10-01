@@ -50,14 +50,24 @@ jobs:
       JWT_ACCESS_SECRET: ${{ secrets.CI_JWT_ACCESS_SECRET }}
       JWT_REFRESH_SECRET: ${{ secrets.CI_JWT_REFRESH_SECRET }}
     steps:
+      - name: Check for CI database secrets
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::notice::CI_DATABASE_URL is not set, so the integration tests were skipped. Add the CI_* secrets to run them."
+          fi
       - uses: actions/checkout@v4
+        if: env.DATABASE_URL != ''
       - uses: actions/setup-node@v4
+        if: env.DATABASE_URL != ''
         with:
           node-version: 22
           cache: npm
       - run: npm ci
+        if: env.DATABASE_URL != ''
       - name: Build shared packages
+        if: env.DATABASE_URL != ''
         run: npm run build -w @ielts/types -w @ielts/config -w @ielts/validation -w @ielts/db
       - name: Integration tests
+        if: env.DATABASE_URL != ''
         run: npm test -w @ielts/api
         timeout-minutes: 45
