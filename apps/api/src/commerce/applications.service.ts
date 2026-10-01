@@ -18,7 +18,7 @@ import { PaymentMethodSetting, SettingsService } from '../settings/settings.serv
 import { CouponsService } from './coupons.service';
 import { money, newOrderReference, releaseCouponForOrder } from './commerce.helpers';
 
-export const MAX_PROOF_BYTES = 5 * 1024 * 1024;
+export const MAX_PROOF_BYTES = 4 * 1024 * 1024;
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
 export const ENROLLMENT_ACTIVATED = 'enrollment.activated';
 export interface EnrollmentActivatedEvent { enrollmentId: string; studentId: string; userId: string; orderId?: string; source: string }
@@ -114,7 +114,7 @@ export class ApplicationsService {
   // ───────── apply ─────────
   private async checkProofFile(file: { buffer: Buffer; size: number } | undefined) {
     if (!file) throw new AppError('PROOF_REQUIRED', 422, 'Please attach a screenshot or PDF of your payment receipt.', { file: 'Attach your payment receipt.' });
-    if (file.size > MAX_PROOF_BYTES) throw new AppError('FILE_TOO_LARGE', 413, 'The file is larger than 5 MB.');
+    if (file.size > MAX_PROOF_BYTES) throw new AppError('FILE_TOO_LARGE', 413, 'The file is larger than 4 MB.');
     const sniffed = sniffFileType(file.buffer);
     if (!sniffed || !ALLOWED_MIME.has(sniffed.mime)) throw new AppError('UNSUPPORTED_FILE_TYPE', 415, 'Only JPG, PNG, WebP or PDF files are accepted.');
     return sniffed;

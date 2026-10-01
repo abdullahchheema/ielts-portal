@@ -19,7 +19,7 @@ export const emptyPayment = (amount: string | number = ''): PaymentValues => ({
 });
 
 export const METHOD_LABEL: Record<string, string> = { BANK_TRANSFER: 'Bank transfer', JAZZCASH: 'JazzCash', EASYPAISA: 'Easypaisa', OTHER: 'Other' };
-export const MAX_PROOF_MB = 5;
+export const MAX_PROOF_MB = 4;
 
 /** Client-side checks so people get an instant message; the API re-validates everything. */
 export function validatePayment(v: PaymentValues): Record<string, string> {
