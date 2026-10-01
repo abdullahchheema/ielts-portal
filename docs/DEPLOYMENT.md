@@ -70,9 +70,10 @@ To run them on one instance only, set `DISABLE_SWEEPER=true` on the others.
 - **Content protection:** files are private with short-lived links, but nothing can fully prevent screen recording of lessons. Use the watermarking/DRM options of a video host if that matters to you.
 - **Scaling:** first move the sweepers to a separate worker instance (`DISABLE_SWEEPER=true` on the web-facing API), add Redis for shared rate limiting, then add read replicas for reports.
 
-## Deploying everything on Vercel (two projects, one repo)
+## Deploying on Vercel (one project)
 
-1. **API project:** import the repo, set **Root Directory** to `apps/api`. `apps/api/vercel.json` holds the build, install, routing and cron settings.
-   Environment variables: `DATABASE_URL`, `DIRECT_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `APP_URL` (the web project URL), `NODE_ENV=production`, `CRON_SECRET` (any long random string; Vercel sends it to the cron route), `TWO_FACTOR_ENABLED`, and the five `S3_*` variables (Supabase Storage S3 works). Local disk storage does not work on Vercel.
-2. **Web project:** import the same repo, set **Root Directory** to `apps/web`, add `API_URL` = the API project URL (no trailing slash).
-3. Limits on Vercel: request bodies max about 4.5 MB (payment receipts are limited to 4 MB; long speaking recordings may fail); the periodic sweep (enrollment expiry, reminders, auto-submit of timed tests) runs once a day via cron on the Hobby plan.
+The NestJS backend runs inside the Next.js app:  starts it on a private loopback port and forwards  to it, so there is a single Vercel project.
+
+1. Import the repo, set **Root Directory** to  and the framework preset to **Next.js**.  holds the install/build commands and the daily cron.
+2. Environment variables: , , , ,  (the site's own URL), , , , and the five  variables (Supabase Storage S3 works). Local disk storage does not work on Vercel. Do **not** set  (setting it makes the site use that external server instead).
+3. Limits on Vercel: request bodies max about 4.5 MB (receipts are limited to 4 MB; long speaking recordings may fail); the periodic sweep (enrollment expiry, reminders, auto-submit of timed tests) runs once a day via cron on the Hobby plan.
