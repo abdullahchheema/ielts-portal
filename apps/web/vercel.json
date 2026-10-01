@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "cd ../.. && npm ci",
+  "installCommand": "cd ../.. && npm ci --include=dev",
   "buildCommand": "cd ../.. && npm run build:packages && npm run build -w @ielts/api && npm run build -w @ielts/web",
   "crons": [{ "path": "/api/internal/cron", "schedule": "0 3 * * *" }]
 }
