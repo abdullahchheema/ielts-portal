@@ -26,8 +26,8 @@ export default function ForgotPasswordPage() {
     return (
       <div className="space-y-4">
         <h1 className="text-xl font-semibold">Check your email</h1>
-        <p className="text-sm text-slate-600">If an account exists for that address, we have sent a link to reset your password.</p>
-        <Link href="/login" className="text-sm text-indigo-700 hover:underline">Back to log in</Link>
+        <p className="text-sm text-fg-muted">If an account exists for that address, we have sent a link to reset your password.</p>
+        <Link href="/login" className="text-sm text-primary hover:underline">Back to log in</Link>
       </div>
     );
   }
@@ -37,7 +37,7 @@ export default function ForgotPasswordPage() {
       {error && <Alert>{error}</Alert>}
       <Field label="Email" error={errors.email?.message}>{(p) => <Input {...p} type="email" autoComplete="email" {...register('email')} />}</Field>
       <Button type="submit" busy={isSubmitting} className="w-full">Send reset link</Button>
-      <Link href="/login" className="block text-center text-sm text-indigo-700 hover:underline">Back to log in</Link>
+      <Link href="/login" className="block text-center text-sm text-primary hover:underline">Back to log in</Link>
     </form>
   );
 }

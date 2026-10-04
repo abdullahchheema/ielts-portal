@@ -1,5 +1,7 @@
 'use client';
 
+import { SkeletonTable } from '@/components/ui';
+
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState } from 'react';
@@ -25,13 +27,13 @@ export default function SupportPage() {
     catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
   }
 
-  if (isLoading) return <Loading />;
+  if (isLoading) return <SkeletonTable rows={6} cols={5} />;
   return (
     <>
       <PageHeader title="Support" subtitle="Questions about payments, classes or your account? We’ll reply here and by email." actions={<Button onClick={() => setOpen(true)}>New request</Button>} />
       {!data?.length ? <Empty>You have no support requests.</Empty> : (
         <Table head={['Subject', 'Category', 'Status', 'Opened', '']}>
-          {data.map((t) => <tr key={t.id}><Td className="font-medium">{t.subject}</Td><Td>{label(t.category)}</Td><Td><Badge status={t.status} /></Td><Td>{date(t.createdAt)}</Td><Td><Link href={`/student/support/${t.id}`} className="text-indigo-700 hover:underline">Open</Link></Td></tr>)}
+          {data.map((t) => <tr key={t.id}><Td className="font-medium">{t.subject}</Td><Td>{label(t.category)}</Td><Td><Badge status={t.status} /></Td><Td>{date(t.createdAt)}</Td><Td><Link href={`/student/support/${t.id}`} className="text-primary hover:underline">Open</Link></Td></tr>)}
         </Table>
       )}
       <Dialog open={open} onClose={() => setOpen(false)} title="New support request">

@@ -31,12 +31,12 @@ export default function AuditPage() {
             {rows.map((r) => (
               <tr key={r.id}>
                 <Td className="whitespace-nowrap">{date(r.createdAt, true)}</Td>
-                <Td>{r.actor ?? 'system'}<span className="block text-xs text-slate-500">{r.ip}</span></Td>
+                <Td>{r.actor ?? 'system'}<span className="block text-xs text-fg-muted">{r.ip}</span></Td>
                 <Td className="font-mono text-xs">{r.action}</Td>
-                <Td>{r.entityType}<span className="block font-mono text-xs text-slate-500">{r.entityId?.slice(0, 8)}</span></Td>
+                <Td>{r.entityType}<span className="block font-mono text-xs text-fg-muted">{r.entityId?.slice(0, 8)}</span></Td>
                 <Td>{(r.before || r.after) ? (
-                  <details><summary className="cursor-pointer text-indigo-700">View</summary>
-                    <pre className="mt-1 max-h-48 max-w-md overflow-auto rounded bg-slate-50 p-2 text-xs">{JSON.stringify({ before: r.before, after: r.after }, null, 2)}</pre>
+                  <details><summary className="cursor-pointer text-primary">View</summary>
+                    <pre className="mt-1 max-h-48 max-w-md overflow-auto rounded bg-canvas p-2 text-xs">{JSON.stringify({ before: r.before, after: r.after }, null, 2)}</pre>
                   </details>) : '—'}</Td>
               </tr>
             ))}

@@ -30,7 +30,7 @@ export function BandChart({ skill, points, target }: { skill: string; points: Ba
   }, [points, target]);
 
   if (points.length === 0) {
-    return <div className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-500"><strong className="text-slate-700">{skill}</strong><br />No scores yet.</div>;
+    return <div className="rounded-lg border border-dashed border-border-strong bg-surface p-4 text-sm text-fg-muted"><strong className="text-fg">{skill}</strong><br />No scores yet.</div>;
   }
   const latest = points[points.length - 1];
   const best = Math.max(...points.map((p) => p.band));
@@ -38,10 +38,10 @@ export function BandChart({ skill, points, target }: { skill: string; points: Ba
   const h = hover !== null ? points[hover] : null;
 
   return (
-    <figure className="rounded-lg bg-white p-4 ring-1 ring-slate-200">
+    <figure className="rounded-lg bg-surface p-5 shadow-xs ring-1 ring-border">
       <figcaption className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-        <span className="font-semibold text-slate-900">{skill}</span>
-        <span className="text-xs text-slate-600">Latest <strong>{fmtBand(latest.band)}</strong> · Best <strong>{fmtBand(best)}</strong></span>
+        <span className="font-display font-semibold text-fg">{skill}</span>
+        <span className="text-xs text-fg-muted">Latest <strong>{fmtBand(latest.band)}</strong> · Best <strong>{fmtBand(best)}</strong></span>
       </figcaption>
       <div className="relative">
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={`${skill} band history: latest ${fmtBand(latest.band)}, best ${fmtBand(best)}`}
@@ -55,34 +55,34 @@ export function BandChart({ skill, points, target }: { skill: string; points: Ba
           }}>
           {g.ticks.map((b) => (
             <g key={b}>
-              <line x1={PAD.l} x2={W - PAD.r} y1={g.y(b)} y2={g.y(b)} stroke="#e2e8f0" strokeWidth={1} />
-              <text x={PAD.l - 6} y={g.y(b) + 4} textAnchor="end" fontSize={11} fill="#64748b">{b.toFixed(1)}</text>
+              <line x1={PAD.l} x2={W - PAD.r} y1={g.y(b)} y2={g.y(b)} className="stroke-border" strokeWidth={1} />
+              <text x={PAD.l - 6} y={g.y(b) + 4} textAnchor="end" fontSize={11} className="fill-fg-subtle">{b.toFixed(1)}</text>
             </g>
           ))}
-          {target ? <g><line x1={PAD.l} x2={W - PAD.r} y1={g.y(target)} y2={g.y(target)} stroke="#94a3b8" strokeWidth={1} strokeDasharray="4 4" /><text x={W - PAD.r} y={g.y(target) - 4} textAnchor="end" fontSize={11} fill="#475569">Target {fmtBand(target)}</text></g> : null}
-          {points.length > 1 && <path d={path} fill="none" stroke="#4f46e5" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />}
-          {h && <line x1={g.x(hover!)} x2={g.x(hover!)} y1={PAD.t} y2={H - PAD.b} stroke="#94a3b8" strokeWidth={1} />}
+          {target ? <g><line x1={PAD.l} x2={W - PAD.r} y1={g.y(target)} y2={g.y(target)} className="stroke-fg-subtle" strokeWidth={1} strokeDasharray="4 4" /><text x={W - PAD.r} y={g.y(target) - 4} textAnchor="end" fontSize={11} className="fill-fg-muted">Target {fmtBand(target)}</text></g> : null}
+          {points.length > 1 && <path d={path} fill="none" className="stroke-primary" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />}
+          {h && <line x1={g.x(hover!)} x2={g.x(hover!)} y1={PAD.t} y2={H - PAD.b} className="stroke-border-strong" strokeWidth={1} />}
           {points.map((p, i) => (
             <g key={i}>
               {/* larger transparent target than the visible 8px marker */}
               <circle cx={g.x(i)} cy={g.y(p.band)} r={14} fill="transparent" tabIndex={0} onFocus={() => setHover(i)} onBlur={() => setHover(null)} aria-label={`${p.title}: band ${fmtBand(p.band)}${p.at ? `, ${date(p.at)}` : ''}`} />
-              <circle cx={g.x(i)} cy={g.y(p.band)} r={hover === i ? 6 : 4.5} fill="#4f46e5" stroke="#ffffff" strokeWidth={2} pointerEvents="none" />
+              <circle cx={g.x(i)} cy={g.y(p.band)} r={hover === i ? 6 : 4.5} className="fill-primary stroke-surface" strokeWidth={2} pointerEvents="none" />
             </g>
           ))}
-          <text x={PAD.l} y={H - 6} fontSize={11} fill="#64748b">{date(points[0].at)}</text>
-          {points.length > 1 && <text x={W - PAD.r} y={H - 6} textAnchor="end" fontSize={11} fill="#64748b">{date(latest.at)}</text>}
+          <text x={PAD.l} y={H - 6} fontSize={11} className="fill-fg-muted">{date(points[0].at)}</text>
+          {points.length > 1 && <text x={W - PAD.r} y={H - 6} textAnchor="end" fontSize={11} className="fill-fg-muted">{date(latest.at)}</text>}
         </svg>
         {h && (
-          <div role="status" className="pointer-events-none absolute -translate-x-1/2 rounded-md bg-slate-900 px-2.5 py-1.5 text-xs text-white shadow-lg" style={{ left: `${(g.x(hover!) / W) * 100}%`, top: 0 }}>
-            <div className="font-semibold">Band {fmtBand(h.band)}</div><div className="text-slate-300">{h.title}</div><div className="text-slate-400">{date(h.at)}</div>
+          <div role="status" className="pointer-events-none absolute -translate-x-1/2 rounded-md bg-fg px-2.5 py-1.5 text-xs text-surface shadow-lg" style={{ left: `${(g.x(hover!) / W) * 100}%`, top: 0 }}>
+            <div className="font-semibold">Band {fmtBand(h.band)}</div><div className="text-surface/75">{h.title}</div><div className="text-surface/60">{date(h.at)}</div>
           </div>
         )}
       </div>
-      <button type="button" className="mt-2 text-xs text-indigo-700 underline" aria-expanded={table} onClick={() => setTable((v) => !v)}>{table ? 'Hide table' : 'Show as table'}</button>
+      <button type="button" className="mt-2 text-xs font-medium text-primary underline underline-offset-2" aria-expanded={table} onClick={() => setTable((v) => !v)}>{table ? 'Hide table' : 'Show as table'}</button>
       {table && (
         <table className="mt-2 w-full text-left text-xs">
-          <thead><tr className="text-slate-500"><th className="py-1 font-medium">Date</th><th className="font-medium">Source</th><th className="text-right font-medium">Band</th></tr></thead>
-          <tbody>{points.map((p, i) => <tr key={i} className="border-t border-slate-100"><td className="py-1">{date(p.at)}</td><td>{p.title}</td><td className="text-right font-medium">{fmtBand(p.band)}</td></tr>)}</tbody>
+          <thead><tr className="text-fg-muted"><th className="py-1 font-medium">Date</th><th className="font-medium">Source</th><th className="text-right font-medium">Band</th></tr></thead>
+          <tbody>{points.map((p, i) => <tr key={i} className="border-t border-border"><td className="py-1">{date(p.at)}</td><td>{p.title}</td><td className="text-right font-medium">{fmtBand(p.band)}</td></tr>)}</tbody>
         </table>
       )}
     </figure>

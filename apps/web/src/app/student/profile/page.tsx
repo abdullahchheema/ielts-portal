@@ -1,5 +1,7 @@
 'use client';
 
+import { SkeletonTable } from '@/components/ui';
+
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -74,7 +76,7 @@ export default function ProfilePage() {
     onSuccess: () => { setSaved(true); qc.invalidateQueries({ queryKey: ['profile'] }); qc.invalidateQueries({ queryKey: ['dashboard'] }); },
   });
 
-  if (isLoading) return <Loading />;
+  if (isLoading) return <SkeletonTable rows={6} cols={5} />;
   const onSubmit = handleSubmit(async (v) => {
     setSaved(false); setError(null);
     try { await save.mutateAsync(v); } catch (e) {
@@ -90,7 +92,7 @@ export default function ProfilePage() {
         <form onSubmit={onSubmit} noValidate className="space-y-4">
           {error && <Alert>{error}</Alert>}
           {saved && <Alert kind="success">Profile saved.</Alert>}
-          <div className="rounded-md bg-slate-50 p-3 text-sm text-slate-700"><p className="font-medium">{data?.firstName} {data?.lastName}</p><p className="text-slate-500">{data?.email}</p></div>
+          <div className="rounded-md bg-canvas p-3 text-sm text-fg"><p className="font-medium">{data?.firstName} {data?.lastName}</p><p className="text-fg-muted">{data?.email}</p></div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Phone" error={errors.phone?.message}>{(p) => <Input {...p} type="tel" autoComplete="tel" {...register('phone')} />}</Field>
             <Field label="City" error={errors.city?.message}>{(p) => <Input {...p} autoComplete="address-level2" {...register('city')} />}</Field>
@@ -109,14 +111,14 @@ export default function ProfilePage() {
           </div>
           <Field label="Gender" error={errors.gender?.message}>{(p) => <Select {...p} {...register('gender')}><option value="">Select</option><option value="MALE">Male</option><option value="FEMALE">Female</option><option value="OTHER">Other</option></Select>}</Field>
 
-          <fieldset className="rounded-md bg-slate-50 p-4">
-            <legend className="px-1 text-sm font-medium text-slate-700">IELTS background</legend>
+          <fieldset className="rounded-md bg-canvas p-4">
+            <legend className="px-1 text-sm font-medium text-fg">IELTS background</legend>
             <div className="space-y-3">
               <div className="flex gap-4 text-sm">
                 <label className="flex items-center gap-2"><input type="radio" value="NEVER" {...register('ieltsHistory')} /> Never taken IELTS</label>
                 <label className="flex items-center gap-2"><input type="radio" value="TAKEN" {...register('ieltsHistory')} /> I have taken IELTS before</label>
               </div>
-              {errors.ieltsHistory && <p className="text-xs text-red-600">{errors.ieltsHistory.message}</p>}
+              {errors.ieltsHistory && <p className="text-xs text-danger">{errors.ieltsHistory.message}</p>}
               {taken && (
                 <>
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">

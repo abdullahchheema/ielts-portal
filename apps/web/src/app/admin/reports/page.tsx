@@ -21,7 +21,7 @@ interface Overview { range: { from: string; to: string }; finance: Finance | nul
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const Stat = ({ name, value, hint }: { name: string; value: string; hint?: string }) => (
-  <Card><p className="text-sm text-slate-500">{name}</p><p className="mt-1 text-2xl font-semibold text-slate-900">{value}</p>{hint && <p className="mt-0.5 text-xs text-slate-500">{hint}</p>}</Card>
+  <Card><p className="text-sm text-fg-muted">{name}</p><p className="mt-1 text-2xl font-semibold text-fg">{value}</p>{hint && <p className="mt-0.5 text-xs text-fg-muted">{hint}</p>}</Card>
 );
 const pct = (v: number | null) => (v === null ? '—' : v + '%');
 
@@ -29,16 +29,16 @@ const pct = (v: number | null) => (v === null ? '—' : v + '%');
 function RevenueBars({ daily }: { daily: Finance['daily'] }) {
   const max = Math.max(...daily.map((d) => d.revenue), 1);
   return (
-    <figure className="rounded-lg bg-white p-4 ring-1 ring-slate-200">
+    <figure className="rounded-lg bg-surface p-4 ring-1 ring-border">
       <figcaption className="mb-3 text-sm font-semibold">Revenue by day</figcaption>
       <div className="flex h-32 items-end gap-1" role="img" aria-label={'Daily revenue, peak ' + money(max)}>
         {daily.map((d) => (
           <div key={d.day} className="group relative flex-1" title={d.day + ': ' + money(d.revenue) + ' (' + d.orders + ' orders)'}>
-            <div className="w-full rounded-t-sm bg-indigo-600" style={{ height: Math.max(3, (d.revenue / max) * 100) + '%' }} />
+            <div className="w-full rounded-t-sm bg-primary" style={{ height: Math.max(3, (d.revenue / max) * 100) + '%' }} />
           </div>
         ))}
       </div>
-      <div className="mt-1 flex justify-between text-xs text-slate-500"><span>{daily[0]?.day}</span><span>{daily[daily.length - 1]?.day}</span></div>
+      <div className="mt-1 flex justify-between text-xs text-fg-muted"><span>{daily[0]?.day}</span><span>{daily[daily.length - 1]?.day}</span></div>
     </figure>
   );
 }
@@ -70,7 +70,7 @@ export default function ReportsPage() {
           {data.finance.daily.length > 0 && <div className="mb-4"><RevenueBars daily={data.finance.daily} /></div>}
           <div className="grid gap-4 lg:grid-cols-2">
             <div><h3 className="mb-2 text-sm font-semibold">Revenue by course and batch</h3>
-              {data.finance.byCourse.length === 0 ? <p className="text-sm text-slate-500">No paid orders in this range.</p> : (
+              {data.finance.byCourse.length === 0 ? <p className="text-sm text-fg-muted">No paid orders in this range.</p> : (
                 <Table head={['Course', 'Batch', 'Orders', 'Revenue']}>{data.finance.byCourse.map((r) => <tr key={r.course + r.batch}><Td>{r.course}</Td><Td>{r.batch}</Td><Td>{r.orders}</Td><Td>{money(r.revenue)}</Td></tr>)}</Table>)}
             </div>
             <div><h3 className="mb-2 text-sm font-semibold">Orders by status</h3>

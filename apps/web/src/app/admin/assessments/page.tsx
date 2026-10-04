@@ -1,5 +1,7 @@
 'use client';
 
+import { SkeletonTable } from '@/components/ui';
+
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState } from 'react';
@@ -28,7 +30,7 @@ export default function AssessmentsPage() {
     } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
   }
 
-  if (isLoading) return <Loading />;
+  if (isLoading) return <SkeletonTable rows={6} cols={5} />;
   if (isError || !data) return <Alert>Could not load assessments.</Alert>;
   return (
     <>
@@ -41,7 +43,7 @@ export default function AssessmentsPage() {
               <Td>{a.timeLimitMin ? `${a.timeLimitMin} min` : 'untimed'}{a.maxAttempts ? ` · ${a.maxAttempts} tries` : ''}{a.passPercent ? ` · pass ${a.passPercent}%` : ''}</Td>
               <Td>{a.versions.map((v) => <span key={v.id} className="mr-1 inline-flex items-center gap-1"><Badge status={v.publishedAt ? 'PUBLISHED' : 'DRAFT'} />v{v.version}</span>)}</Td>
               <Td>{a._count.attempts}</Td>
-              <Td><Link href={`/admin/assessments/${a.id}`} className="text-indigo-700 hover:underline">Build</Link></Td>
+              <Td><Link href={`/admin/assessments/${a.id}`} className="text-primary hover:underline">Build</Link></Td>
             </tr>
           ))}
         </Table>

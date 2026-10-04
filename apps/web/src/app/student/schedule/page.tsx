@@ -21,8 +21,8 @@ export default function SchedulePage() {
         <ul className="space-y-3">
           {sessions.data.upcoming.map((s) => (
             <li key={s.id}><Card className="flex flex-wrap items-center justify-between gap-3">
-              <div><p className="font-semibold">{s.topic}</p><p className="text-sm text-slate-600">{date(s.startsAt, true)} – {new Date(s.endsAt).toLocaleTimeString('en-GB', { timeStyle: 'short' })} · {s.course} ({s.batch})</p></div>
-              {s.joinUrl ? <a href={s.joinUrl} target="_blank" rel="noopener noreferrer" className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">Join class ↗</a> : <span className="text-sm text-slate-500">Link opens 15 min before</span>}
+              <div><p className="font-semibold">{s.topic}</p><p className="text-sm text-fg-muted">{date(s.startsAt, true)} – {new Date(s.endsAt).toLocaleTimeString('en-GB', { timeStyle: 'short' })} · {s.course} ({s.batch})</p></div>
+              {s.joinUrl ? <a href={s.joinUrl} target="_blank" rel="noopener noreferrer" className="rounded-md bg-success px-4 py-2 text-sm font-medium text-white hover:brightness-95">Join class ↗</a> : <span className="text-sm text-fg-muted">Link opens 15 min before</span>}
             </Card></li>
           ))}
         </ul>
@@ -35,7 +35,7 @@ export default function SchedulePage() {
             {att.data.filter((a) => a.sessionsHeld > 0).map((a) => (
               <Card key={a.enrollmentId}><p className="mb-2 font-medium">{a.course}</p>
                 <ProgressBar value={a.attendancePercent ?? 0} label={`Attended ${a.present + a.late} of ${a.sessionsHeld} classes`} />
-                <p className="mt-2 text-xs text-slate-500">{a.present} present · {a.late} late · {a.absent} absent · {a.excused} excused</p>
+                <p className="mt-2 text-xs text-fg-muted">{a.present} present · {a.late} late · {a.absent} absent · {a.excused} excused</p>
               </Card>
             ))}
           </div>
@@ -45,11 +45,11 @@ export default function SchedulePage() {
       {sessions.data.past.length > 0 && (
         <>
           <h2 className="mb-3 mt-8 text-lg font-semibold">Past classes</h2>
-          <ul className="divide-y divide-slate-100 rounded-lg bg-white ring-1 ring-slate-200">
+          <ul className="divide-y divide-border rounded-lg bg-surface ring-1 ring-border">
             {sessions.data.past.map((s) => (
               <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
-                <span><strong>{s.topic}</strong> <span className="text-slate-500">· {date(s.startsAt, true)}</span></span>
-                <span className="flex items-center gap-3">{s.attendance && <Badge status={s.attendance} />}{s.recordingUrl && <a href={s.recordingUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-700 underline">Recording ↗</a>}</span>
+                <span><strong>{s.topic}</strong> <span className="text-fg-muted">· {date(s.startsAt, true)}</span></span>
+                <span className="flex items-center gap-3">{s.attendance && <Badge status={s.attendance} />}{s.recordingUrl && <a href={s.recordingUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline">Recording ↗</a>}</span>
               </li>
             ))}
           </ul>

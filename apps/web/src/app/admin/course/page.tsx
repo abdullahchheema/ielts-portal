@@ -1,5 +1,7 @@
 'use client';
 
+import { useConfirm } from '@/components/ui';
+
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Alert, Badge, Button, Card, Dialog, Field, Input, Loading, PageHeader, Select, Textarea } from '@/components/ui';
@@ -140,6 +142,7 @@ function SectionNode({ s, siblings, all, editable, actions }: {
   s: Section; siblings: Section[]; all: Item[]; editable: boolean;
   actions: { addSection: (parent: string) => void; addItem: (sectionId: string) => void; editItem: (sectionId: string, i: Item) => void; taskItem: (i: Item) => void; refresh: () => void };
 }) {
+  const confirm = useConfirm();
   const [error, setError] = useState<string | null>(null);
   const run = async (fn: () => Promise<unknown>) => { setError(null); try { await fn(); actions.refresh(); } catch (e) { setError(errorMessage(e)); } };
   const move = (list: { id: string }[], id: string, dir: -1 | 1, url: string) => {
@@ -151,40 +154,40 @@ function SectionNode({ s, siblings, all, editable, actions }: {
   const idx = siblings.findIndex((x) => x.id === s.id);
 
   return (
-    <li className="rounded-lg border border-slate-200 bg-white p-3">
+    <li className="rounded-lg border border-border bg-surface p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="font-semibold text-slate-900">{s.title}</h3>
+        <h3 className="font-semibold text-fg">{s.title}</h3>
         {editable && (
           <div className="flex flex-wrap gap-1 text-xs">
             <Button variant="ghost" className="!px-2 !py-1" disabled={idx === 0} aria-label={`Move ${s.title} up`} onClick={() => move(siblings, s.id, -1, `/admin/course-versions/${s.courseVersionId}/sections/reorder`)}>↑</Button>
             <Button variant="ghost" className="!px-2 !py-1" disabled={idx === siblings.length - 1} aria-label={`Move ${s.title} down`} onClick={() => move(siblings, s.id, 1, `/admin/course-versions/${s.courseVersionId}/sections/reorder`)}>↓</Button>
             <Button variant="ghost" className="!px-2 !py-1" onClick={() => actions.addItem(s.id)}>+ Item</Button>
             <Button variant="ghost" className="!px-2 !py-1" onClick={() => actions.addSection(s.id)}>+ Subsection</Button>
-            <Button variant="ghost" className="!px-2 !py-1 text-red-600" onClick={() => confirm(`Delete “${s.title}” and everything in it?`) && run(() => api(`/admin/sections/${s.id}`, { method: 'DELETE' }))}>Delete</Button>
+            <Button variant="ghost" tone="danger" className="!px-2 !py-1" onClick={() => confirm({ message: `Delete “${s.title}” and everything in it?`, tone: 'danger', confirmLabel: 'Delete section' }).then((ok) => { if (ok) { run(() => api(`/admin/sections/${s.id}`, { method: 'DELETE' })); } })}>Delete</Button>
           </div>
         )}
       </div>
       {error && <div className="mt-2"><Alert>{error}</Alert></div>}
       {s.items.length > 0 && (
-        <ul className="mt-2 divide-y divide-slate-100 text-sm">
+        <ul className="mt-2 divide-y divide-border text-sm">
           {s.items.map((i, n) => (
             <li key={i.id} className="flex flex-wrap items-center justify-between gap-2 py-1.5">
               <span>
-                {i.title} <span className="text-xs text-slate-500">· {label(i.contentType)}{i.isRequired ? '' : ' · optional'}{i.releaseType !== 'IMMEDIATE' ? ` · ${label(i.releaseType)}` : ''}{i.metadataJson?.fileName ? ` · 📎 ${i.metadataJson.fileName}` : ''}</span>
+                {i.title} <span className="text-xs text-fg-muted">· {label(i.contentType)}{i.isRequired ? '' : ' · optional'}{i.releaseType !== 'IMMEDIATE' ? ` · ${label(i.releaseType)}` : ''}{i.metadataJson?.fileName ? ` · 📎 ${i.metadataJson.fileName}` : ''}</span>
               </span>
               {editable && (
                 <span className="flex flex-wrap items-center gap-1 text-xs">
                   <Button variant="ghost" className="!px-2 !py-1" disabled={n === 0} aria-label={`Move ${i.title} up`} onClick={() => move(s.items, i.id, -1, `/admin/sections/${s.id}/items/reorder`)}>↑</Button>
                   <Button variant="ghost" className="!px-2 !py-1" disabled={n === s.items.length - 1} aria-label={`Move ${i.title} down`} onClick={() => move(s.items, i.id, 1, `/admin/sections/${s.id}/items/reorder`)}>↓</Button>
                   {['PDF', 'AUDIO', 'DOWNLOAD'].includes(i.contentType) && (
-                    <label className="cursor-pointer rounded-md px-2 py-1 text-indigo-700 hover:bg-slate-100">Upload file
+                    <label className="cursor-pointer rounded-md px-2 py-1 text-primary hover:bg-surface-muted">Upload file
                       <input type="file" className="sr-only" accept={i.contentType === 'AUDIO' ? 'audio/mpeg' : 'application/pdf,image/*'}
                         onChange={(e) => { const f = e.target.files?.[0]; if (!f) return; const fd = new FormData(); fd.append('file', f); run(() => api(`/admin/items/${i.id}/file`, { method: 'POST', form: fd })); e.target.value = ''; }} />
                     </label>
                   )}
                   {TASK_TYPES.includes(i.contentType) && <Button variant="ghost" className="!px-2 !py-1" onClick={() => actions.taskItem(i)}>Task settings</Button>}
                   <Button variant="ghost" className="!px-2 !py-1" onClick={() => actions.editItem(s.id, i)}>Edit</Button>
-                  <Button variant="ghost" className="!px-2 !py-1 text-red-600" onClick={() => confirm(`Delete “${i.title}”?`) && run(() => api(`/admin/items/${i.id}`, { method: 'DELETE' }))}>Delete</Button>
+                  <Button variant="ghost" tone="danger" className="!px-2 !py-1" onClick={() => confirm({ message: `Delete “${i.title}”?`, tone: 'danger', confirmLabel: 'Delete item' }).then((ok) => { if (ok) { run(() => api(`/admin/items/${i.id}`, { method: 'DELETE' })); } })}>Delete</Button>
                 </span>
               )}
             </li>
@@ -192,7 +195,7 @@ function SectionNode({ s, siblings, all, editable, actions }: {
         </ul>
       )}
       {s.children.length > 0 && (
-        <ul className="mt-3 space-y-3 border-l-2 border-slate-100 pl-3">
+        <ul className="mt-3 space-y-3 border-l-2 border-border pl-3">
           {s.children.map((c) => <SectionNode key={c.id} s={c} siblings={s.children} all={all} editable={editable} actions={actions} />)}
         </ul>
       )}
@@ -228,6 +231,7 @@ function CourseDetails({ c, canEdit, onSaved }: { c: CourseDetail; canEdit: bool
 }
 
 export default function CourseBuilderPage() {
+  const confirm = useConfirm();
   const qc = useQueryClient();
   const { data: me } = useMe();
   const [versionId, setVersionId] = useState<string | null>(null);
@@ -274,17 +278,17 @@ export default function CourseBuilderPage() {
 
       <Card className="mb-6">
         <div className="flex flex-wrap items-center gap-3">
-          <label className="text-sm font-medium text-slate-700" htmlFor="version">Version</label>
+          <label className="text-sm font-medium text-fg" htmlFor="version">Version</label>
           <Select id="version" className="!w-auto" value={current ?? ''} onChange={(e) => setVersionId(e.target.value)}>
             {c.versions.map((v) => <option key={v.id} value={v.id}>v{v.versionNumber} — {label(v.status)}{v.publishedAt ? ` (${date(v.publishedAt)})` : ''}</option>)}
           </Select>
           {version && <Badge status={version.status} />}
           <div className="ml-auto flex gap-2">
             {can(me, 'course.edit') && !c.versions.some((v) => v.status === 'DRAFT') && <Button variant="secondary" busy={newVersion.isPending} onClick={() => { setError(null); newVersion.mutate(); }}>New version (copy)</Button>}
-            {version?.status === 'DRAFT' && can(me, 'course.publish') && <Button busy={publish.isPending} onClick={() => confirm('Publish this version? It becomes read-only.') && publish.mutate()}>Publish version</Button>}
+            {version?.status === 'DRAFT' && can(me, 'course.publish') && <Button busy={publish.isPending} onClick={() => confirm({ message: 'Publish this version? It becomes read-only.', confirmLabel: 'Publish' }).then((ok) => { if (ok) { publish.mutate(); } })}>Publish version</Button>}
           </div>
         </div>
-        {version && version.status !== 'DRAFT' && <p className="mt-3 text-sm text-slate-500">Published versions are read-only so students’ history stays intact. Create a new version to make changes; new batches use the newest published version.</p>}
+        {version && version.status !== 'DRAFT' && <p className="mt-3 text-sm text-fg-muted">Published versions are read-only so students’ history stays intact. Create a new version to make changes; new batches use the newest published version.</p>}
       </Card>
 
       {tree.isLoading && <Loading />}

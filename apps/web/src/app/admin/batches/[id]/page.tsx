@@ -1,5 +1,7 @@
 'use client';
 
+import { useConfirm } from '@/components/ui';
+
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
@@ -24,6 +26,7 @@ const NEXT: Record<string, string[]> = {
 };
 
 export default function BatchDetailPage() {
+  const confirm = useConfirm();
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
   const { data: me } = useMe();
@@ -46,22 +49,22 @@ export default function BatchDetailPage() {
     <>
       <PageHeader title={b.name} subtitle={`${b.course.title} · starts ${date(b.startAt, true)} · ${b.days.length ? b.days.join(', ') : 'days not set'}${b.classTime ? ` at ${b.classTime}` : ''} · ${b.timezone}`} actions={<>
         <Badge status={b.status} />
-        {canEdit && b.status !== 'ARCHIVED' && <Button variant="danger" onClick={() => confirm('Remove this batch? Batches with past students are archived instead of deleted.') && run(async () => { await api(`/admin/batches/${id}`, { method: 'DELETE' }); location.href = '/admin/batches'; })}>Remove</Button>}
+        {canEdit && b.status !== 'ARCHIVED' && <Button variant="danger" onClick={() => confirm({ message: 'Remove this batch? Batches with past students are archived instead of deleted.', tone: 'danger', confirmLabel: 'Remove batch' }).then((ok) => { if (ok) { run(async () => { await api(`/admin/batches/${id}`, { method: 'DELETE' }); location.href = '/admin/batches'; }); } })}>Remove</Button>}
       </>} />
       {error && <div className="mb-4"><Alert>{error}</Alert></div>}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <h2 className="mb-3 font-semibold">Students & status</h2>
-          <p className="mb-3 text-sm text-slate-600"><strong>{b.counts.enrolled}</strong> enrolled · <strong>{b.counts.pending}</strong> waiting for payment verification. Batches have no size limit.</p>
+          <p className="mb-3 text-sm text-fg-muted"><strong>{b.counts.enrolled}</strong> enrolled · <strong>{b.counts.pending}</strong> waiting for payment verification. Batches have no size limit.</p>
           {canEdit && (
             <div className="space-y-4">
               <div>
-                <p className="mb-1 text-sm font-medium text-slate-700">Move to</p>
+                <p className="mb-1 text-sm font-medium text-fg">Move to</p>
                 <div className="flex flex-wrap gap-2">
-                  {NEXT[b.status].length === 0 && <span className="text-sm text-slate-500">No further transitions.</span>}
+                  {NEXT[b.status].length === 0 && <span className="text-sm text-fg-muted">No further transitions.</span>}
                   {NEXT[b.status].map((s) => (
-                    <Button key={s} variant={s === 'CANCELLED' ? 'danger' : 'secondary'} onClick={() => (s !== 'CANCELLED' || confirm('Cancel this batch?')) && run(() => api(`/admin/batches/${id}`, { method: 'PATCH', body: { status: s } }))}>{label(s)}</Button>
+                    <Button key={s} variant={s === 'CANCELLED' ? 'danger' : 'secondary'} onClick={() => (s === 'CANCELLED' ? confirm({ message: 'Cancel this batch?', tone: 'danger', confirmLabel: 'Cancel batch' }) : Promise.resolve(true)).then((ok) => { if (ok) { run(() => api(`/admin/batches/${id}`, { method: 'PATCH', body: { status: s } })); } })}>{label(s)}</Button>
                   ))}
                 </div>
               </div>
@@ -71,12 +74,12 @@ export default function BatchDetailPage() {
 
         <Card>
           <h2 className="mb-3 font-semibold">Teachers</h2>
-          <ul className="mb-4 divide-y divide-slate-100 text-sm">
-            {b.mentors.length === 0 && <li className="py-2 text-slate-500">No teacher assigned yet. Students can still apply; once you assign one, they see this batch in their portal.</li>}
+          <ul className="mb-4 divide-y divide-border text-sm">
+            {b.mentors.length === 0 && <li className="py-2 text-fg-muted">No teacher assigned yet. Students can still apply; once you assign one, they see this batch in their portal.</li>}
             {b.mentors.map((m) => (
               <li key={`${m.mentor.id}-${m.mentorRole}`} className="flex items-center justify-between py-2">
-                <span>{m.mentor.displayName} <span className="text-slate-500">· {label(m.mentorRole)}</span></span>
-                {can(me, 'mentor.assign') && <Button variant="ghost" className="!py-1 text-red-600" onClick={() => run(() => api(`/admin/batches/${id}/mentors/${m.mentor.id}/${m.mentorRole}`, { method: 'DELETE' }))}>Remove</Button>}
+                <span>{m.mentor.displayName} <span className="text-fg-muted">· {label(m.mentorRole)}</span></span>
+                {can(me, 'mentor.assign') && <Button variant="ghost" tone="danger" className="!py-1" onClick={() => run(() => api(`/admin/batches/${id}/mentors/${m.mentor.id}/${m.mentorRole}`, { method: 'DELETE' }))}>Remove</Button>}
               </li>
             ))}
           </ul>

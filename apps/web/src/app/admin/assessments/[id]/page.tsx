@@ -1,5 +1,7 @@
 'use client';
 
+import { useConfirm } from '@/components/ui';
+
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -82,12 +84,12 @@ function QuestionDialog({ open, onClose, sectionId, question, onSaved }: { open:
         </div>
         <Field label="Question">{(p) => <Textarea {...p} rows={2} value={text} onChange={(e) => setText(e.target.value)} />}</Field>
         {usesOptions && (
-          <fieldset className="space-y-2"><legend className="mb-1 text-sm font-medium text-slate-700">Options — mark the correct {single ? 'one' : 'ones'}</legend>
+          <fieldset className="space-y-2"><legend className="mb-1 text-sm font-medium text-fg">Options — mark the correct {single ? 'one' : 'ones'}</legend>
             {options.map((o, i) => (
               <div key={i} className="flex items-center gap-2">
                 <input aria-label={`Option ${i + 1} is correct`} type={single ? 'radio' : 'checkbox'} name="correct" checked={o.isCorrect} onChange={(e) => setCorrect(i, e.target.checked)} />
                 <Input aria-label={`Option ${i + 1} text`} value={o.label} onChange={(e) => setOptions(options.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} />
-                <button type="button" className="text-sm text-red-600 disabled:opacity-40" disabled={options.length <= 2} onClick={() => setOptions(options.filter((_, j) => j !== i))} aria-label={`Remove option ${i + 1}`}>✕</button>
+                <button type="button" className="text-sm text-danger disabled:opacity-40" disabled={options.length <= 2} onClick={() => setOptions(options.filter((_, j) => j !== i))} aria-label={`Remove option ${i + 1}`}>✕</button>
               </div>
             ))}
             {options.length < 12 && <Button type="button" variant="ghost" className="!py-1" onClick={() => setOptions([...options, { label: '', isCorrect: false }])}>+ Add option</Button>}
@@ -104,6 +106,7 @@ function QuestionDialog({ open, onClose, sectionId, question, onSaved }: { open:
 }
 
 export default function AssessmentBuilderPage() {
+  const confirm = useConfirm();
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
   const [versionId, setVersionId] = useState<string | null>(null);
@@ -130,15 +133,15 @@ export default function AssessmentBuilderPage() {
       {error && <div className="mb-4"><Alert>{error}</Alert></div>}
       <Card className="mb-6">
         <div className="flex flex-wrap items-center gap-3">
-          <label htmlFor="ver" className="text-sm font-medium text-slate-700">Version</label>
+          <label htmlFor="ver" className="text-sm font-medium text-fg">Version</label>
           <Select id="ver" className="!w-auto" value={current ?? ''} onChange={(e) => setVersionId(e.target.value)}>{asm.versions.map((x) => <option key={x.id} value={x.id}>v{x.version} — {x.publishedAt ? 'Published' : 'Draft'}</option>)}</Select>
-          {v.data && <Badge status={v.data.publishedAt ? 'PUBLISHED' : 'DRAFT'} />}<span className="text-sm text-slate-500">{total} question{total === 1 ? '' : 's'}</span>
+          {v.data && <Badge status={v.data.publishedAt ? 'PUBLISHED' : 'DRAFT'} />}<span className="text-sm text-fg-muted">{total} question{total === 1 ? '' : 's'}</span>
           <div className="ml-auto flex gap-2">
             {!asm.versions.some((x) => !x.publishedAt) && <Button variant="secondary" onClick={() => run(async () => { const n = await api<{ id: string }>('/admin/assessments/' + id + '/versions', { method: 'POST' }); setVersionId(n.id); }, refreshAll)}>New version (copy)</Button>}
-            {draft && <Button onClick={() => confirm('Publish this version? It becomes read-only and new attempts will use it.') && run(() => api('/admin/assessment-versions/' + current + '/publish', { method: 'POST' }), refreshAll)}>Publish version</Button>}
+            {draft && <Button onClick={() => confirm({ message: 'Publish this version? It becomes read-only and new attempts will use it.', confirmLabel: 'Publish' }).then((ok) => { if (ok) { run(() => api('/admin/assessment-versions/' + current + '/publish', { method: 'POST' }), refreshAll); } })}>Publish version</Button>}
           </div>
         </div>
-        {v.data?.publishedAt && <p className="mt-3 text-sm text-slate-500">Published versions are frozen so past scores stay reproducible. Create a new version to change questions.</p>}
+        {v.data?.publishedAt && <p className="mt-3 text-sm text-fg-muted">Published versions are frozen so past scores stay reproducible. Create a new version to change questions.</p>}
       </Card>
 
       {v.isLoading && <Loading />}
@@ -149,27 +152,27 @@ export default function AssessmentBuilderPage() {
             {v.data.sections.map((s) => (
               <Card key={s.id}>
                 <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div><h2 className="font-semibold">{s.title}</h2>{s.content?.instructions && <p className="text-sm text-slate-600">{s.content.instructions}</p>}{s.content?.passage && <p className="text-xs text-slate-500">Passage: {s.content.passage.length} characters</p>}{s.content?.audioKey && <p className="text-xs text-green-700">🔊 Audio attached</p>}</div>
+                  <div><h2 className="font-semibold">{s.title}</h2>{s.content?.instructions && <p className="text-sm text-fg-muted">{s.content.instructions}</p>}{s.content?.passage && <p className="text-xs text-fg-muted">Passage: {s.content.passage.length} characters</p>}{s.content?.audioKey && <p className="text-xs text-green-700">🔊 Audio attached</p>}</div>
                   {draft && (
                     <div className="flex flex-wrap gap-1 text-xs">
-                      <label className="cursor-pointer rounded-md px-2 py-1 text-indigo-700 hover:bg-slate-100">{s.content?.audioKey ? 'Replace audio' : 'Upload audio (MP3)'}
+                      <label className="cursor-pointer rounded-md px-2 py-1 text-primary hover:bg-surface-muted">{s.content?.audioKey ? 'Replace audio' : 'Upload audio (MP3)'}
                         <input type="file" accept="audio/mpeg" className="sr-only" onChange={(e) => { const file = e.target.files?.[0]; if (!file) return; const fd = new FormData(); fd.append('file', file); run(() => api('/admin/assessment-sections/' + s.id + '/audio', { method: 'POST', form: fd })); e.target.value = ''; }} />
                       </label>
                       <Button variant="ghost" className="!px-2 !py-1" onClick={() => setSecDlg({ open: true, section: s })}>Edit</Button>
                       <Button variant="ghost" className="!px-2 !py-1" onClick={() => setQDlg({ open: true, sectionId: s.id, question: null })}>+ Question</Button>
-                      <Button variant="ghost" className="!px-2 !py-1 text-red-600" onClick={() => confirm('Delete this section and its questions?') && run(() => api('/admin/assessment-sections/' + s.id, { method: 'DELETE' }))}>Delete</Button>
+                      <Button variant="ghost" tone="danger" className="!px-2 !py-1" onClick={() => confirm({ message: 'Delete this section and its questions?', tone: 'danger', confirmLabel: 'Delete section' }).then((ok) => { if (ok) { run(() => api('/admin/assessment-sections/' + s.id, { method: 'DELETE' })); } })}>Delete</Button>
                     </div>
                   )}
                 </div>
-                <ol className="mt-3 divide-y divide-slate-100 text-sm">
+                <ol className="mt-3 divide-y divide-border text-sm">
                   {s.questions.map((q, i) => (
                     <li key={q.id} className="flex flex-wrap items-start justify-between gap-2 py-2">
-                      <div><p><span className="mr-2 text-slate-400">{i + 1}.</span>{q.prompt.text} <span className="text-xs text-slate-500">· {label(q.type)} · {Number(q.marks)} mark{Number(q.marks) === 1 ? '' : 's'}</span></p>
+                      <div><p><span className="mr-2 text-fg-subtle">{i + 1}.</span>{q.prompt.text} <span className="text-xs text-fg-muted">· {label(q.type)} · {Number(q.marks)} mark{Number(q.marks) === 1 ? '' : 's'}</span></p>
                         <p className="ml-5 text-xs text-green-700">Answer: {q.options.length ? q.options.filter((o) => o.isCorrect).map((o) => o.label).join(', ') : q.answerKey?.value ? label(q.answerKey.value) : q.answerKey?.accepted?.join(' / ')}</p></div>
-                      {draft && <span className="flex gap-1 text-xs"><Button variant="ghost" className="!px-2 !py-1" onClick={() => setQDlg({ open: true, sectionId: s.id, question: q })}>Edit</Button><Button variant="ghost" className="!px-2 !py-1 text-red-600" onClick={() => confirm('Delete this question?') && run(() => api('/admin/assessment-questions/' + q.id, { method: 'DELETE' }))}>Delete</Button></span>}
+                      {draft && <span className="flex gap-1 text-xs"><Button variant="ghost" className="!px-2 !py-1" onClick={() => setQDlg({ open: true, sectionId: s.id, question: q })}>Edit</Button><Button variant="ghost" tone="danger" className="!px-2 !py-1" onClick={() => confirm({ message: 'Delete this question?', tone: 'danger', confirmLabel: 'Delete question' }).then((ok) => { if (ok) { run(() => api('/admin/assessment-questions/' + q.id, { method: 'DELETE' })); } })}>Delete</Button></span>}
                     </li>
                   ))}
-                  {s.questions.length === 0 && <li className="py-2 text-slate-500">No questions yet.</li>}
+                  {s.questions.length === 0 && <li className="py-2 text-fg-muted">No questions yet.</li>}
                 </ol>
               </Card>
             ))}

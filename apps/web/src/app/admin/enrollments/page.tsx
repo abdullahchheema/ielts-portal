@@ -98,8 +98,8 @@ export default function EnrollmentsPage() {
         <Table head={['Student', 'Course / batch', 'Source', 'Enrolled', 'Access until', 'Progress', 'Status', '']}>
           {data.map((e) => (
             <tr key={e.id}>
-              <Td>{e.student.firstName} {e.student.lastName}<span className="block text-xs text-slate-500">{e.student.user.email}</span></Td>
-              <Td>{e.course.title}<span className="block text-xs text-slate-500">{e.batch.name}</span></Td>
+              <Td>{e.student.firstName} {e.student.lastName}<span className="block text-xs text-fg-muted">{e.student.user.email}</span></Td>
+              <Td>{e.course.title}<span className="block text-xs text-fg-muted">{e.batch.name}</span></Td>
               <Td>{label(e.source)}</Td><Td>{date(e.enrolledAt)}</Td><Td>{date(e.accessEndsAt)}</Td><Td>{Math.round(Number(e.progressPercent))}%</Td><Td><Badge status={e.status} /></Td>
               <Td>{can(me, 'enrollment.create') && <Button variant="ghost" className="!py-1" onClick={() => setManage(e)}>Manage</Button>}</Td>
             </tr>

@@ -12,9 +12,9 @@ export default function RegisterPage() {
   return (
     <>
       <PublicHeader />
-      <main className="mx-auto max-w-6xl px-4 py-10">
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Select your batch</h1>
-        <p className="mb-8 mt-2 max-w-2xl text-slate-600">Choose the batch you want to join. Next you will fill in a short form and upload your payment receipt. The academy verifies it and enrolls you. Already applied? <Link href="/login" className="font-medium text-indigo-700 underline">Log in</Link>.</p>
+      <main className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
+        <h1 className="font-display text-3xl font-semibold tracking-tight text-fg">Select your batch</h1>
+        <p className="mb-10 mt-3 max-w-2xl text-base leading-relaxed text-fg-muted">Choose the batch you want to join. Next you will fill in a short form and upload your payment receipt. The academy verifies it and enrolls you. Already applied? <Link href="/login" className="font-medium text-primary underline underline-offset-2">Log in</Link>.</p>
         {batches.isLoading ? <Loading /> : batches.isError ? <Alert>Could not load the batches. Please refresh the page.</Alert> : !batches.data?.length ? (
           <Empty>No batch is open for enrollment right now. Please check back soon.</Empty>
         ) : (

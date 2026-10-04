@@ -55,8 +55,8 @@ function LoginForm() {
       )}
       <Button type="submit" busy={isSubmitting} className="w-full">{needMfa ? 'Verify and log in' : 'Log in'}</Button>
       <div className="flex justify-between text-sm">
-        <Link href="/forgot-password" className="text-indigo-700 hover:underline">Forgot password?</Link>
-        <Link href="/register" className="text-indigo-700 hover:underline">Join the next batch</Link>
+        <Link href="/forgot-password" className="text-primary hover:underline">Forgot password?</Link>
+        <Link href="/register" className="text-primary hover:underline">Join the next batch</Link>
       </div>
     </form>
   );

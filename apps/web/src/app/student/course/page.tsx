@@ -28,7 +28,7 @@ export default function MyCoursePage() {
       {enrolled && app && (
         <Card className="mb-6">
           <ProgressBar value={dash.data?.overallProgressPercent ?? 0} label="Course progress" />
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-fg-muted">
             <span>{app.batch.name} · {scheduleText(app.batch)} · access until {date(app.accessEndsAt)}</span>
             <LinkButton href={`/student/learn/${app.id}`}>Open course content</LinkButton>
           </div>
@@ -38,23 +38,23 @@ export default function MyCoursePage() {
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <h2 className="mb-2 font-semibold">What is included</h2>
-          <ul className="list-disc space-y-1 pl-5 text-sm text-slate-700">{c.includes.map((i) => <li key={i}>{i}</li>)}</ul>
+          <ul className="list-disc space-y-1 pl-5 text-sm text-fg">{c.includes.map((i) => <li key={i}>{i}</li>)}</ul>
         </Card>
         <Card>
           <h2 className="mb-2 font-semibold">Modules</h2>
-          <ul className="list-disc space-y-1 pl-5 text-sm text-slate-700">{c.modules.map((m) => <li key={m}>{m}</li>)}</ul>
-          <p className="mt-3 text-sm text-slate-500">{c.durationWeeks ? `${c.durationWeeks} weeks · ` : ''}{money(c.price, c.currency)}</p>
+          <ul className="list-disc space-y-1 pl-5 text-sm text-fg">{c.modules.map((m) => <li key={m}>{m}</li>)}</ul>
+          <p className="mt-3 text-sm text-fg-muted">{c.durationWeeks ? `${c.durationWeeks} weeks · ` : ''}{money(c.price, c.currency)}</p>
         </Card>
       </div>
 
       {certs.data && certs.data.length > 0 && (
         <>
           <h2 className="mb-3 mt-8 text-lg font-semibold">Certificates</h2>
-          <ul className="divide-y divide-slate-100 rounded-lg bg-white ring-1 ring-slate-200">
+          <ul className="divide-y divide-border rounded-lg bg-surface ring-1 ring-border">
             {certs.data.map((x) => (
               <li key={x.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
-                <span><strong>{x.courseTitle}</strong> <span className="text-slate-500">· issued {date(x.issuedAt)} · {x.code}</span></span>
-                {x.valid && <span className="flex gap-3"><a href={'/api/certificates/' + x.code + '/pdf'} className="font-medium text-indigo-700 underline">Download PDF</a><a href={'/verify/' + x.code} className="text-slate-600 underline">Verification page</a></span>}
+                <span><strong>{x.courseTitle}</strong> <span className="text-fg-muted">· issued {date(x.issuedAt)} · {x.code}</span></span>
+                {x.valid && <span className="flex gap-3"><a href={'/api/certificates/' + x.code + '/pdf'} className="font-medium text-primary underline">Download PDF</a><a href={'/verify/' + x.code} className="text-fg-muted underline">Verification page</a></span>}
               </li>
             ))}
           </ul>

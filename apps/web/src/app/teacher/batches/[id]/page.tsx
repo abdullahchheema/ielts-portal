@@ -1,5 +1,7 @@
 'use client';
 
+import { SkeletonTable } from '@/components/ui';
+
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
@@ -38,7 +40,7 @@ function AttendanceDialog({ sessionId, onClose }: { sessionId: string | null; on
         {data && (
           <>
             <div className="flex justify-end"><Button variant="ghost" className="!py-1 text-xs" onClick={() => setMarks(Object.fromEntries(data.roster.map((r) => [r.studentId, 'PRESENT'])))}>Mark everyone present</Button></div>
-            <ul className="max-h-80 divide-y divide-slate-100 overflow-auto text-sm">
+            <ul className="max-h-80 divide-y divide-border overflow-auto text-sm">
               {data.roster.map((r) => (
                 <li key={r.studentId} className="flex items-center justify-between gap-3 py-2">
                   <span>{r.name}</span>
@@ -85,7 +87,7 @@ function NewSession({ batchId, open, onClose }: { batchId: string; open: boolean
 
 function Results({ batchId }: { batchId: string }) {
   const { data, isLoading, isError } = useQuery({ queryKey: ['mentor-results', batchId], queryFn: () => api<ResultRow[]>(`/mentor/batches/${batchId}/results`) });
-  if (isLoading) return <Loading />;
+  if (isLoading) return <SkeletonTable rows={6} cols={5} />;
   if (isError || !data) return <Alert>Could not load results.</Alert>;
   if (!data.length) return <Empty>No enrolled students yet.</Empty>;
   const SK = ['LISTENING', 'READING', 'WRITING', 'SPEAKING'];
@@ -97,7 +99,7 @@ function Results({ batchId }: { batchId: string }) {
           <Td><IeltsBadge ielts={r.ielts} /></Td>
           <Td>{band(r.targetBand)}</Td>
           {SK.map((k) => <Td key={k}>{r.skills[k]?.latest === null || r.skills[k] === undefined ? '—' : <span title={`Best ${band(r.skills[k].best)}`}>{band(r.skills[k].latest)}</span>}</Td>)}
-          <Td>{r.lastMock ? <span title={r.lastMock.title}>{r.lastMock.percent === null ? '—' : `${Math.round(r.lastMock.percent)}%`} <span className="text-xs text-slate-400">{date(r.lastMock.at)}</span></span> : '—'}</Td>
+          <Td>{r.lastMock ? <span title={r.lastMock.title}>{r.lastMock.percent === null ? '—' : `${Math.round(r.lastMock.percent)}%`} <span className="text-xs text-fg-subtle">{date(r.lastMock.at)}</span></span> : '—'}</Td>
           <Td className="min-w-32"><ProgressBar value={r.progressPercent} /></Td>
         </tr>
       ))}
@@ -120,9 +122,9 @@ export default function MentorBatchPage() {
     <>
       <PageHeader title="Batch" subtitle={`${students.data?.length ?? 0} enrolled student${students.data?.length === 1 ? '' : 's'}`} actions={<Button onClick={() => setNewOpen(true)}>Schedule class</Button>} />
 
-      <div role="tablist" className="mb-5 flex gap-1 border-b border-slate-200">
+      <div role="tablist" className="mb-5 flex gap-1 border-b border-border">
         {([['classes', 'Classes & attendance'], ['students', 'Students'], ['results', 'Results']] as const).map(([k, l]) => (
-          <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${tab === k ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-600 hover:text-slate-900'}`}>{l}</button>
+          <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${tab === k ? 'border-indigo-600 text-primary' : 'border-transparent text-fg-muted hover:text-fg'}`}>{l}</button>
         ))}
       </div>
 

@@ -44,7 +44,7 @@ export default function CouponsPage() {
         <Table head={['Code', 'Discount', 'Used', 'Per user', 'Expires', 'Status', '']}>
           {data.map((c) => (
             <tr key={c.id}>
-              <Td className="font-mono font-medium">{c.code}{c.firstPurchaseOnly && <span className="block font-sans text-xs font-normal text-slate-500">First purchase only</span>}</Td>
+              <Td className="font-mono font-medium">{c.code}{c.firstPurchaseOnly && <span className="block font-sans text-xs font-normal text-fg-muted">First purchase only</span>}</Td>
               <Td>{c.discountType === 'PERCENTAGE' ? `${Number(c.value)}%` : `PKR ${Number(c.value).toLocaleString()}`}</Td>
               <Td>{c.redeemedCount}{c.maxRedemptions ? ` / ${c.maxRedemptions}` : ''}</Td>
               <Td>{c.perUserLimit}</Td><Td>{date(c.expiresAt)}</Td>

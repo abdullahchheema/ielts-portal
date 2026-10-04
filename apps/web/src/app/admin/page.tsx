@@ -1,8 +1,8 @@
 'use client';
 
+import { BookOpen, FileCheck2, GraduationCap, Layers, UserRound, Users, Wallet } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import Link from 'next/link';
-import { Alert, Card, Loading, PageHeader } from '@/components/ui';
+import { Alert, Empty, Loading, PageHeader, Section, SkeletonCards, StatCard } from '@/components/ui';
 import { api } from '@/lib/api';
 
 interface Dash {
@@ -12,30 +12,39 @@ interface Dash {
 
 export default function AdminDashboard() {
   const { data, isLoading, isError } = useQuery({ queryKey: ['admin-dashboard'], queryFn: () => api<Dash>('/admin/dashboard') });
-  if (isLoading) return <Loading />;
+  if (isLoading) return <><PageHeader title="Dashboard" subtitle="Where the academy stands today." /><SkeletonCards count={6} /></>;
   if (isError || !data) return <Alert>Could not load the dashboard.</Alert>;
-  const tiles: { label: string; value: number | null; href: string; hot?: boolean }[] = [
-    { label: 'Pending applications', value: data.pendingApplications, href: '/admin/applications', hot: (data.pendingApplications ?? 0) > 0 },
-    { label: 'Payments to verify', value: data.pendingVerifications, href: '/admin/applications', hot: (data.pendingVerifications ?? 0) > 0 },
-    { label: 'Enrolled students', value: data.enrolledStudents, href: '/admin/students' },
-    { label: 'Total students', value: data.students, href: '/admin/students' },
-    { label: 'Active batches', value: data.activeBatches, href: '/admin/batches' },
-    { label: 'Upcoming batches', value: data.upcomingBatches, href: '/admin/batches' },
-    { label: 'Teachers', value: data.teachers, href: '/admin/teachers' },
-  ];
+
+  const needsAction = [
+    { label: 'Pending applications', value: data.pendingApplications, href: '/admin/applications', icon: FileCheck2, attention: (data.pendingApplications ?? 0) > 0 },
+    { label: 'Payments to verify', value: data.pendingVerifications, href: '/admin/applications', icon: Wallet, attention: (data.pendingVerifications ?? 0) > 0 },
+  ].filter((t) => t.value !== null);
+  const overview = [
+    { label: 'Enrolled students', value: data.enrolledStudents, href: '/admin/students', icon: GraduationCap },
+    { label: 'Total students', value: data.students, href: '/admin/students', icon: Users },
+    { label: 'Active batches', value: data.activeBatches, href: '/admin/batches', icon: Layers },
+    { label: 'Upcoming batches', value: data.upcomingBatches, href: '/admin/batches', icon: BookOpen },
+    { label: 'Teachers', value: data.teachers, href: '/admin/teachers', icon: UserRound },
+  ].filter((t) => t.value !== null);
+
   return (
     <>
-      <PageHeader title="Dashboard" subtitle="Where the academy stands today." />
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {tiles.filter((t) => t.value !== null).map((t) => (
-          <Link key={t.label} href={t.href}>
-            <Card className={t.hot ? 'ring-2 ring-amber-400' : ''}>
-              <p className="text-sm text-slate-500">{t.label}</p>
-              <p className="mt-1 text-3xl font-semibold">{t.value}</p>
-            </Card>
-          </Link>
-        ))}
-      </div>
+      <PageHeader title="Dashboard" subtitle="Where the academy stands today. Items that need action are listed first." />
+      {needsAction.length === 0 && overview.length === 0 ? <Empty title="No figures yet">The dashboard has nothing to show for your role.</Empty> : null}
+      {needsAction.length > 0 && (
+        <Section title="Needs action" description="Work waiting on the academy team.">
+          <div className="grid gap-4 sm:grid-cols-2">
+            {needsAction.map((t) => <StatCard key={t.label} label={t.label} value={t.value} href={t.href} icon={t.icon} attention={t.attention} />)}
+          </div>
+        </Section>
+      )}
+      {overview.length > 0 && (
+        <Section title="Overview">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            {overview.map((t) => <StatCard key={t.label} label={t.label} value={t.value} href={t.href} icon={t.icon} />)}
+          </div>
+        </Section>
+      )}
     </>
   );
 }

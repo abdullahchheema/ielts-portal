@@ -67,9 +67,9 @@ export default function StaffPage() {
           <div className="grid gap-4 md:grid-cols-2">
             {roles.data.filter((r) => ASSIGNABLE.includes(r.name)).map((r) => (
               <Card key={r.id}>
-                <div className="mb-1 flex items-center justify-between"><h3 className="font-medium">{roleLabel(r.name)}</h3><span className="text-xs text-slate-500">{r.users} user{r.users === 1 ? '' : 's'}</span></div>
-                <p className="mb-2 text-sm text-slate-500">{r.description}</p>
-                <p className="flex flex-wrap gap-1">{r.permissions.map((p) => <code key={p} className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">{p}</code>)}</p>
+                <div className="mb-1 flex items-center justify-between"><h3 className="font-medium">{roleLabel(r.name)}</h3><span className="text-xs text-fg-muted">{r.users} user{r.users === 1 ? '' : 's'}</span></div>
+                <p className="mb-2 text-sm text-fg-muted">{r.description}</p>
+                <p className="flex flex-wrap gap-1">{r.permissions.map((p) => <code key={p} className="rounded bg-surface-muted px-1.5 py-0.5 text-xs text-fg">{p}</code>)}</p>
               </Card>
             ))}
           </div>

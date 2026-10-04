@@ -72,7 +72,7 @@ export function TeacherApplicationDetailDialog({ applicationId, onClose, onChang
         <>
           {error && <div className="mb-4"><Alert>{error}</Alert></div>}
           {rejecting && (
-            <div className="mb-5 rounded-lg bg-red-50 p-4 ring-1 ring-red-200">
+            <div className="mb-5 rounded-lg bg-danger-soft p-4 ring-1 ring-red-200">
               <h3 className="mb-2 text-sm font-semibold text-red-900">Reject application</h3>
               <Field label="Reason (shown to the applicant)">{(p) => <Textarea {...p} rows={3} value={reason} onChange={(e) => setReason(e.target.value)} />}</Field>
               <div className="mt-3 flex justify-end gap-2">
@@ -102,7 +102,7 @@ export function TeacherApplicationDetailDialog({ applicationId, onClose, onChang
                 { label: 'Submitted', value: date(a.submittedAt, true) },
                 { label: 'Reviewed', value: a.reviewedAt ? date(a.reviewedAt, true) : '—' },
               ]} />
-              {a.personalStatement && <p className="mt-4 whitespace-pre-wrap text-sm text-slate-700">{a.personalStatement}</p>}
+              {a.personalStatement && <p className="mt-4 whitespace-pre-wrap text-sm text-fg">{a.personalStatement}</p>}
               {a.mentor && <Alert kind="success">Approved — teacher account created.</Alert>}
             </Section>
           )}
@@ -111,11 +111,11 @@ export function TeacherApplicationDetailDialog({ applicationId, onClose, onChang
               {a.educations.length === 0 ? <Empty>None recorded.</Empty> : (
                 <Table head={['Degree', 'Institution']}>{a.educations.map((e) => <tr key={e.id}><Td>{e.degree}</Td><Td>{e.institution}</Td></tr>)}</Table>
               )}
-              <h3 className="mb-2 mt-5 text-sm font-semibold text-slate-900">Experience</h3>
+              <h3 className="mb-2 mt-5 text-sm font-semibold text-fg">Experience</h3>
               {a.experiences.length === 0 ? <Empty>None recorded.</Empty> : (
                 <Table head={['Organization', 'Title']}>{a.experiences.map((e) => <tr key={e.id}><Td>{e.organization}</Td><Td>{e.jobTitle}</Td></tr>)}</Table>
               )}
-              {a.notes && <p className="mt-4 text-sm text-slate-700"><strong>Notes:</strong> {a.notes}</p>}
+              {a.notes && <p className="mt-4 text-sm text-fg"><strong>Notes:</strong> {a.notes}</p>}
             </Section>
           )}
           {tab === 'documents' && (
@@ -124,7 +124,7 @@ export function TeacherApplicationDetailDialog({ applicationId, onClose, onChang
                 <div className="grid gap-4 sm:grid-cols-2">
                   {a.documents.map((d) => (
                     <div key={d.id}>
-                      <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">{d.label || d.kind}</p>
+                      <p className="mb-1 text-xs font-medium uppercase tracking-wide text-fg-muted">{d.label || d.kind}</p>
                       <ReceiptViewer fileUrl={d.fileUrl} fileMime={d.fileMime} alt={d.label ?? d.kind} />
                     </div>
                   ))}

@@ -27,7 +27,7 @@ function Verify() {
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">{state === 'ok' ? 'Email verified' : 'Could not verify'}</h1>
       {state === 'ok' ? <Alert kind="success">Your account is active.</Alert> : <Alert>{message}</Alert>}
-      <Link href="/login" className="text-sm text-indigo-700 hover:underline">Go to log in</Link>
+      <Link href="/login" className="text-sm text-primary hover:underline">Go to log in</Link>
     </div>
   );
 }

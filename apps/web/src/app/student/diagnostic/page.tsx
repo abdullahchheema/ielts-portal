@@ -1,5 +1,7 @@
 'use client';
 
+import { SkeletonTable } from '@/components/ui';
+
 import { useQuery } from '@tanstack/react-query';
 import { Alert, Empty, Loading, PageHeader } from '@/components/ui';
 import { AssessmentCard } from '@/components/LessonExtras';
@@ -9,7 +11,7 @@ interface Diag { id: string; title: string; skill: string | null; timeLimitMin: 
 
 export default function DiagnosticPage() {
   const { data, isLoading, isError } = useQuery({ queryKey: ['diagnostics'], queryFn: () => api<Diag[]>('/me/diagnostics') });
-  if (isLoading) return <Loading />;
+  if (isLoading) return <SkeletonTable rows={6} cols={5} />;
   if (isError || !data) return <Alert>Could not load the diagnostic tests.</Alert>;
   return (
     <>

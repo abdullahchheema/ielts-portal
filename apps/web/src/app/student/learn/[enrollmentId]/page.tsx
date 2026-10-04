@@ -38,12 +38,12 @@ function flatten(sections: Section[]): Item[] {
 
 function Tree({ sections, activeId, onSelect, depth = 0 }: { sections: Section[]; activeId: string | null; onSelect: (i: Item) => void; depth?: number }) {
   return (
-    <ul className={depth ? 'ml-3 border-l border-slate-200 pl-2' : 'space-y-4'}>
+    <ul className={depth ? 'ml-3 border-l border-border pl-2' : 'space-y-4'}>
       {sections.map((s) => (
         <li key={s.id}>
-          <p className="flex items-center justify-between px-1 text-sm font-semibold text-slate-800">
+          <p className="flex items-center justify-between px-1 text-sm font-semibold text-fg">
             <span>{s.title}</span>
-            {s.totals.required > 0 && <span className="text-xs font-normal text-slate-500">{s.totals.completedRequired}/{s.totals.required}</span>}
+            {s.totals.required > 0 && <span className="text-xs font-normal text-fg-muted">{s.totals.completedRequired}/{s.totals.required}</span>}
           </p>
           <ul className="mt-1 space-y-0.5">
             {s.items.map((i) => (
@@ -51,9 +51,9 @@ function Tree({ sections, activeId, onSelect, depth = 0 }: { sections: Section[]
                 <button
                   onClick={() => onSelect(i)}
                   aria-current={activeId === i.id ? 'true' : undefined}
-                  className={`flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-sm ${activeId === i.id ? 'bg-indigo-50 text-indigo-800' : i.state === 'LOCKED' ? 'text-slate-400 hover:bg-slate-50' : 'text-slate-700 hover:bg-slate-100'}`}
+                  className={`flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-sm ${activeId === i.id ? 'bg-primary-soft text-indigo-800' : i.state === 'LOCKED' ? 'text-fg-subtle hover:bg-canvas' : 'text-fg hover:bg-surface-muted'}`}
                 >
-                  <span aria-hidden className={i.state === 'COMPLETED' ? 'text-green-600' : ''}>{ICON[i.state]}</span>
+                  <span aria-hidden className={i.state === 'COMPLETED' ? 'text-success' : ''}>{ICON[i.state]}</span>
                   <span className="flex-1">{i.title}<span className="sr-only"> ({i.state.toLowerCase().replace('_', ' ')})</span></span>
                 </button>
               </li>
@@ -109,15 +109,15 @@ function Viewer({ item, enrollmentId, next, onNext }: { item: Item; enrollmentId
 
   return (
     <Card>
-      <p className="text-xs uppercase tracking-wide text-slate-500">{label(c.contentType)}</p>
+      <p className="text-xs uppercase tracking-wide text-fg-muted">{label(c.contentType)}</p>
       <h2 className="mb-4 text-xl font-semibold">{c.title}</h2>
 
-      {c.contentType === 'TEXT' && <div className="prose max-w-none whitespace-pre-wrap text-slate-800">{c.content.body ?? 'No content yet.'}</div>}
+      {c.contentType === 'TEXT' && <div className="prose max-w-none whitespace-pre-wrap text-fg">{c.content.body ?? 'No content yet.'}</div>}
 
       {c.contentType === 'VIDEO' && (c.content.url
         ? /\.(mp4|webm|ogg)(\?|$)/i.test(c.content.url)
           ? <video controls className="w-full rounded-lg bg-black" src={c.content.url} onTimeUpdate={(e) => reportProgress(e.currentTarget)} onEnded={() => !done && complete.mutate()} />
-          : <a href={c.content.url} target="_blank" rel="noopener noreferrer" className="inline-block rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">Watch video ↗</a>
+          : <a href={c.content.url} target="_blank" rel="noopener noreferrer" className="inline-block rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary">Watch video ↗</a>
         : <Alert kind="info">The video for this lesson has not been added yet.</Alert>)}
 
       {c.contentType === 'AUDIO' && (c.content.fileUrl
@@ -126,23 +126,23 @@ function Viewer({ item, enrollmentId, next, onNext }: { item: Item; enrollmentId
 
       {(c.contentType === 'PDF' || c.contentType === 'DOWNLOAD') && (c.content.fileUrl ? (
         <div className="space-y-3">
-          {c.contentType === 'PDF' && <iframe title={c.title} src={c.content.fileUrl} className="h-[70vh] w-full rounded-lg ring-1 ring-slate-200" />}
-          <a href={c.content.fileUrl} target="_blank" rel="noopener noreferrer" className="inline-block text-sm text-indigo-700 underline">Open {c.content.fileName ?? 'file'} in a new tab</a>
+          {c.contentType === 'PDF' && <iframe title={c.title} src={c.content.fileUrl} className="h-[70vh] w-full rounded-lg ring-1 ring-border" />}
+          <a href={c.content.fileUrl} target="_blank" rel="noopener noreferrer" className="inline-block text-sm text-primary underline">Open {c.content.fileName ?? 'file'} in a new tab</a>
         </div>
       ) : <Alert kind="info">The file for this lesson has not been added yet.</Alert>)}
 
-      {c.contentType === 'EXTERNAL_LINK' && c.content.url && <a href={c.content.url} target="_blank" rel="noopener noreferrer" className="text-indigo-700 underline">Open resource ↗</a>}
+      {c.contentType === 'EXTERNAL_LINK' && c.content.url && <a href={c.content.url} target="_blank" rel="noopener noreferrer" className="text-primary underline">Open resource ↗</a>}
 
       {c.assessment && <div className="mt-2"><AssessmentCard a={c.assessment} /></div>}
       {c.assignment && <div className="mt-2"><AssignmentPanel a={c.assignment} itemId={item.id} /></div>}
       {!canComplete && !c.assessment && !c.assignment && <div className="mt-2"><Alert kind="info">Your teacher has not attached the {label(c.contentType).toLowerCase()} to this item yet.</Alert></div>}
 
-      <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4">
+      <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-border pt-4">
         {canComplete && (done
           ? <span className="text-sm font-medium text-green-700">✓ Completed</span>
           : <Button onClick={() => complete.mutate()} busy={complete.isPending}>Mark as complete</Button>)}
         {next && (done || !canComplete) && <Button variant="secondary" onClick={() => onNext(next)}>Next: {next.title} →</Button>}
-        {complete.isError && <span className="text-sm text-red-600">{errorMessage(complete.error)}</span>}
+        {complete.isError && <span className="text-sm text-danger">{errorMessage(complete.error)}</span>}
       </div>
     </Card>
   );
@@ -166,8 +166,8 @@ function LearnPage() {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[18rem_1fr]">
-      <aside className="h-fit rounded-lg bg-white p-4 ring-1 ring-slate-200 lg:sticky lg:top-4">
-        <h1 className="mb-3 font-semibold text-slate-900">{data.course.title}</h1>
+      <aside className="h-fit rounded-lg bg-surface p-4 ring-1 ring-border lg:sticky lg:top-4">
+        <h1 className="mb-3 font-semibold text-fg">{data.course.title}</h1>
         <div className="mb-4"><ProgressBar value={Number(data.enrollment.progressPercent)} label="Progress" /></div>
         <Tree sections={sections} activeId={active?.id ?? null} onSelect={(i) => setActiveId(i.id)} />
       </aside>

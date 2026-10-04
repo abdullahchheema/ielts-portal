@@ -104,7 +104,7 @@ export function TeacherDetailDialog({ mentorId, onClose }: { mentorId: string | 
                   {a.educations.map((e) => <tr key={e.id}><Td>{e.degree}{e.field ? ` (${e.field})` : ''}</Td><Td>{e.institution}</Td><Td>{e.country ?? '—'}</Td><Td>{e.startYear ?? '—'}–{e.endYear ?? '—'}</Td><Td>{e.grade ?? '—'}</Td></tr>)}
                 </Table>
               )}
-              <h3 className="mb-2 mt-5 text-sm font-semibold text-slate-900">Experience</h3>
+              <h3 className="mb-2 mt-5 text-sm font-semibold text-fg">Experience</h3>
               {a.experiences.length === 0 ? <Empty>No experience records.</Empty> : (
                 <Table head={['Organization', 'Title', 'Type', 'Dates']}>
                   {a.experiences.map((e) => <tr key={e.id}><Td>{e.organization}</Td><Td>{e.jobTitle}</Td><Td>{e.employmentType ?? '—'}</Td><Td>{date(e.startDate)} – {e.current ? 'Present' : date(e.endDate)}</Td></tr>)}
@@ -135,7 +135,7 @@ export function TeacherDetailDialog({ mentorId, onClose }: { mentorId: string | 
                 { label: 'Expected salary', value: a.expectedSalary },
                 { label: 'Expected hourly rate', value: a.expectedHourlyRate },
               ]} />
-              {a.personalStatement && <p className="mt-4 whitespace-pre-wrap text-sm text-slate-700">{a.personalStatement}</p>}
+              {a.personalStatement && <p className="mt-4 whitespace-pre-wrap text-sm text-fg">{a.personalStatement}</p>}
             </Section>
           )}
           {tab === 'certifications' && (
@@ -169,13 +169,13 @@ export function TeacherDetailDialog({ mentorId, onClose }: { mentorId: string | 
                 <div className="grid gap-4 sm:grid-cols-2">
                   {a.documents.map((d) => (
                     <div key={d.id}>
-                      <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">{d.label || d.kind}</p>
+                      <p className="mb-1 text-xs font-medium uppercase tracking-wide text-fg-muted">{d.label || d.kind}</p>
                       <ReceiptViewer fileUrl={d.fileUrl} fileMime={d.fileMime} alt={d.label ?? d.kind} />
                     </div>
                   ))}
                 </div>
               )}
-              {a.notes && <p className="mt-4 text-sm text-slate-700"><strong>Notes:</strong> {a.notes}</p>}
+              {a.notes && <p className="mt-4 text-sm text-fg"><strong>Notes:</strong> {a.notes}</p>}
             </Section>
           )}
           {tab === 'batches' && (

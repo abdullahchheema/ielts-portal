@@ -65,11 +65,11 @@ export function TeacherApplicationForm({
   return (
     <form onSubmit={submit} noValidate className="space-y-4">
       {serverError && <Alert>{serverError}</Alert>}
-      <div role="tablist" aria-label="Application sections" className="flex flex-wrap gap-1 border-b border-slate-100 pb-2">
+      <div role="tablist" aria-label="Application sections" className="flex flex-wrap gap-1 border-b border-border pb-2">
         {TABS.map((t) => (
           <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} onClick={() => setTab(t.key)}
-            className={`rounded-md px-2.5 py-1.5 text-xs font-medium ${tab === t.key ? 'bg-indigo-600 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50'}`}>
-            {t.label}{counts[t.key] > 0 && <span className="ml-1 rounded-full bg-red-600 px-1.5 text-white">{counts[t.key]}</span>}
+            className={`rounded-md px-2.5 py-1.5 text-xs font-medium ${tab === t.key ? 'bg-primary text-white' : 'bg-surface text-fg ring-1 ring-border-strong hover:bg-canvas'}`}>
+            {t.label}{counts[t.key] > 0 && <span className="ml-1 rounded-full bg-danger px-1.5 text-white">{counts[t.key]}</span>}
           </button>
         ))}
       </div>
@@ -103,7 +103,7 @@ export function TeacherApplicationForm({
       {tab === 'education' && (
         <div className="space-y-4">
           {educations.fields.map((f, i) => (
-            <div key={f.id} className="grid gap-3 rounded-md bg-slate-50 p-3 sm:grid-cols-6">
+            <div key={f.id} className="grid gap-3 rounded-md bg-canvas p-3 sm:grid-cols-6">
               <Field label="Degree" error={errors.educations?.[i]?.degree?.message}>{(p) => <Input {...p} {...register(`educations.${i}.degree`)} />}</Field>
               <Field label="Field">{(p) => <Input {...p} {...register(`educations.${i}.field`)} />}</Field>
               <Field label="Institution" error={errors.educations?.[i]?.institution?.message}>{(p) => <Input {...p} {...register(`educations.${i}.institution`)} />}</Field>
@@ -121,7 +121,7 @@ export function TeacherApplicationForm({
       {tab === 'experience' && (
         <div className="space-y-4">
           {experiences.fields.map((f, i) => (
-            <div key={f.id} className="grid gap-3 rounded-md bg-slate-50 p-3 sm:grid-cols-3">
+            <div key={f.id} className="grid gap-3 rounded-md bg-canvas p-3 sm:grid-cols-3">
               <Field label="Organization" error={errors.experiences?.[i]?.organization?.message}>{(p) => <Input {...p} {...register(`experiences.${i}.organization`)} />}</Field>
               <Field label="Job title" error={errors.experiences?.[i]?.jobTitle?.message}>{(p) => <Input {...p} {...register(`experiences.${i}.jobTitle`)} />}</Field>
               <Field label="Employment type">{(p) => <Input {...p} {...register(`experiences.${i}.employmentType`)} />}</Field>
@@ -162,7 +162,7 @@ export function TeacherApplicationForm({
       {tab === 'certifications' && (
         <div className="space-y-4">
           {certifications.fields.map((f, i) => (
-            <div key={f.id} className="grid gap-3 rounded-md bg-slate-50 p-3 sm:grid-cols-4">
+            <div key={f.id} className="grid gap-3 rounded-md bg-canvas p-3 sm:grid-cols-4">
               <Field label="Name" error={errors.certifications?.[i]?.name?.message}>{(p) => <Input {...p} {...register(`certifications.${i}.name`)} />}</Field>
               <Field label="Issuer">{(p) => <Input {...p} {...register(`certifications.${i}.issuer`)} />}</Field>
               <Field label="Issued">{(p) => <Input {...p} type="date" {...register(`certifications.${i}.issuedAt`)} />}</Field>
@@ -195,7 +195,7 @@ export function TeacherApplicationForm({
       {tab === 'references' && (
         <div className="space-y-4">
           {references.fields.map((f, i) => (
-            <div key={f.id} className="grid gap-3 rounded-md bg-slate-50 p-3 sm:grid-cols-5">
+            <div key={f.id} className="grid gap-3 rounded-md bg-canvas p-3 sm:grid-cols-5">
               <Field label="Name" error={errors.references?.[i]?.name?.message}>{(p) => <Input {...p} {...register(`references.${i}.name`)} />}</Field>
               <Field label="Organization">{(p) => <Input {...p} {...register(`references.${i}.organization`)} />}</Field>
               <Field label="Position">{(p) => <Input {...p} {...register(`references.${i}.position`)} />}</Field>
@@ -219,7 +219,7 @@ export function TeacherApplicationForm({
         </div>
       )}
 
-      <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+      <div className="flex justify-end gap-2 border-t border-border pt-4">
         <Button type="submit" busy={busy}>{submitLabel}</Button>
       </div>
     </form>

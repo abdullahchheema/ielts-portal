@@ -37,11 +37,11 @@ function OrderDetailDialog({ order, onClose }: { order: Row | null; onClose: () 
             { label: 'Created', value: date(order.createdAt, true) },
           ]} />
           <div className="mt-5">
-            <h3 className="mb-2 text-sm font-semibold text-slate-900">Payments</h3>
+            <h3 className="mb-2 text-sm font-semibold text-fg">Payments</h3>
             {order.payments.length === 0 ? <Empty>No payment recorded for this order yet.</Empty> : (
               <ul className="space-y-2">
                 {order.payments.map((p, i) => (
-                  <li key={i} className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-2 text-sm">
+                  <li key={i} className="flex items-center justify-between rounded-md bg-canvas px-3 py-2 text-sm">
                     <span>{label(p.provider)}</span><Badge status={p.status} />
                   </li>
                 ))}
@@ -49,7 +49,7 @@ function OrderDetailDialog({ order, onClose }: { order: Row | null; onClose: () 
             )}
             {payment?.proofs?.[0]?.fileUrl && (
               <div className="mt-4">
-                <h3 className="mb-2 text-sm font-semibold text-slate-900">Receipt</h3>
+                <h3 className="mb-2 text-sm font-semibold text-fg">Receipt</h3>
                 <ReceiptViewer fileUrl={payment.proofs[0].fileUrl} fileMime={payment.proofs[0].fileMime} />
               </div>
             )}
@@ -77,8 +77,8 @@ export default function OrdersAdminPage() {
           {data.map((o) => (
             <ClickableRow key={o.id} onClick={() => setOpen(o)}>
               <Td className="font-mono text-xs">{o.reference}</Td>
-              <Td>{o.student.firstName} {o.student.lastName}<span className="block text-xs text-slate-500">{o.student.user.email}</span></Td>
-              <Td>{o.items[0]?.batch.course.title}<span className="block text-xs text-slate-500">{o.items[0]?.batch.name}</span></Td>
+              <Td>{o.student.firstName} {o.student.lastName}<span className="block text-xs text-fg-muted">{o.student.user.email}</span></Td>
+              <Td>{o.items[0]?.batch.course.title}<span className="block text-xs text-fg-muted">{o.items[0]?.batch.name}</span></Td>
               <Td>{money(o.total, o.currency)}{Number(o.discount) > 0 && <span className="block text-xs text-green-700">−{money(o.discount, o.currency)}</span>}</Td>
               <Td>{o.payments[0] ? <Badge status={o.payments[0].status} /> : '—'}</Td>
               <Td><Badge status={o.status} /></Td><Td>{date(o.createdAt, true)}</Td>

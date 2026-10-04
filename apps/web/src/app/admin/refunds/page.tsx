@@ -52,13 +52,13 @@ function RefundsPageInner() {
       {data && (data.length === 0 ? <Empty>Nothing here.</Empty> : (
         <Table head={['Order', 'Student', 'Amount', 'Reason', 'Requested', 'Status', '']}>
           {data.map((r) => (
-            <tr key={r.id} ref={(el) => { refs.current[r.id] = el; }} className={r.id === openId ? 'bg-indigo-50' : undefined}>
+            <tr key={r.id} ref={(el) => { refs.current[r.id] = el; }} className={r.id === openId ? 'bg-primary-soft' : undefined}>
               <Td className="font-mono text-xs">{r.payment.order.reference}</Td>
-              <Td>{r.payment.order.student.firstName} {r.payment.order.student.lastName}<span className="block text-xs text-slate-500">{r.payment.order.student.user.email}</span></Td>
-              <Td>{money(r.amount, r.payment.currency)}<span className="block text-xs text-slate-500">of {money(r.payment.amount, r.payment.currency)}</span></Td>
-              <Td className="max-w-xs">{r.reason}{r.decisionNote && <span className="block text-xs text-slate-500">Note: {r.decisionNote}</span>}{r.providerReference && <span className="block font-mono text-xs text-slate-500">{r.providerReference}</span>}</Td>
+              <Td>{r.payment.order.student.firstName} {r.payment.order.student.lastName}<span className="block text-xs text-fg-muted">{r.payment.order.student.user.email}</span></Td>
+              <Td>{money(r.amount, r.payment.currency)}<span className="block text-xs text-fg-muted">of {money(r.payment.amount, r.payment.currency)}</span></Td>
+              <Td className="max-w-xs">{r.reason}{r.decisionNote && <span className="block text-xs text-fg-muted">Note: {r.decisionNote}</span>}{r.providerReference && <span className="block font-mono text-xs text-fg-muted">{r.providerReference}</span>}</Td>
               <Td>{date(r.createdAt)}</Td><Td><Badge status={r.status} /></Td>
-              <Td>{r.status === 'REQUESTED' && <span className="flex gap-1"><Button className="!py-1" onClick={() => { setError(null); setTarget({ r, mode: 'process' }); }}>Mark refunded</Button><Button variant="ghost" className="!py-1 text-red-600" onClick={() => { setError(null); setTarget({ r, mode: 'reject' }); }}>Decline</Button></span>}</Td>
+              <Td>{r.status === 'REQUESTED' && <span className="flex gap-1"><Button className="!py-1" onClick={() => { setError(null); setTarget({ r, mode: 'process' }); }}>Mark refunded</Button><Button variant="ghost" tone="danger" className="!py-1" onClick={() => { setError(null); setTarget({ r, mode: 'reject' }); }}>Decline</Button></span>}</Td>
             </tr>
           ))}
         </Table>

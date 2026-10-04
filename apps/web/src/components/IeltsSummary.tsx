@@ -37,7 +37,7 @@ export function IeltsSummary({ ielts }: { ielts?: IeltsSummaryLike | null }) {
     return (
       <div>
         <Badge status="NOT_TAKEN" tone="slate" text="Not taken" />
-        <p className="mt-1 text-xs text-slate-500">First-time test taker.</p>
+        <p className="mt-1 text-xs text-fg-muted">First-time test taker.</p>
       </div>
     );
   }
@@ -47,7 +47,7 @@ export function IeltsSummary({ ielts }: { ielts?: IeltsSummaryLike | null }) {
       <div className="flex items-center gap-2">
         <Badge status="TAKEN" tone="blue" text={`Overall band ${band(ielts.overall)}`} />
         {hasSkills && (
-          <button type="button" className="text-xs font-medium text-indigo-700 underline" onClick={() => setExpanded((v) => !v)}>
+          <button type="button" className="text-xs font-medium text-primary underline" onClick={() => setExpanded((v) => !v)}>
             {expanded ? 'Hide breakdown' : 'Show breakdown'}
           </button>
         )}
@@ -55,11 +55,11 @@ export function IeltsSummary({ ielts }: { ielts?: IeltsSummaryLike | null }) {
       {expanded && hasSkills && (
         <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-4">
           {SKILLS.map(([k, label]) => (
-            <div key={k}><dt className="text-xs text-slate-500">{label}</dt><dd className="font-medium">{band(ielts[k])}</dd></div>
+            <div key={k}><dt className="text-xs text-fg-muted">{label}</dt><dd className="font-medium">{band(ielts[k])}</dd></div>
           ))}
         </dl>
       )}
-      <p className="mt-1 text-xs text-slate-500">
+      <p className="mt-1 text-xs text-fg-muted">
         {ielts.testDate ? `Tested ${date(ielts.testDate)}` : 'Test date not provided'}
         {ielts.attempts ? ` · Attempt #${ielts.attempts}` : ''}
       </p>
