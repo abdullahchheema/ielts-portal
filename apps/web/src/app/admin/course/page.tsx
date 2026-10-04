@@ -288,7 +288,17 @@ export default function CourseBuilderPage() {
             {version?.status === 'DRAFT' && can(me, 'course.publish') && <Button busy={publish.isPending} onClick={() => confirm({ message: 'Publish this version? It becomes read-only.', confirmLabel: 'Publish' }).then((ok) => { if (ok) { publish.mutate(); } })}>Publish version</Button>}
           </div>
         </div>
-        {version && version.status !== 'DRAFT' && <p className="mt-3 text-sm text-fg-muted">Published versions are read-only so students’ history stays intact. Create a new version to make changes; new batches use the newest published version.</p>}
+        {version && version.status !== 'DRAFT' && (
+          <div className="mt-4">
+            <Alert kind="warning">
+              <p className="font-medium">This version is published and read-only.</p>
+              <p className="mt-1 text-sm">Published versions are read-only so students’ history stays intact. Create a new version to make changes; new batches use the newest published version.</p>
+              {can(me, 'course.edit') && !c.versions.some((v) => v.status === 'DRAFT') && (
+                <div className="mt-3"><Button variant="secondary" busy={newVersion.isPending} onClick={() => { setError(null); newVersion.mutate(); }}>Create an editable copy</Button></div>
+              )}
+            </Alert>
+          </div>
+        )}
       </Card>
 
       {tree.isLoading && <Loading />}

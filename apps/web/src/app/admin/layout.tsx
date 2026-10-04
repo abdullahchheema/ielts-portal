@@ -1,6 +1,6 @@
 'use client';
 
-import { BarChart3, FileCheck2, GraduationCap, Layers, Lock, Library, LayoutDashboard, ListChecks, MessagesSquare, Receipt, RotateCcw, ScrollText, Settings, Scale, Tag, UserRound, Wallet, ClipboardList, UsersRound } from 'lucide-react';
+import { UserCheck, BarChart3, FileCheck2, GraduationCap, Layers, Lock, Library, LayoutDashboard, ListChecks, MessagesSquare, Receipt, RotateCcw, ScrollText, Settings, Scale, Tag, UserRound, Wallet, ClipboardList, UsersRound } from 'lucide-react';
 import { ReactNode } from 'react';
 import { Shell } from '@/components/Shell';
 import { RequireAuth, can, useMe } from '@/lib/auth';
@@ -22,6 +22,7 @@ function AdminShell({ children }: { children: ReactNode }) {
           { href: '/admin/enrollments', label: 'Enrollments', icon: ClipboardList, show: c('enrollment.view') },
           { href: '/admin/batches', label: 'Batches', icon: Layers, show: c('batch.view') },
           { href: '/admin/teachers', label: 'Teachers', icon: UserRound, show: c('mentor.assign') },
+          { href: '/admin/teacher-applications', label: 'Teacher applications', icon: UserCheck, show: c('teacher.manage') },
         ] },
         { title: 'Academics', items: [
           { href: '/admin/course', label: 'Course', icon: Library, show: c('course.view') },

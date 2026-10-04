@@ -90,3 +90,21 @@
     transition-duration: .01ms !important; scroll-behavior: auto !important;
   }
 }
+
+/* Data tables: columns from lg up; below that each row stacks as a labelled card (see components/ui/table.tsx). */
+@media (max-width: 1023.98px) {
+  .data-table thead { display: none; }
+  .data-table, .data-table tbody, .data-table tr, .data-table td { display: block; width: 100%; }
+  .data-table tr { padding: 0.875rem 1rem; }
+  .data-table td {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 1rem;
+    padding: 0.3rem 0; text-align: right; overflow-wrap: anywhere;
+  }
+  .data-table td::before {
+    content: attr(data-label); flex-shrink: 0; text-align: left;
+    font-size: 0.75rem; font-weight: 500; color: var(--fg-muted);
+  }
+  .data-table td:first-child { display: block; text-align: left; padding-bottom: 0.5rem; font-weight: 600; }
+  .data-table td:first-child::before, .data-table td:not([data-label])::before { content: none; }
+  .data-table td:empty { display: none; }
+}

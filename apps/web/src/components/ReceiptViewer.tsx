@@ -9,7 +9,7 @@ export interface Receipt {
 }
 
 /** Shows a payment proof: image preview, embedded PDF, or a friendly fallback with retry. */
-export function ReceiptViewer({ fileUrl, fileMime, alt }: Receipt & { alt?: string }) {
+export function ReceiptViewer({ fileUrl, fileMime, alt, onRetry }: Receipt & { alt?: string; onRetry?: () => void }) {
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
@@ -17,7 +17,8 @@ export function ReceiptViewer({ fileUrl, fileMime, alt }: Receipt & { alt?: stri
     return (
       <div className="flex flex-col items-center justify-center gap-2 rounded-lg bg-surface-muted p-8 text-center text-sm text-fg-muted ring-1 ring-border">
         <p>Receipt not available{failed ? ' — the file could not be loaded.' : '.'}</p>
-        {failed && <Button variant="secondary" className="!py-1" onClick={() => { setFailed(false); setAttempt((a) => a + 1); }}>Retry</Button>}
+        {failed && <Button variant="secondary" className="!py-1" onClick={() => { setFailed(false); setAttempt((a) => a + 1); onRetry?.(); }}>Retry</Button>}
+        {failed && fileUrl && <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-primary underline underline-offset-2">Open the file in a new tab</a>}
       </div>
     );
   }

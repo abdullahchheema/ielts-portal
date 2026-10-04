@@ -4,9 +4,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { EnrollmentBadge, METHOD_TEXT } from '@/components/student';
-import { Alert, Badge, Button, Card, ClickableRow, Dialog, Empty, Field, Loading, PageHeader, Skeleton, Table, Td, Tabs, Textarea } from '@/components/ui';
+import { Alert, Badge, Button, Card, ClickableRow, DefinitionList, Dialog, DetailDialog, Empty, Field, Loading, PageHeader, Section, Skeleton, Table, Td, Tabs, Textarea } from '@/components/ui';
+import { label } from '@/lib/format';
+import { ReceiptViewer } from '@/components/ReceiptViewer';
 import { TeacherApplicationDetailDialog } from '@/components/TeacherApplicationDetailDialog';
-import { api } from '@/lib/api';
+import { ApiError, api } from '@/lib/api';
+import { can, useMe } from '@/lib/auth';
 import { errorMessage } from '@/lib/errors';
 import { date, money } from '@/lib/format';
 
@@ -39,45 +42,55 @@ function Fact({ k, children, mono }: { k: string; children: React.ReactNode; mon
 }
 
 function ApplicationCard({ a, onChanged }: { a: Application; onChanged: () => void }) {
+  const qc = useQueryClient();
   const [reject, setReject] = useState(false);
+  const [details, setDetails] = useState(false);
   const [reason, setReason] = useState('');
   const [allowResubmit, setAllowResubmit] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const p = a.proof;
   const mismatch = !!p?.flags.includes('AMOUNT_MISMATCH');
-  const isPdf = p?.fileMime === 'application/pdf';
   const waiting = a.status === 'PENDING_PAYMENT' && p?.status === 'SUBMITTED';
+  // A signed receipt link expires; retrying refetches the list so the link is re-signed.
+  const refreshLinks = () => qc.invalidateQueries({ queryKey: ['applications-admin'] });
 
   const verify = useMutation({
     mutationFn: () => api(`/admin/applications/proofs/${p!.id}/verify`, { method: 'POST', body: { confirmAmountMismatch: mismatch } }),
-    onSuccess: onChanged, onError: (e) => setError(errorMessage(e)),
+    onSuccess: () => { setDetails(false); onChanged(); }, onError: (e) => setError(errorMessage(e)),
   });
   const doReject = useMutation({
     mutationFn: () => api(`/admin/applications/proofs/${p!.id}/reject`, { method: 'POST', body: { reason, allowResubmit } }),
-    onSuccess: () => { setReject(false); setReason(''); onChanged(); }, onError: (e) => setError(errorMessage(e)),
+    onSuccess: () => { setReject(false); setDetails(false); setReason(''); onChanged(); }, onError: (e) => setError(errorMessage(e)),
   });
+
+  const actions = waiting ? (
+    <>
+      <Button onClick={() => { setError(null); verify.mutate(); }} busy={verify.isPending}>{mismatch ? 'Verify anyway & enroll' : 'Verify & enroll'}</Button>
+      <Button variant="danger" onClick={() => { setError(null); setReject(true); }}>Reject…</Button>
+    </>
+  ) : null;
 
   return (
     <Card className="p-0">
       <div className="grid gap-0 md:grid-cols-[minmax(0,1fr)_17rem]">
-        <div className="space-y-5 p-6">
+        <div className="min-w-0 space-y-5 p-6">
           <header className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="font-display text-base font-semibold text-fg">{a.student.name}</h2>
+              <h2 className="font-display text-base font-semibold text-fg break-words">{a.student.name}</h2>
               <EnrollmentBadge status={a.status} />
               {!a.student.emailVerified && <Badge status="PENDING" tone="slate" text="Email not verified" />}
             </div>
-            <p className="text-sm text-fg-muted break-words">{a.student.email}{a.student.phone ? ` · ${a.student.phone}` : ''}{a.student.city ? ` · ${a.student.city}${a.student.country ? `, ${a.student.country}` : ''}` : ''}</p>
+            <p className="break-all text-sm text-fg-muted">{a.student.email}{a.student.phone ? ` · ${a.student.phone}` : ''}{a.student.city ? ` · ${a.student.city}${a.student.country ? `, ${a.student.country}` : ''}` : ''}</p>
             <p className="text-sm text-fg-muted">Batch <span className="font-medium text-fg">{a.batch.name}</span> · applied {date(a.submittedAt, true)}{a.enrolledAt ? ` · enrolled ${date(a.enrolledAt)}` : ''}</p>
           </header>
 
           {p && (
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-4 rounded-md bg-canvas p-4 ring-1 ring-inset ring-border sm:grid-cols-3">
+            <dl className="grid gap-x-6 gap-y-4 rounded-md bg-canvas p-4 ring-1 ring-inset ring-border sm:grid-cols-2">
               <Fact k="Course fee">{a.order ? money(a.order.total, a.order.currency) : '—'}</Fact>
               <Fact k="Amount entered"><span className={mismatch ? 'font-semibold text-danger' : 'font-medium'}>{money(p.claimedAmount, a.order?.currency)}</span></Fact>
               <Fact k="Method">{METHOD_TEXT[p.method] ?? p.method}</Fact>
-              <Fact k="Reference" mono>{p.reference}</Fact>
               <Fact k="Payment date">{date(p.transferDate)}</Fact>
+              <Fact k="Reference" mono>{p.reference}</Fact>
               {p.senderName && <Fact k="Paid by">{p.senderName}</Fact>}
             </dl>
           )}
@@ -89,27 +102,73 @@ function ApplicationCard({ a, onChanged }: { a: Application; onChanged: () => vo
             {error && <Alert>{error}</Alert>}
           </div>
 
-          {waiting && (
-            <div className="flex flex-wrap gap-2 border-t border-border pt-5">
-              <Button onClick={() => { setError(null); verify.mutate(); }} busy={verify.isPending}>{mismatch ? 'Verify anyway & enroll' : 'Verify & enroll'}</Button>
-              <Button variant="danger" onClick={() => { setError(null); setReject(true); }}>Reject…</Button>
-            </div>
-          )}
-          {a.status === 'PENDING_PAYMENT' && p?.status === 'REJECTED' && <p className="border-t border-border pt-5 text-sm text-fg-muted">Waiting for the student to upload a corrected proof.</p>}
+          <div className="flex flex-wrap items-center gap-2 border-t border-border pt-5">
+            {actions}
+            <Button variant="secondary" onClick={() => setDetails(true)}>View full details</Button>
+            {a.status === 'PENDING_PAYMENT' && p?.status === 'REJECTED' && <p className="text-sm text-fg-muted">Waiting for the student to upload a corrected proof.</p>}
+          </div>
         </div>
 
         {p && (
-          <aside className="border-t border-border bg-canvas p-6 md:border-l md:border-t-0">
-            <p className="mb-3 text-xs font-medium uppercase tracking-wide text-fg-muted">Payment proof</p>
-            <a href={p.fileUrl} target="_blank" rel="noopener noreferrer" className="group block overflow-hidden rounded-md bg-surface ring-1 ring-border transition-shadow duration-150 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" aria-label="Open payment proof in a new tab">
-              {isPdf
-                ? <div className="flex h-44 items-center justify-center text-sm font-medium text-fg-muted">PDF receipt. Open to view.</div>
-                // eslint-disable-next-line @next/next/no-img-element
-                : <img src={p.fileUrl} alt={`Payment proof from ${a.student.name}`} className="max-h-72 w-full object-contain" />}
-            </a>
+          <aside className="min-w-0 border-t border-border bg-canvas p-6 md:border-l md:border-t-0">
+            <p className="mb-3 text-xs font-medium uppercase tracking-wide text-fg-muted">Payment receipt</p>
+            <ReceiptViewer fileUrl={p.fileUrl} fileMime={p.fileMime} alt={`Payment receipt from ${a.student.name}`} onRetry={refreshLinks} />
           </aside>
         )}
       </div>
+
+      <DetailDialog open={details} onClose={() => setDetails(false)} title={a.student.name} subtitle={`Application · ${a.batch.name}`}>
+        <div className="space-y-7">
+          <div className="flex flex-wrap items-center gap-2">
+            <EnrollmentBadge status={a.status} />
+            {!a.student.emailVerified && <Badge status="PENDING" tone="slate" text="Email not verified" />}
+            {p && <Badge status={p.status} />}
+          </div>
+          {error && <Alert>{error}</Alert>}
+          <Section title="Student">
+            <DefinitionList items={[
+              { label: 'Full name', value: a.student.name },
+              { label: 'Email', value: <span className="break-all">{a.student.email}</span> },
+              { label: 'Phone', value: a.student.phone },
+              { label: 'City', value: a.student.city },
+              { label: 'Country', value: a.student.country },
+              { label: 'Email verified', value: a.student.emailVerified ? 'Yes' : 'No' },
+            ]} />
+          </Section>
+          <Section title="Application">
+            <DefinitionList items={[
+              { label: 'Batch', value: a.batch.name },
+              { label: 'Status', value: label(a.status) },
+              { label: 'Submitted', value: date(a.submittedAt, true) },
+              { label: 'Enrolled', value: a.enrolledAt ? date(a.enrolledAt, true) : 'Not yet' },
+              { label: 'Order reference', value: a.order?.reference ?? '—' },
+              { label: 'Discount', value: a.order ? money(a.order.discount, a.order.currency) : '—' },
+            ]} />
+          </Section>
+          {p && (
+            <Section title="Payment">
+              <DefinitionList items={[
+                { label: 'Course fee', value: a.order ? money(a.order.total, a.order.currency) : '—' },
+                { label: 'Amount entered', value: <span className={mismatch ? 'font-semibold text-danger' : ''}>{money(p.claimedAmount, a.order?.currency)}</span> },
+                { label: 'Method', value: METHOD_TEXT[p.method] ?? p.method },
+                { label: 'Transaction reference', value: <span className="font-mono text-xs">{p.reference}</span> },
+                { label: 'Payment date', value: date(p.transferDate) },
+                { label: 'Paid by', value: p.senderName || '—' },
+                { label: 'Proof status', value: label(p.status) },
+                { label: 'Student may resubmit', value: p.allowResubmit ? 'Yes' : 'No' },
+              ]} />
+              {p.flags.length > 0 && <div className="mt-4 space-y-2">{p.flags.map((f) => <Alert key={f} kind="warning">{FLAG_TEXT[f] ?? f}</Alert>)}</div>}
+              {p.rejectionReason && <div className="mt-4"><Alert kind="warning">Last rejection reason: {p.rejectionReason}</Alert></div>}
+            </Section>
+          )}
+          {p && (
+            <Section title="Receipt">
+              <ReceiptViewer fileUrl={p.fileUrl} fileMime={p.fileMime} alt={`Payment receipt from ${a.student.name}`} onRetry={refreshLinks} />
+            </Section>
+          )}
+          {actions && <div className="flex flex-wrap gap-2 border-t border-border pt-5">{actions}</div>}
+        </div>
+      </DetailDialog>
 
       <Dialog open={reject} onClose={() => setReject(false)} title="Reject application">
         <div className="space-y-4">
@@ -175,7 +234,7 @@ function TeacherApplications({ openId }: { openId: string | null }) {
   const qc = useQueryClient();
   const [status, setStatus] = useState<(typeof TEACHER_TABS)[number][0]>('PENDING');
   const [viewId, setViewId] = useState<string | null>(openId);
-  const { data, isLoading, isError } = useQuery({ queryKey: ['teacher-applications-admin', status], queryFn: () => api<TeacherAppPage>(`/admin/teacher-applications?status=${status}`) });
+  const { data, isLoading, isError, error } = useQuery({ queryKey: ['teacher-applications-admin', status], queryFn: () => api<TeacherAppPage>(`/admin/teacher-applications?status=${status}`) });
 
   useEffect(() => { if (openId) setViewId(openId); }, [openId]);
   const changed = () => qc.invalidateQueries({ queryKey: ['teacher-applications-admin'] });
@@ -192,7 +251,7 @@ function TeacherApplications({ openId }: { openId: string | null }) {
         />
       </div>
       {isLoading && <Loading />}
-      {isError && <Alert>Could not load teacher applications.</Alert>}
+      {isError && <Alert>{error instanceof ApiError && error.status === 403 ? 'Your role cannot review teacher applications. A super admin can grant Teacher management in Staff & roles.' : `Could not load teacher applications. ${errorMessage(error)}`}</Alert>}
       {data && (data.items.length === 0 ? <Empty title="Nothing here">No teacher applications match this filter.</Empty> : (
         <Table head={['Name', 'Email', 'Phone', 'City', 'Subjects', 'Status', 'Submitted']}>
           {data.items.map((a) => (
@@ -210,7 +269,9 @@ function TeacherApplications({ openId }: { openId: string | null }) {
 
 function ApplicationsPageInner() {
   const params = useSearchParams();
-  const [mode, setMode] = useState<'students' | 'teachers'>(params.get('tab') === 'teachers' ? 'teachers' : 'students');
+  const me = useMe().data;
+  const canTeachers = !!me && can(me, 'teacher.manage');
+  const [mode, setMode] = useState<'students' | 'teachers'>(params.get('tab') === 'teachers' && canTeachers ? 'teachers' : 'students');
   const openId = params.get('open');
 
   return (
@@ -222,7 +283,7 @@ function ApplicationsPageInner() {
           variant="underline"
           value={mode}
           onChange={(k) => setMode(k as 'students' | 'teachers')}
-          items={[{ key: 'students', label: 'Students' }, { key: 'teachers', label: 'Teachers' }]}
+          items={[{ key: 'students', label: 'Students' }, ...(canTeachers ? [{ key: 'teachers', label: 'Teachers' }] : [])]}
         />
       </div>
       {mode === 'students' ? <StudentApplications openId={openId} /> : <TeacherApplications openId={openId} />}

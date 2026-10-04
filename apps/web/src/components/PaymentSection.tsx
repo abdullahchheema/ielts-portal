@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import { Alert, Card, Field, Input, Loading, Select } from '@/components/ui';
+import { Alert, Card, Field, Input, Loading, Select, FileInput } from '@/components/ui';
 import { api } from '@/lib/api';
 import { money } from '@/lib/format';
 
@@ -97,7 +97,7 @@ export function PaymentSection({ value, onChange, errors, amount, currency = 'PK
       </div>
 
       <Field label="Payment screenshot or receipt" hint={`JPG, PNG, WebP or PDF, up to ${MAX_PROOF_MB} MB.`} error={errors.file}>
-        {(p) => <input {...p} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(e) => set({ file: e.target.files?.[0] ?? null })} className="block w-full text-sm text-fg file:mr-3 file:rounded-md file:border-0 file:bg-primary-soft file:px-3 file:py-2 file:text-sm file:font-medium file:text-primary hover:file:bg-indigo-100" />}
+        {(p) => <FileInput {...p} file={value.file} accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(e) => set({ file: e.target.files?.[0] ?? null })} />}
       </Field>
     </div>
   );
