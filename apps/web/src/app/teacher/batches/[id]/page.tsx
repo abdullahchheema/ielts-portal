@@ -5,7 +5,9 @@ import { SkeletonTable } from '@/components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
-import { Alert, Badge, Button, Card, Dialog, Empty, Field, Input, Loading, PageHeader, ProgressBar, Select, Table, Td } from '@/components/ui';
+import { Alert, Badge, Button, Card, Dialog, Empty, Field, Input, Loading, PageHeader, ProgressBar, Select, Table, Tabs, Td } from '@/components/ui';
+import { BatchAnalytics } from './batch-analytics';
+import { AttendanceHistory } from './attendance-history';
 import { IeltsBadge, IeltsSummaryLike } from '@/components/IeltsSummary';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
@@ -21,13 +23,14 @@ function AttendanceDialog({ sessionId, onClose }: { sessionId: string | null; on
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ['sheet', sessionId], queryFn: () => api<Sheet>(`/mentor/sessions/${sessionId}/attendance`), enabled: !!sessionId });
   const [marks, setMarks] = useState<Record<string, string>>({});
+  const [notes, setNotes] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const value = (r: Sheet['roster'][number]) => marks[r.studentId] ?? r.status ?? '';
 
   async function save() {
     if (!data) return;
-    const records = data.roster.filter((r) => value(r)).map((r) => ({ studentId: r.studentId, status: value(r) }));
+    const records = data.roster.filter((r) => value(r)).map((r) => ({ studentId: r.studentId, status: value(r), ...(notes[r.studentId] !== undefined ? { note: notes[r.studentId] } : {}) }));
     setBusy(true); setError(null);
     try { await api(`/mentor/sessions/${sessionId}/attendance`, { method: 'PUT', body: { records } }); await qc.invalidateQueries({ queryKey: ['sessions-mentor'] }); await qc.invalidateQueries({ queryKey: ['sheet', sessionId] }); setMarks({}); onClose(); }
     catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
@@ -43,12 +46,19 @@ function AttendanceDialog({ sessionId, onClose }: { sessionId: string | null; on
             <ul className="max-h-80 divide-y divide-border overflow-auto text-sm">
               {data.roster.map((r) => (
                 <li key={r.studentId} className="flex items-center justify-between gap-3 py-2">
-                  <span>{r.name}</span>
+                  <span className="min-w-0 flex-1 truncate">{r.name}</span>
+                  <Input aria-label={`Note for ${r.name}`} placeholder="Note (optional)" maxLength={500} className="!w-44" value={notes[r.studentId] ?? ''} onChange={(e) => setNotes({ ...notes, [r.studentId]: e.target.value })} />
                   <Select aria-label={`Attendance for ${r.name}`} className="!w-32" value={value(r)} onChange={(e) => setMarks({ ...marks, [r.studentId]: e.target.value })}><option value="">—</option>{STATUSES.map((s) => <option key={s} value={s}>{label(s)}</option>)}</Select>
                 </li>
               ))}
             </ul>
           </>
+        )}
+        {sessionId && (
+          <details className="rounded-md bg-surface-muted p-3 text-sm">
+            <summary className="cursor-pointer font-medium text-fg">Correction history</summary>
+            <div className="mt-3"><AttendanceHistory sessionId={sessionId} /></div>
+          </details>
         )}
         <div className="flex justify-end gap-2"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button busy={busy} onClick={save}>Save attendance</Button></div>
       </div>
@@ -113,7 +123,7 @@ export default function MentorBatchPage() {
   const sessions = useQuery({ queryKey: ['sessions-mentor', id], queryFn: () => api<Session[]>(`/mentor/batches/${id}/sessions`) });
   const [sheet, setSheet] = useState<string | null>(null);
   const [newOpen, setNewOpen] = useState(false);
-  const [tab, setTab] = useState<'students' | 'classes' | 'results'>('classes');
+  const [tab, setTab] = useState<'students' | 'classes' | 'results' | 'analytics'>('classes');
   if (students.isLoading) return <Loading />;
   if (students.isError) return <Alert>{errorMessage(students.error)}</Alert>;
   const now = Date.now();
@@ -122,11 +132,16 @@ export default function MentorBatchPage() {
     <>
       <PageHeader title="Batch" subtitle={`${students.data?.length ?? 0} enrolled student${students.data?.length === 1 ? '' : 's'}`} actions={<Button onClick={() => setNewOpen(true)}>Schedule class</Button>} />
 
-      <div role="tablist" className="mb-5 flex gap-1 border-b border-border">
-        {([['classes', 'Classes & attendance'], ['students', 'Students'], ['results', 'Results']] as const).map(([k, l]) => (
-          <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${tab === k ? 'border-indigo-600 text-primary' : 'border-transparent text-fg-muted hover:text-fg'}`}>{l}</button>
-        ))}
+      <div className="mb-5 overflow-x-auto">
+        <Tabs
+          aria-label="Batch sections"
+          variant="underline"
+          value={tab}
+          onChange={(k) => setTab(k as typeof tab)}
+          items={[{ key: 'classes', label: 'Classes & attendance' }, { key: 'students', label: 'Students' }, { key: 'results', label: 'Results' }, { key: 'analytics', label: 'Analytics' }]}
+        />
       </div>
+      {tab === 'analytics' && <BatchAnalytics batchId={id} />}
 
       {tab === 'results' && <Results batchId={id} />}
       {tab === 'classes' && <>

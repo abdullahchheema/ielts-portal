@@ -7,7 +7,7 @@ import { Alert, Card, Empty, LinkButton, PageHeader, Section, SkeletonTable, Sta
 import { api } from '@/lib/api';
 import { date } from '@/lib/format';
 
-interface Dash { batches: number; activeBatches: number; students: number; toGrade: number; upcomingSessions: { id: string; topic: string; startsAt: string; batch: { id: string; name: string } }[] }
+interface Dash { gradingTargetHours: number; grading: { waiting: number; oldestWaitingHours: number | null; overTarget: number; medianTurnaroundHours: number | null }; unmarkedSessions: number; batches: number; activeBatches: number; students: number; toGrade: number; upcomingSessions: { id: string; topic: string; startsAt: string; batch: { id: string; name: string } }[] }
 
 export default function TeacherDashboard() {
   const { data, isLoading, isError } = useQuery({ queryKey: ['teacher-dashboard'], queryFn: () => api<Dash>('/mentor/dashboard') });
@@ -25,6 +25,15 @@ export default function TeacherDashboard() {
           <StatCard label="Active batches" value={data.activeBatches} icon={Layers} />
           <StatCard label="Students" value={data.students} icon={Users} />
           <StatCard label="Submissions to grade" value={data.toGrade} href="/teacher/grading" icon={ClipboardCheck} attention={data.toGrade > 0} />
+        </div>
+      </Section>
+
+      <Section title="Grading and attendance" description={`Informational. Your target is ${data.gradingTargetHours} hours to grade.`}>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard label="Oldest waiting" value={data.grading.oldestWaitingHours === null ? 'None' : `${data.grading.oldestWaitingHours} h`} hint="Submitted and not yet graded" attention={(data.grading.oldestWaitingHours ?? 0) > data.gradingTargetHours} />
+          <StatCard label="Past target" value={data.grading.overTarget} hint={`Waiting longer than ${data.gradingTargetHours} hours`} attention={data.grading.overTarget > 0} />
+          <StatCard label="Median turnaround" value={data.grading.medianTurnaroundHours === null ? 'Not enough data' : `${data.grading.medianTurnaroundHours} h`} hint="Last 30 days" />
+          <StatCard label="Sessions without attendance" value={data.unmarkedSessions} hint="Last 30 days. Unmarked sessions lower every student's percentage." attention={data.unmarkedSessions > 0} href="/teacher/batches" />
         </div>
       </Section>
 

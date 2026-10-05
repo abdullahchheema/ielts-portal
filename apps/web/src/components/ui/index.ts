@@ -7,3 +7,4 @@ export * from './table';
 export * from './dialog';
 export * from './tabs';
 export * from './confirm';
+export * from './filters';
