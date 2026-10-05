@@ -1,5 +1,7 @@
 'use client';
 
+import { useConfirm } from '@/components/ui';
+
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -31,7 +33,7 @@ function QuestionInput({ q, value, onChange, disabled }: { q: Question; value: u
     return (
       <div role="radiogroup" aria-label={q.prompt.text} className="flex flex-wrap gap-2">
         {(q.type === 'TFNG' ? TFNG : YNNG).map(([val, text]) => (
-          <label key={val} className={`cursor-pointer rounded-md px-3 py-1.5 text-sm ring-1 ${v.value === val ? 'bg-indigo-50 ring-2 ring-indigo-500' : 'ring-slate-300'}`}>
+          <label key={val} className={`cursor-pointer rounded-md px-3 py-1.5 text-sm ring-1 ${v.value === val ? 'bg-primary-soft ring-2 ring-primary' : 'ring-border-strong'}`}>
             <input type="radio" className="sr-only" name={q.id} disabled={disabled} checked={v.value === val} onChange={() => onChange({ value: val })} />{text}
           </label>
         ))}
@@ -39,7 +41,7 @@ function QuestionInput({ q, value, onChange, disabled }: { q: Question; value: u
     );
   }
   if (q.type === 'COMPLETION') {
-    return <input aria-label={q.prompt.text} disabled={disabled} className="w-full max-w-sm rounded-md px-3 py-2 text-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-indigo-600" value={v.text ?? ''} maxLength={500} autoComplete="off" onChange={(e) => onChange({ text: e.target.value })} />;
+    return <input aria-label={q.prompt.text} disabled={disabled} className="w-full max-w-sm rounded-md px-3 py-2 text-sm ring-1 ring-inset ring-border-strong focus:ring-2 focus:ring-primary" value={v.text ?? ''} maxLength={500} autoComplete="off" onChange={(e) => onChange({ text: e.target.value })} />;
   }
   const multi = q.type === 'MCQ_MULTI';
   const chosen = v.optionIds ?? [];
@@ -47,14 +49,14 @@ function QuestionInput({ q, value, onChange, disabled }: { q: Question; value: u
     <ul className="space-y-1.5">
       {q.options?.map((o) => (
         <li key={o.id}>
-          <label className={`flex cursor-pointer items-start gap-2 rounded-md p-2 text-sm ring-1 ${chosen.includes(o.id) ? 'bg-indigo-50 ring-2 ring-indigo-500' : 'ring-slate-200'}`}>
+          <label className={`flex cursor-pointer items-start gap-2 rounded-md p-2 text-sm ring-1 ${chosen.includes(o.id) ? 'bg-primary-soft ring-2 ring-primary' : 'ring-border'}`}>
             <input type={multi ? 'checkbox' : 'radio'} name={q.id} disabled={disabled} className="mt-0.5" checked={chosen.includes(o.id)}
               onChange={(e) => onChange({ optionIds: multi ? (e.target.checked ? [...chosen, o.id] : chosen.filter((x) => x !== o.id)) : [o.id] })} />
             {o.label}
           </label>
         </li>
       ))}
-      {multi && <li className="text-xs text-slate-500">Choose all that apply.</li>}
+      {multi && <li className="text-xs text-fg-muted">Choose all that apply.</li>}
     </ul>
   );
 }
@@ -65,20 +67,20 @@ function ResultView({ r, lessonHref }: { r: Result; lessonHref: string }) {
     <>
       <PageHeader title={r.assessment.title} subtitle={`Attempt ${r.attemptNumber} — results`} actions={score.passed !== null ? <Badge status={score.passed ? 'APPROVED' : 'REJECTED'} tone={score.passed ? 'green' : 'red'} /> : undefined} />
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
-        <Card><p className="text-sm text-slate-500">Score</p><p className="text-3xl font-semibold">{score.raw} / {score.max}</p></Card>
-        <Card><p className="text-sm text-slate-500">Percentage</p><p className="text-3xl font-semibold">{Math.round(score.percent)}%</p>{r.assessment.passPercent > 0 && <p className="text-xs text-slate-500">Pass mark {r.assessment.passPercent}%</p>}</Card>
-        <Card><p className="text-sm text-slate-500">Estimated band</p><p className="text-3xl font-semibold">{band(score.band)}</p>{score.band === null && <p className="text-xs text-slate-500">Bands are shown for listening and reading tests.</p>}</Card>
+        <Card><p className="text-sm text-fg-muted">Score</p><p className="text-3xl font-semibold">{score.raw} / {score.max}</p></Card>
+        <Card><p className="text-sm text-fg-muted">Percentage</p><p className="text-3xl font-semibold">{Math.round(score.percent)}%</p>{r.assessment.passPercent > 0 && <p className="text-xs text-fg-muted">Pass mark {r.assessment.passPercent}%</p>}</Card>
+        <Card><p className="text-sm text-fg-muted">Estimated band</p><p className="text-3xl font-semibold">{band(score.band)}</p>{score.band === null && <p className="text-xs text-fg-muted">Bands are shown for listening and reading tests.</p>}</Card>
       </div>
-      <div className="mb-6"><Link href={lessonHref} className="text-sm text-indigo-700 underline">← Back to the course</Link></div>
+      <div className="mb-6"><Link href={lessonHref} className="text-sm text-primary underline">← Back to the course</Link></div>
       {r.review ? r.review.map((s) => (
         <section key={s.id} className="mb-6">
           <h2 className="mb-2 font-semibold">{s.title}</h2>
           <ol className="space-y-3">
             {s.questions.map((q, i) => (
               <li key={q.id}><Card className={q.correct ? 'ring-green-300' : 'ring-red-300'}>
-                <p className="mb-2 text-sm font-medium"><span className="mr-2 text-slate-400">{i + 1}.</span>{q.prompt.text} <span className={q.correct ? 'text-green-700' : 'text-red-700'}>{q.correct ? '✓ Correct' : '✗ Incorrect'}</span></p>
-                <p className="text-sm text-slate-600">Your answer: <strong>{describe(q, q.yourAnswer)}</strong></p>
-                {!q.correct && <p className="text-sm text-slate-600">Correct answer: <strong>{describe(q, q.correctAnswer)}</strong></p>}
+                <p className="mb-2 text-sm font-medium"><span className="mr-2 text-fg-subtle">{i + 1}.</span>{q.prompt.text} <span className={q.correct ? 'text-success' : 'text-danger'}>{q.correct ? '✓ Correct' : '✗ Incorrect'}</span></p>
+                <p className="text-sm text-fg-muted">Your answer: <strong>{describe(q, q.yourAnswer)}</strong></p>
+                {!q.correct && <p className="text-sm text-fg-muted">Correct answer: <strong>{describe(q, q.correctAnswer)}</strong></p>}
               </Card></li>
             ))}
           </ol>
@@ -98,6 +100,7 @@ function describe(q: ReviewQ, a: Record<string, unknown> | ReviewQ['correctAnswe
 }
 
 export default function AttemptPage() {
+  const confirm = useConfirm();
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
   const { data, isLoading, isError, error } = useQuery({ queryKey: ['attempt', id], queryFn: () => api<AttemptResponse>(`/attempts/${id}`), staleTime: Infinity });
@@ -196,14 +199,14 @@ export default function AttemptPage() {
 
   return (
     <>
-      <div className="sticky top-0 z-10 -mx-4 mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
-        <div><h1 className="font-semibold">{data.assessment!.title}</h1><p className="text-xs text-slate-500">{label(data.assessment!.type)} · attempt {data.attempt!.attemptNumber} · {answered}/{total} answered</p></div>
+      <div className="sticky top-0 z-10 -mx-4 mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface/90 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
+        <div><h1 className="font-display font-semibold text-fg">{data.assessment!.title}</h1><p className="text-xs text-fg-muted">{label(data.assessment!.type)} · attempt {data.attempt!.attemptNumber} · {answered}/{total} answered</p></div>
         <div className="flex items-center gap-4 text-sm">
-          <span aria-live="polite" className={status === 'offline' || status === 'conflict' ? 'text-red-600' : 'text-slate-500'}>
+          <span aria-live="polite" className={status === 'offline' || status === 'conflict' ? 'text-danger' : 'text-fg-muted'}>
             {status === 'saved' ? 'All changes saved' : status === 'saving' ? 'Saving…' : status === 'offline' ? 'Offline — saved on this device' : 'Changed elsewhere'}
           </span>
-          {mm && <span role="timer" aria-label="Time remaining" className={`rounded-md px-2.5 py-1 font-mono text-base font-semibold ${low ? 'bg-red-50 text-red-700' : 'bg-slate-100 text-slate-800'}`}>{mm}</span>}
-          <Button onClick={() => confirm(answered < total ? `You have answered ${answered} of ${total} questions. Submit anyway?` : 'Submit your answers?') && submit()} busy={submitting}>Submit</Button>
+          {mm && <span role="timer" aria-label="Time remaining" className={`rounded-md px-2.5 py-1 font-mono text-base font-semibold ${low ? 'bg-danger-soft text-danger' : 'bg-surface-muted text-fg'}`}>{mm}</span>}
+          <Button onClick={() => confirm({ message: answered < total ? `You have answered ${answered} of ${total} questions. Submit anyway?` : 'Submit your answers?', confirmLabel: 'Submit' }).then((ok) => { if (ok) { submit(); } })} busy={submitting}>Submit</Button>
         </div>
       </div>
       {msg && <div className="mb-4"><Alert>{msg}</Alert></div>}
@@ -215,14 +218,14 @@ export default function AttemptPage() {
         {data.paper!.map((s) => (
           <section key={s.id} aria-labelledby={`s-${s.id}`}>
             <h2 id={`s-${s.id}`} className="mb-2 text-lg font-semibold">{s.title}</h2>
-            {s.content.instructions && <p className="mb-3 text-sm text-slate-600">{s.content.instructions}</p>}
+            {s.content.instructions && <p className="mb-3 text-sm text-fg-muted">{s.content.instructions}</p>}
             {s.content.audioUrl && <audio controls className="mb-4 w-full" src={s.content.audioUrl} />}
             <div className={s.content.passage ? 'grid gap-6 lg:grid-cols-2' : ''}>
               {s.content.passage && <Card className="max-h-[70vh] overflow-auto whitespace-pre-wrap text-sm leading-relaxed lg:sticky lg:top-24">{s.content.passage}</Card>}
               <ol className="space-y-4">
                 {s.questions.map((q, i) => (
                   <li key={q.id}><Card>
-                    <p className="mb-3 text-sm font-medium"><span className="mr-2 text-slate-400">{i + 1}.</span>{q.prompt.text}</p>
+                    <p className="mb-3 text-sm font-medium"><span className="mr-2 text-fg-subtle">{i + 1}.</span>{q.prompt.text}</p>
                     <QuestionInput q={q} value={answers[q.id]} onChange={(v) => { dirty.current.add(q.id); setAnswers((a) => ({ ...a, [q.id]: v })); }} />
                   </Card></li>
                 ))}

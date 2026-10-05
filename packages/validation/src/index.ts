@@ -14,6 +14,7 @@ export const registerSchema = z.object({
   firstName: z.string().trim().min(1).max(80),
   lastName: z.string().trim().min(1).max(80),
   phone: z.string().trim().min(6).max(20).optional(),
+  next: z.string().max(300).regex(/^\/(?!\/)/).optional(),
 });
 
 export const loginSchema = z.object({
@@ -83,6 +84,7 @@ export * from './assessments';
 export * from './grading';
 export * from './ops';
 export * from './teacher';
+export * from './lists';
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;

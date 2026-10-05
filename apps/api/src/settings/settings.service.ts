@@ -1,3 +1,4 @@
+import { ANALYTICS_DEFAULTS, ANALYTICS_SETTING_SCHEMAS } from '../analytics/thresholds';
 import { Controller, Get, Injectable, Put, Body, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { Prisma } from '@ielts/db';
@@ -26,6 +27,7 @@ export const SETTING_SCHEMAS = {
   'payment.methods': paymentMethodsSchema,
   'commerce.currency': z.string().length(3).toUpperCase(),
   'commerce.refund_window_days': z.number().int().min(0).max(365),
+  ...ANALYTICS_SETTING_SCHEMAS,
 } as const;
 
 export type SettingKey = keyof typeof SETTING_SCHEMAS;
@@ -38,6 +40,7 @@ const DEFAULTS: Record<SettingKey, unknown> = {
   ],
   'commerce.currency': 'PKR',
   'commerce.refund_window_days': 7,
+  ...ANALYTICS_DEFAULTS,
 };
 
 @Injectable()
@@ -76,6 +79,10 @@ const patchSchema = z
     'payment.methods': SETTING_SCHEMAS['payment.methods'].optional(),
     'commerce.currency': SETTING_SCHEMAS['commerce.currency'].optional(),
     'commerce.refund_window_days': SETTING_SCHEMAS['commerce.refund_window_days'].optional(),
+    'analytics.risk.thresholds': ANALYTICS_SETTING_SCHEMAS['analytics.risk.thresholds'].optional(),
+    'analytics.band.window': ANALYTICS_SETTING_SCHEMAS['analytics.band.window'].optional(),
+    'analytics.attendance.low_percent': ANALYTICS_SETTING_SCHEMAS['analytics.attendance.low_percent'].optional(),
+    'analytics.grading.target_hours': ANALYTICS_SETTING_SCHEMAS['analytics.grading.target_hours'].optional(),
   })
   .strict()
   .refine((o) => Object.keys(o).length > 0, 'Provide at least one setting.');

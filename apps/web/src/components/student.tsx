@@ -3,6 +3,8 @@
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { ReactNode } from 'react';
+import { CheckCircle2, CircleDashed, Circle, Lock } from 'lucide-react';
+import { cx } from '@/lib/cx';
 import { Alert, Badge, Card, Empty, LinkButton, Loading, PageHeader } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
@@ -62,7 +64,12 @@ interface TreeItem { id: string; title: string; contentType: string; state: stri
 interface TreeSection { id: string; title: string; items: TreeItem[]; children: TreeSection[] }
 
 const flat = (s: TreeSection): TreeItem[] => [...s.items, ...s.children.flatMap(flat)];
-const ICON: Record<string, string> = { COMPLETED: '✓', LOCKED: '🔒', IN_PROGRESS: '◐', NOT_STARTED: '○' };
+const STATE_ICON: Record<string, { Icon: typeof Circle; cls: string }> = {
+  COMPLETED: { Icon: CheckCircle2, cls: 'text-success' },
+  LOCKED: { Icon: Lock, cls: 'text-fg-subtle' },
+  IN_PROGRESS: { Icon: CircleDashed, cls: 'text-primary' },
+  NOT_STARTED: { Icon: Circle, cls: 'text-fg-subtle' },
+};
 
 /** One course module (Listening, Reading …): its lessons and tests, straight from the course tree. */
 export function ModulePage({ match, title, blurb, extra }: { match: string; title: string; blurb: string; extra?: ReactNode }) {
@@ -84,14 +91,14 @@ export function ModulePage({ match, title, blurb, extra }: { match: string; titl
       ) : (
         sections.map((s) => (
           <Card key={s.id} className="mb-4">
-            <h2 className="mb-3 font-semibold text-slate-900">{s.title}</h2>
-            <ul className="divide-y divide-slate-100">
+            <h2 className="mb-3 font-semibold text-fg">{s.title}</h2>
+            <ul className="divide-y divide-border">
               {flat(s).map((i) => (
                 <li key={i.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-                  <span className="flex items-center gap-2"><span aria-hidden className={i.state === 'COMPLETED' ? 'text-green-600' : 'text-slate-400'}>{ICON[i.state] ?? '○'}</span>{i.title}<span className="text-xs text-slate-400">{label(i.contentType)}{i.estimatedMinutes ? ` · ${i.estimatedMinutes} min` : ''}</span></span>
+                  <span className="flex min-w-0 items-center gap-2.5">{(() => { const s = STATE_ICON[i.state] ?? STATE_ICON.NOT_STARTED; return <s.Icon aria-hidden className={cx('size-4 shrink-0', s.cls)} strokeWidth={2} />; })()}{i.title}<span className="text-xs text-fg-subtle">{label(i.contentType)}{i.estimatedMinutes ? ` · ${i.estimatedMinutes} min` : ''}</span></span>
                   {i.state === 'LOCKED'
-                    ? <span className="text-xs text-slate-400">Locked</span>
-                    : <Link href={`/student/learn/${app!.id}?item=${i.id}`} className="font-medium text-indigo-700 hover:underline">{i.state === 'COMPLETED' ? 'Review' : i.state === 'IN_PROGRESS' ? 'Continue' : 'Start'}</Link>}
+                    ? <span className="text-xs text-fg-subtle">Locked</span>
+                    : <Link href={`/student/learn/${app!.id}?item=${i.id}`} className="font-medium text-primary hover:underline">{i.state === 'COMPLETED' ? 'Review' : i.state === 'IN_PROGRESS' ? 'Continue' : 'Start'}</Link>}
                 </li>
               ))}
             </ul>

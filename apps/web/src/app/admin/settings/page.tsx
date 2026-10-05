@@ -47,7 +47,7 @@ export default function SettingsPage() {
       <PageHeader title="Settings" subtitle="Changes are recorded in the audit log." actions={<Button busy={busy} onClick={save}>Save changes</Button>} />
       {msg && <div className="mb-4"><Alert kind={msg.kind}>{msg.text}</Alert></div>}
       <h2 className="mb-1 text-lg font-semibold">Payment methods</h2>
-      <p className="mb-4 text-sm text-slate-500">Students see the enabled methods and these account details on the enrollment form.</p>
+      <p className="mb-4 text-sm text-fg-muted">Students see the enabled methods and these account details on the enrollment form.</p>
       <div className="grid gap-4 lg:grid-cols-2">
         {methods.map((m, i) => (
           <Card key={m.method} className="space-y-3">

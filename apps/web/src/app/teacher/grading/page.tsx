@@ -20,7 +20,7 @@ export default function GradingQueuePage() {
       <PageHeader title="Grading queue" subtitle={status === 'SUBMITTED' ? 'Oldest first, so nobody waits longer than they should.' : 'Recently graded work. Open one to adjust a grade.'} />
       <div role="tablist" aria-label="Queue" className="mb-4 flex gap-2">
         {(['SUBMITTED', 'GRADED'] as const).map((s) => (
-          <button key={s} role="tab" aria-selected={status === s} onClick={() => { setStatus(s); setSkip(0); }} className={`rounded-md px-3 py-1.5 text-sm font-medium ${status === s ? 'bg-indigo-600 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-300'}`}>{s === 'SUBMITTED' ? 'To grade' : 'Graded'}</button>
+          <button key={s} role="tab" aria-selected={status === s} onClick={() => { setStatus(s); setSkip(0); }} className={`rounded-md px-3 py-1.5 text-sm font-medium ${status === s ? 'bg-primary text-white' : 'bg-surface text-fg ring-1 ring-border-strong'}`}>{s === 'SUBMITTED' ? 'To grade' : 'Graded'}</button>
         ))}
       </div>
       {isLoading && <Loading />}
@@ -31,7 +31,7 @@ export default function GradingQueuePage() {
             {data.items.map((s) => (
               <tr key={s.id}>
                 <Td className="font-medium">{s.student}</Td>
-                <Td>{s.title}<span className="block text-xs text-slate-500">{label(s.skill)}</span></Td>
+                <Td>{s.title}<span className="block text-xs text-fg-muted">{label(s.skill)}</span></Td>
                 <Td>{s.batch ?? '—'}</Td>
                 <Td>{date(s.submittedAt, true)}{s.late && <span className="ml-2"><Badge status="LATE" tone="amber" /></span>}</Td>
                 <Td>{status === 'GRADED' ? band(s.finalBand) : s.wordCount ? `${s.wordCount} words` : 'Audio'}</Td>
@@ -39,7 +39,7 @@ export default function GradingQueuePage() {
               </tr>
             ))}
           </Table>
-          <div className="mt-3 flex items-center justify-between text-sm text-slate-600">
+          <div className="mt-3 flex items-center justify-between text-sm text-fg-muted">
             <span>{data.total} total</span>
             <div className="flex gap-2"><Button variant="secondary" disabled={skip === 0} onClick={() => setSkip(Math.max(0, skip - PAGE))}>Previous</Button><Button variant="secondary" disabled={skip + PAGE >= data.total} onClick={() => setSkip(skip + PAGE)}>Next</Button></div>
           </div>

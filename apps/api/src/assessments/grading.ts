@@ -1,3 +1,4 @@
+import { roundHalfBand } from '../analytics/band';
 /** Pure grading + band-conversion logic. No I/O, so every rule is unit-testable. */
 
 export type QuestionType = 'MCQ_SINGLE' | 'MCQ_MULTI' | 'TFNG' | 'YNNG' | 'MATCHING' | 'COMPLETION';
@@ -105,8 +106,7 @@ export function bandFromRaw(rows: BandRow[], raw: number, max: number): number |
 /** IELTS rounding of an average of criterion bands: to the nearest half band, .25 and .75 round UP. */
 export function roundIeltsBand(values: number[]): number | null {
   if (values.length === 0) return null;
-  const avg = values.reduce((s, v) => s + v, 0) / values.length;
-  return Math.floor(avg * 2 + 0.5 + 1e-9) / 2;
+  return roundHalfBand(values.reduce((s, v) => s + v, 0) / values.length);
 }
 
 // ── authoring-time validation ──

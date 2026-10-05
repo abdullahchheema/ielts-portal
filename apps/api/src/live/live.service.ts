@@ -1,3 +1,4 @@
+import { overseesAllBatches } from '../common/scope';
 import { Body, Controller, Delete, Get, HttpCode, Injectable, Module, Param, ParseUUIDPipe, Patch, Post, Put, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { AttendanceInput, SessionInput, UpdateSessionInput, attendanceSchema, sessionSchema, updateSessionSchema } from '@ielts/validation';
@@ -84,6 +85,30 @@ export class LiveService {
     return this.prisma.liveSession.findMany({ where: { batchId }, orderBy: { startsAt: 'asc' }, include: { _count: { select: { attendance: true } } } });
   }
 
+  /** Every audited correction to a mark in this session, newest first, with who made it and what changed. */
+  async attendanceHistory(r: Reviewer, sessionId: string) {
+    const s = await this.prisma.liveSession.findUnique({ where: { id: sessionId } });
+    if (!s) throw notFound('Session');
+    await this.assertBatch(r, s.batchId);
+    const marks = await this.prisma.attendance.findMany({ where: { sessionId }, select: { id: true, studentId: true, student: { select: { firstName: true, lastName: true } } } });
+    if (marks.length === 0) return [];
+    const byId = new Map(marks.map((m) => [m.id, m]));
+    const logs = await this.prisma.auditLog.findMany({
+      where: { action: 'ATTENDANCE_CORRECTED', entityType: 'Attendance', entityId: { in: [...byId.keys()] } },
+      orderBy: { createdAt: 'desc' }, take: 200,
+      select: { createdAt: true, userId: true, beforeJson: true, afterJson: true, entityId: true },
+    });
+    return logs.map((l) => {
+      const mark = byId.get(l.entityId ?? '');
+      return {
+        at: l.createdAt, actorId: l.userId,
+        student: mark ? `${mark.student.firstName} ${mark.student.lastName}` : null,
+        studentId: mark?.studentId ?? null,
+        before: l.beforeJson, after: l.afterJson,
+      };
+    });
+  }
+
   async attendanceSheet(r: Reviewer, sessionId: string) {
     const s = await this.prisma.liveSession.findUnique({ where: { id: sessionId } });
     if (!s) throw notFound('Session');
@@ -106,15 +131,34 @@ export class LiveService {
     const enrolled = new Set((await this.prisma.enrollment.findMany({ where: { batchId: s.batchId, deletedAt: null, status: { in: ['ACTIVE', 'COMPLETED'] } }, select: { studentId: true } })).map((e) => e.studentId));
     const stranger = input.records.find((x) => !enrolled.has(x.studentId));
     if (stranger) throw bad('records', 'One of the students is not enrolled in this batch.');
+    const now = new Date();
     await this.prisma.$transaction(async (tx) => {
+      const before = new Map((await tx.attendance.findMany({
+        where: { sessionId, studentId: { in: input.records.map((x) => x.studentId) } },
+      })).map((a) => [a.studentId, a]));
+      const corrections: { attendanceId: string; studentId: string; before: AttendanceSnapshot; after: AttendanceSnapshot }[] = [];
       for (const x of input.records) {
-        await tx.attendance.upsert({
+        const prev = before.get(x.studentId);
+        const noteProvided = x.note !== undefined;
+        const note = noteProvided ? (x.note || null) : (prev?.note ?? null);
+        const row = await tx.attendance.upsert({
           where: { sessionId_studentId: { sessionId, studentId: x.studentId } },
-          create: { sessionId, studentId: x.studentId, status: x.status, minutesAttended: x.minutesAttended, markedBy: actor.userId },
-          update: { status: x.status, minutesAttended: x.minutesAttended ?? null, markedBy: actor.userId },
+          create: { sessionId, studentId: x.studentId, status: x.status, minutesAttended: x.minutesAttended, note, markedBy: actor.userId, markedAt: now },
+          update: { status: x.status, minutesAttended: x.minutesAttended ?? null, ...(noteProvided ? { note } : {}), markedBy: actor.userId, markedAt: now },
         });
+        // A correction is a change to a status or note that already existed. An unchanged re-save writes no diff.
+        const changed = prev && (prev.status !== x.status || (prev.note ?? null) !== note);
+        if (prev && changed) corrections.push({ attendanceId: row.id, studentId: x.studentId, before: snapshot(prev), after: snapshot(row) });
       }
-      await this.audit.record({ ...actor, action: 'ATTENDANCE_MARKED', entityType: 'LiveSession', entityId: sessionId, after: { count: input.records.length } }, tx);
+      await this.audit.record({ ...actor, action: 'ATTENDANCE_MARKED', entityType: 'LiveSession', entityId: sessionId, after: { count: input.records.length, corrected: corrections.length } }, tx);
+      // Per-record before and after for corrections, so a change to a historical record is never anonymous.
+      if (corrections.length > 0 && corrections.length <= 50) {
+        for (const c of corrections) {
+          await this.audit.record({ ...actor, action: 'ATTENDANCE_CORRECTED', entityType: 'Attendance', entityId: c.attendanceId, before: c.before, after: c.after }, tx);
+        }
+      } else if (corrections.length > 50) {
+        await this.audit.record({ ...actor, action: 'ATTENDANCE_CORRECTED_BULK', entityType: 'LiveSession', entityId: sessionId, after: { corrections } }, tx);
+      }
     });
     return { ok: true };
   }
@@ -138,17 +182,35 @@ export class LiveService {
     return { upcoming: rows.filter((s) => s.endsAt.getTime() >= now).map(shape), past: rows.filter((s) => s.endsAt.getTime() < now).reverse().map(shape) };
   }
 
+  /** Attendance per enrolment. Counts only sessions held after the student joined, and runs a fixed number of queries. */
   async attendanceSummary(studentId: string) {
-    const enrollments = await this.prisma.enrollment.findMany({ where: { studentId, deletedAt: null }, select: { id: true, batchId: true, course: { select: { title: true } } } });
-    return Promise.all(enrollments.map(async (e) => {
-      const held = await this.prisma.liveSession.count({ where: { batchId: e.batchId, endsAt: { lt: new Date() } } });
-      const rows = await this.prisma.attendance.groupBy({ by: ['status'], where: { studentId, session: { batchId: e.batchId } }, _count: true });
-      const n = (st: string) => rows.find((r) => r.status === st)?._count ?? 0;
-      const attended = n('PRESENT') + n('LATE');
-      return { enrollmentId: e.id, course: e.course.title, sessionsHeld: held, present: n('PRESENT'), late: n('LATE'), absent: n('ABSENT'), excused: n('EXCUSED'), attendancePercent: held ? Math.round((attended / held) * 100) : null };
-    }));
+    const enrollments = await this.prisma.enrollment.findMany({
+      where: { studentId, deletedAt: null }, select: { id: true, batchId: true, enrolledAt: true, accessStartsAt: true, createdAt: true, course: { select: { title: true } } },
+    });
+    if (enrollments.length === 0) return [];
+    const batchIds = [...new Set(enrollments.map((e) => e.batchId))];
+    const [sessions, rows] = await Promise.all([
+      this.prisma.liveSession.findMany({ where: { batchId: { in: batchIds }, endsAt: { lt: new Date() } }, select: { id: true, batchId: true, startsAt: true } }),
+      this.prisma.attendance.findMany({ where: { studentId, session: { batchId: { in: batchIds } } }, select: { sessionId: true, status: true } }),
+    ]);
+    const statusBySession = new Map(rows.map((r) => [r.sessionId, r.status]));
+    return enrollments.map((e) => {
+      const from = (e.accessStartsAt ?? e.enrolledAt ?? e.createdAt).getTime();
+      const held = sessions.filter((s) => s.batchId === e.batchId && s.startsAt.getTime() >= from);
+      const count = (st: string) => held.filter((s) => statusBySession.get(s.id) === st).length;
+      const present = count('PRESENT'), late = count('LATE'), absent = count('ABSENT'), excused = count('EXCUSED');
+      const denom = held.length - excused; // an excused absence is neither attended nor a risk signal
+      return {
+        enrollmentId: e.id, course: e.course.title, sessionsHeld: held.length, present, late, absent, excused,
+        attendancePercent: denom > 0 ? Math.round(((present + late) / denom) * 100) : null,
+      };
+    });
   }
 }
+
+type AttendanceSnapshot = { status: string; note: string | null; markedBy: string | null; markedAt: Date | null };
+const snapshot = (a: { status: string; note: string | null; markedBy: string | null; markedAt: Date | null }): AttendanceSnapshot =>
+  ({ status: a.status, note: a.note ?? null, markedBy: a.markedBy ?? null, markedAt: a.markedAt ?? null });
 
 const uuid = new ParseUUIDPipe();
 const actor = (u: AuthUser, req: Request): Actor => ({ userId: u.id, ...clientMeta(req) });
@@ -159,7 +221,7 @@ export class LiveController {
 
   private async rev(u: AuthUser): Promise<Reviewer> {
     const c = (await this.ctx.get(u.id))!;
-    return { userId: u.id, mentorId: u.mentorId, canOverseeAll: c.permissions.has('batch.create') };
+    return { userId: u.id, mentorId: u.mentorId, canOverseeAll: overseesAllBatches(c.permissions) };
   }
 
   @RequirePermission('teaching.view') @Get('mentor/batches/:id/sessions')
@@ -176,6 +238,9 @@ export class LiveController {
 
   @RequirePermission('teaching.view') @Get('mentor/sessions/:id/attendance')
   async sheet(@Param('id', uuid) id: string, @CurrentUser() u: AuthUser) { return this.live.attendanceSheet(await this.rev(u), id); }
+
+  @RequirePermission('teaching.view') @Get('mentor/sessions/:id/attendance/history')
+  async history(@Param('id', uuid) id: string, @CurrentUser() u: AuthUser) { return this.live.attendanceHistory(await this.rev(u), id); }
 
   @RequirePermission('teaching.view') @Put('mentor/sessions/:id/attendance')
   async mark(@Param('id', uuid) id: string, @Body(new ZodPipe(attendanceSchema)) body: AttendanceInput, @CurrentUser() u: AuthUser, @Req() req: Request) { return this.live.markAttendance(await this.rev(u), id, body, actor(u, req)); }

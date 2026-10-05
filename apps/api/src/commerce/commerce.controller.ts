@@ -1,23 +1,20 @@
 import {
-  Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, Req, Res, UploadedFile, UseInterceptors,
+  Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, Req, UploadedFile, UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import type { Request, Response } from 'express';
+import type { Request } from 'express';
 import { memoryStorage } from 'multer';
 import { z } from 'zod';
 import {
   ApproveProofInput, ManualEnrollmentInput, RejectProofInput,
   approveProofSchema, manualEnrollmentSchema, rejectProofSchema,
 } from '@ielts/validation';
-import { setSessionCookies } from '../auth/cookies';
 import { forbidden } from '../common/app-error';
 import { AuthUser, CurrentUser, Public, RequirePermission, clientMeta } from '../common/decorators';
 import { ZodPipe } from '../common/zod.pipe';
 import { Actor } from '../courses/courses.service';
 import { ApplicationsService, MAX_PROOF_BYTES } from './applications.service';
 import { EnrollmentsService } from './enrollments.service';
-import { Inject } from '@nestjs/common';
-import { APP_CONFIG, AppConfig } from '../config/config.module';
 
 const uuid = new ParseUUIDPipe();
 const actor = (u: AuthUser, req: Request): Actor => ({ userId: u.id, ...clientMeta(req) });
@@ -41,22 +38,15 @@ export class PublicController {
 
 @Controller()
 export class ApplicationsController {
-  constructor(private readonly applications: ApplicationsService, @Inject(APP_CONFIG) private readonly config: AppConfig) {}
+  constructor(private readonly applications: ApplicationsService) {}
 
-  /**
-   * Public: new visitors create their account and apply in one request; signed-in students just apply.
-   * A brand-new student is signed in on the response so they land straight in their portal.
-   */
-  @Public() @HttpCode(201) @Post('applications')
+  /** A verified student account applies for a batch. Accounts are created first at /create-account. */
+  @HttpCode(201) @Post('applications')
   @UseInterceptors(proofUpload())
-  async apply(
-    @Body() body: Record<string, unknown>, @UploadedFile() file: Upload,
-    @CurrentUser() user: AuthUser | undefined, @Req() req: Request, @Res({ passthrough: true }) res: Response,
-  ) {
-    const current = user?.studentId ? { userId: user.id, studentId: user.studentId } : null;
-    const result = await this.applications.submit(current, body, file, clientMeta(req));
-    if (result.session) setSessionCookies(res, result.session, this.config.NODE_ENV === 'production');
-    return { enrollmentId: result.enrollmentId, status: result.status, signedIn: !!result.session };
+  async apply(@Body() body: Record<string, unknown>, @UploadedFile() file: Upload, @CurrentUser() user: AuthUser, @Req() req: Request) {
+    if (!user.studentId) throw forbidden('Create a student account before you apply.');
+    const result = await this.applications.submit({ userId: user.id, studentId: user.studentId }, body, file, clientMeta(req));
+    return { enrollmentId: result.enrollmentId, status: result.status };
   }
 
   @Get('me/applications')

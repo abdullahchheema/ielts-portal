@@ -1,1 +1,110 @@
 @import "tailwindcss";
+
+/* LAYER 1: brand ramp override (static paint).
+   Repoints Tailwind's indigo scale at the academic blue, so existing
+   indigo-* classes repaint without file edits. slate needs no override:
+   the target neutrals already are Tailwind slate. */
+@theme {
+  --color-indigo-50:  #EFF6FF;  --color-indigo-100: #DBEAFE;
+  --color-indigo-200: #BFDBFE;  --color-indigo-300: #93C5FD;
+  --color-indigo-400: #60A5FA;  --color-indigo-500: #3B82F6;
+  --color-indigo-600: #2563EB;
+  --color-indigo-700: #1D4ED8;  --color-indigo-800: #1E40AF;
+  --color-indigo-900: #1E3A8A;  --color-indigo-950: #172554;
+
+  --color-navy-800: #1E293B;  --color-navy-900: #0F172A;  --color-navy-950: #060B16;
+
+  /* Overriding existing keys upgrades every rounded-lg / shadow-sm in place. */
+  --radius-lg: 0.75rem;
+  --shadow-xs: 0 1px 2px 0 rgb(15 23 42 / .04);
+  --shadow-sm: 0 1px 2px 0 rgb(15 23 42 / .05), 0 1px 3px 0 rgb(15 23 42 / .06);
+  --shadow-md: 0 2px 4px -1px rgb(15 23 42 / .06), 0 4px 12px -2px rgb(15 23 42 / .08);
+  --shadow-lg: 0 4px 8px -2px rgb(15 23 42 / .06), 0 12px 28px -6px rgb(15 23 42 / .12);
+  --shadow-xl: 0 8px 16px -4px rgb(15 23 42 / .08), 0 24px 48px -12px rgb(15 23 42 / .18);
+
+  --text-display: clamp(2.25rem, 1.5rem + 3vw, 3.5rem);
+  --text-display--line-height: 1.05;
+  --text-display--letter-spacing: -0.02em;
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* LAYER 2: semantic values.
+   ::backdrop is listed explicitly because Tailwind emits theme vars to
+   :root/:host only, and ::backdrop sits outside that inheritance chain on
+   older Safari and Chrome. This is what makes the dialog scrim render. */
+:root, ::backdrop {
+  --canvas: #F8FAFC;  --surface: #FFFFFF;  --surface-muted: #F1F5F9;
+  --fg: #0F172A;      --fg-muted: #64748B; --fg-subtle: #94A3B8;
+  --border: #E2E8F0;  --border-strong: #CBD5E1;
+
+  --primary: #2563EB;  --primary-hover: #1D4ED8;
+  --primary-fg: #FFFFFF; --primary-soft: #EFF6FF;
+
+  --accent: #14B8A6;          /* fills, graphics, rails only */
+  --accent-strong: #0D9488;   /* accent text: teal-500 on white fails AA */
+  --accent-soft: #F0FDFA;
+
+  --success: #16A34A; --success-soft: #F0FDF4;
+  --warning: #D97706; --warning-soft: #FFFBEB;
+  --danger:  #DC2626; --danger-soft:  #FEF2F2;
+  --info:    #0284C7; --info-soft:    #F0F9FF;
+
+  --ring: #2563EB;
+  --overlay: rgb(15 23 42 / .55);
+}
+
+/* LAYER 3: expose as utilities. `inline` lets ::backdrop resolve per element. */
+@theme inline {
+  --color-canvas: var(--canvas);   --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-fg: var(--fg);           --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-border: var(--border);   --color-border-strong: var(--border-strong);
+  --color-primary: var(--primary); --color-primary-hover: var(--primary-hover);
+  --color-primary-fg: var(--primary-fg); --color-primary-soft: var(--primary-soft);
+  --color-accent: var(--accent);   --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-success: var(--success); --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning); --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);   --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);       --color-info-soft: var(--info-soft);
+  --color-ring: var(--ring);       --color-overlay: var(--overlay);
+
+  /* Font bridge. The next/font class must sit on <html>; see layout.tsx. */
+  --font-sans:    var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-display-face), var(--font-body), ui-sans-serif, sans-serif;
+}
+
+/* LAYER 4: base. */
+@layer base {
+  /* Preflight's `* { margin: 0 }` removes the UA dialog:modal centring. */
+  dialog:modal { margin: auto; }
+  :focus-visible { outline-color: var(--ring); }
+  th, td { font-variant-numeric: tabular-nums; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important; animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important; scroll-behavior: auto !important;
+  }
+}
+
+/* Data tables: columns from lg up; below that each row stacks as a labelled card (see components/ui/table.tsx). */
+@media (max-width: 1023.98px) {
+  .data-table thead { display: none; }
+  .data-table, .data-table tbody, .data-table tr, .data-table td { display: block; width: 100%; }
+  .data-table tr { padding: 0.875rem 1rem; }
+  .data-table td {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 1rem;
+    padding: 0.3rem 0; text-align: right; overflow-wrap: anywhere;
+  }
+  .data-table td::before {
+    content: attr(data-label); flex-shrink: 0; text-align: left;
+    font-size: 0.75rem; font-weight: 500; color: var(--fg-muted);
+  }
+  .data-table td:first-child { display: block; text-align: left; padding-bottom: 0.5rem; font-weight: 600; }
+  .data-table td:first-child::before, .data-table td:not([data-label])::before { content: none; }
+  .data-table td:empty { display: none; }
+}

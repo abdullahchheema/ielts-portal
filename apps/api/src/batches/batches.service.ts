@@ -1,9 +1,14 @@
+import { DEFAULT_GRADING_TARGET_HOURS } from '../analytics/thresholds';
+import { SettingsService } from '../settings/settings.service';
+import { BandService } from '../analytics/band.service';
+import { overseesAllBatches } from '../common/scope';
 import { Inject, Injectable } from '@nestjs/common';
 import { BatchStatus, EnrollmentStatus, Prisma } from '@ielts/db';
 import * as argon2 from 'argon2';
 import type { AssignMentorInput, CreateBatchInput, CreateMentorInput, UpdateBatchInput } from '@ielts/validation';
 import { AuditService } from '../audit/audit.service';
 import { randomToken, sha256 } from '../auth/tokens';
+import { removeAccount } from '../admin/account-removal';
 import { AppError, conflict, forbidden, notFound } from '../common/app-error';
 import { ieltsSummary } from '../common/ielts';
 import { APP_CONFIG, AppConfig } from '../config/config.module';
@@ -31,6 +36,8 @@ const bad = (field: string, msg: string) => new AppError('VALIDATION_ERROR', 422
 export class BatchesService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly settings: SettingsService,
+    private readonly bands: BandService,
     private readonly audit: AuditService,
     private readonly mail: MailService,
     private readonly ctx: UserContextService,
@@ -222,12 +229,43 @@ export class BatchesService {
   // ───────── mentors ─────────
   listMentors() {
     return this.prisma.mentorProfile.findMany({
+      where: { status: { not: 'REMOVED' } },
       orderBy: { displayName: 'asc' },
       include: { user: { select: { email: true, status: true } }, _count: { select: { batches: true } } },
     });
   }
 
-  /** `applicationId` links the created MentorProfile back to the TeacherApplication that produced it (teacher-applications approve flow). */
+  async removeMentor(mentorId: string, actor: Actor, actorEmail: string) {
+    const profile = await this.prisma.mentorProfile.findUnique({ where: { id: mentorId }, select: { userId: true } });
+    if (!profile) throw notFound('Teacher');
+    const result = await this.prisma.$transaction((tx) => removeAccount(tx, this.audit, {
+      targetUserId: profile.userId, actor, actorEmail, ownerEmail: this.config.OWNER_EMAIL, mustBeTeacher: true,
+    }));
+    this.ctx.invalidate(profile.userId);
+    return result;
+  }
+
+  /** An approved teacher applicant already has a verified account from applying: this adds the mentor role to it. */
+  async attachMentorRole(
+    user: { id: string; email: string; status: string; emailVerifiedAt: Date | null },
+    profile: { displayName: string; bio?: string; specializations: string[] },
+    actor: Actor,
+    applicationId: string,
+  ) {
+    if (!user.emailVerifiedAt || user.status !== 'ACTIVE') throw new AppError('CONFLICT', 409, 'This applicant has not verified their email yet.');
+    const role = await this.prisma.role.findUniqueOrThrow({ where: { name: 'MENTOR' } });
+    const mentor = await this.prisma.$transaction(async (tx) => {
+      await tx.userRole.createMany({ data: [{ userId: user.id, roleId: role.id }], skipDuplicates: true });
+      const created = await tx.mentorProfile.create({
+        data: { userId: user.id, displayName: profile.displayName, bio: profile.bio, specializations: profile.specializations, applicationId },
+      });
+      await this.audit.record({ ...actor, action: 'ADMIN_GRANTED_MENTOR_ROLE', entityType: 'User', entityId: user.id, after: { displayName: profile.displayName, applicationId } }, tx);
+      return created;
+    });
+    await this.mail.send(user.email, 'Your teaching application was approved', `<p>Hello ${profile.displayName}, your application to teach with us was approved. Log in with your existing account to open your teacher portal: <a href="${this.config.APP_URL}/login">${this.config.APP_URL}/login</a></p>`);
+    return mentor;
+  }
+
   async createMentor(input: CreateMentorInput, actor: Actor, applicationId?: string) {
     const exists = await this.prisma.user.findUnique({ where: { email: input.email } });
     if (exists) throw new AppError('EMAIL_ALREADY_REGISTERED', 409, 'An account with this email already exists.');
@@ -286,7 +324,7 @@ export class BatchesService {
   // ───────── teacher portal (scoped to assigned batches) ─────────
   /** Teachers only reach batches they are assigned to; academic admins may oversee any. */
   private async assertBatchAccess(batchId: string, user: { mentorId?: string; permissions: Set<string> }) {
-    if (user.permissions.has('batch.create')) return;
+    if (overseesAllBatches(user.permissions)) return;
     const assigned = user.mentorId ? await this.prisma.batchMentor.count({ where: { batchId, mentorId: user.mentorId, batch: { deletedAt: null } } }) : 0;
     if (!assigned) throw forbidden('You are not assigned to this batch.');
   }
@@ -330,34 +368,28 @@ export class BatchesService {
       orderBy: { enrolledAt: 'asc' },
     });
     const ids = enrollments.map((e) => e.studentId);
-    const [attempts, graded] = ids.length ? await Promise.all([
+    // Band numbers come from the same engine as the student's own view, so the two screens cannot disagree.
+    const [estimates, attempts] = ids.length ? await Promise.all([
+      this.bands.forCohort(ids),
       this.prisma.assessmentAttempt.findMany({
         where: { studentId: { in: ids }, status: { notIn: ['IN_PROGRESS', 'NOT_STARTED', 'INVALIDATED'] } },
         orderBy: { submittedAt: 'asc' }, select: { studentId: true, bandScore: true, percent: true, submittedAt: true, assessment: { select: { skill: true, type: true, title: true } } },
       }),
-      this.prisma.submission.findMany({
-        where: { studentId: { in: ids }, status: 'GRADED', finalBand: { not: null } },
-        orderBy: { gradedAt: 'asc' }, select: { studentId: true, finalBand: true, assignment: { select: { skill: true } } },
-      }),
-    ]) : [[], []];
+    ]) : [new Map(), []];
 
-    const SKILLS = ['LISTENING', 'READING', 'WRITING', 'SPEAKING'] as const;
     return enrollments.map((e) => {
-      const skills: Record<string, { latest: number | null; best: number | null }> = Object.fromEntries(SKILLS.map((k) => [k, { latest: null, best: null }]));
-      const push = (skill: string | null, band: number) => {
-        const s = skill ? skills[skill] : undefined;
-        if (!s) return;
-        s.latest = band;
-        s.best = s.best === null ? band : Math.max(s.best, band);
-      };
-      for (const a of attempts.filter((x) => x.studentId === e.studentId && x.bandScore !== null)) push(a.assessment.skill, Number(a.bandScore));
-      for (const g of graded.filter((x) => x.studentId === e.studentId)) push(g.assignment.skill, Number(g.finalBand));
+      const est = estimates.get(e.studentId);
+      const skills = Object.fromEntries((["LISTENING", "READING", "WRITING", "SPEAKING"] as const).map((k) => {
+        const s = est?.skills[k];
+        return [k, { latest: s?.latest ?? null, best: s?.best ?? null, estimated: s?.estimated ?? null, previous: s?.previous ?? null, trend: s?.trend ?? "INSUFFICIENT_DATA", pointCount: s?.pointCount ?? 0 }];
+      }));
       const mocks = attempts.filter((x) => x.studentId === e.studentId && x.assessment.type === 'MOCK');
       const lastMock = mocks[mocks.length - 1];
       return {
         studentId: e.studentId, name: `${e.student.firstName} ${e.student.lastName}`, targetBand: e.student.targetBand === null ? null : Number(e.student.targetBand),
         ielts: ieltsSummary(e.student),
         progressPercent: Number(e.progressPercent), skills,
+        overall: est?.overall ?? null, overallStatus: est?.overallStatus ?? "INSUFFICIENT_DATA", missingSkills: est?.missingSkills ?? [],
         lastMock: lastMock ? { title: lastMock.assessment.title, percent: lastMock.percent === null ? null : Number(lastMock.percent), at: lastMock.submittedAt } : null,
       };
     });
@@ -375,7 +407,37 @@ export class BatchesService {
       this.prisma.submission.count({ where: { status: 'SUBMITTED', assignment: { skill: 'SPEAKING' }, enrollment: { batchId: { in: roleFor('SPEAKING') } } } }),
       this.prisma.batch.count({ where: { id: { in: batchIds }, status: { in: ['OPEN', 'IN_PROGRESS'] } } }),
     ]);
-    return { batches: batchIds.length, activeBatches, students, toGrade: toGradeWriting + toGradeSpeaking, upcomingSessions: sessions };
+    const workload = await this.teacherWorkload(batchIds, roleFor);
+    return { batches: batchIds.length, activeBatches, students, toGrade: toGradeWriting + toGradeSpeaking, upcomingSessions: sessions, ...workload };
+  }
+
+  /**
+   * Grading turnaround and attendance hygiene for the teacher's own batches. Informational:
+   * nothing here penalises a teacher, and the target comes from settings.
+   */
+  private async teacherWorkload(batchIds: string[], roleFor: (skill: 'WRITING' | 'SPEAKING') => string[]) {
+    if (batchIds.length === 0) return { gradingTargetHours: DEFAULT_GRADING_TARGET_HOURS, grading: { waiting: 0, oldestWaitingHours: null, overTarget: 0, medianTurnaroundHours: null }, unmarkedSessions: 0 };
+    const target = Number(await this.settings.get('analytics.grading.target_hours')) || DEFAULT_GRADING_TARGET_HOURS;
+    const now = Date.now();
+    const scope = { OR: [{ assignment: { skill: 'WRITING' }, enrollment: { batchId: { in: roleFor('WRITING') } } }, { assignment: { skill: 'SPEAKING' }, enrollment: { batchId: { in: roleFor('SPEAKING') } } }] };
+    const [waiting, graded, sessions] = await Promise.all([
+      this.prisma.submission.findMany({ where: { status: 'SUBMITTED', ...scope }, select: { submittedAt: true }, orderBy: { submittedAt: 'asc' }, take: 500 }),
+      this.prisma.submission.findMany({ where: { status: 'GRADED', gradedAt: { gte: new Date(now - 30 * 86_400_000) }, ...scope }, select: { submittedAt: true, gradedAt: true }, take: 500 }),
+      this.prisma.liveSession.findMany({ where: { batchId: { in: batchIds }, endsAt: { lt: new Date(now), gte: new Date(now - 30 * 86_400_000) } }, select: { id: true, _count: { select: { attendance: true } } } }),
+    ]);
+    const oldest = waiting[0]?.submittedAt.getTime();
+    const hours = graded.filter((g) => g.gradedAt).map((g) => (g.gradedAt!.getTime() - g.submittedAt.getTime()) / 3_600_000).sort((a, b) => a - b);
+    const median = hours.length ? Math.round(hours[Math.floor(hours.length / 2)] * 10) / 10 : null;
+    return {
+      gradingTargetHours: target,
+      grading: {
+        waiting: waiting.length,
+        oldestWaitingHours: oldest === undefined ? null : Math.round((now - oldest) / 3_600_000),
+        overTarget: waiting.filter((w) => now - w.submittedAt.getTime() > target * 3_600_000).length,
+        medianTurnaroundHours: median,
+      },
+      unmarkedSessions: sessions.filter((s) => s._count.attendance === 0).length,
+    };
   }
 
   invalidateUser(userId: string) { this.ctx.invalidate(userId); }

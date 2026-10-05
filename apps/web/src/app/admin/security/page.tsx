@@ -41,12 +41,12 @@ export default function SecurityPage() {
 
         {setup && (
           <div className="space-y-4">
-            <ol className="list-decimal space-y-1 pl-5 text-sm text-slate-700">
+            <ol className="list-decimal space-y-1 pl-5 text-sm text-fg">
               <li>Scan this QR code with your authenticator app.</li>
               <li>Enter the 6-digit code it shows to finish.</li>
             </ol>
-            <div className="w-fit rounded-lg bg-white p-3 ring-1 ring-slate-200"><QRCodeSVG value={setup.otpauthUrl} size={176} /></div>
-            <p className="text-xs text-slate-500">Can’t scan? Enter this key manually: <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-slate-800">{setup.secret}</code></p>
+            <div className="w-fit rounded-lg bg-surface p-3 ring-1 ring-border"><QRCodeSVG value={setup.otpauthUrl} size={176} /></div>
+            <p className="text-xs text-fg-muted">Can’t scan? Enter this key manually: <code className="rounded bg-surface-muted px-1.5 py-0.5 font-mono text-fg">{setup.secret}</code></p>
             <Field label="6-digit code">{(p) => <Input {...p} inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} />}</Field>
             <Button onClick={confirm} busy={busy} disabled={code.length !== 6}>Confirm and enable</Button>
           </div>

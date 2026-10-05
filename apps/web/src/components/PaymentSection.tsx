@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import { Alert, Card, Field, Input, Loading, Select } from '@/components/ui';
+import { Alert, Card, Field, Input, Loading, Select, FileInput } from '@/components/ui';
 import { api } from '@/lib/api';
 import { money } from '@/lib/format';
 
@@ -64,28 +64,28 @@ export function PaymentSection({ value, onChange, errors, amount, currency = 'PK
   return (
     <div className="space-y-4">
       <fieldset>
-        <legend className="mb-2 text-sm font-medium text-slate-700">How did you pay?</legend>
+        <legend className="mb-2 text-sm font-medium text-fg">How did you pay?</legend>
         <div className="grid gap-2 sm:grid-cols-3">
           {methods.data.map((m) => (
-            <label key={m.method} className={`flex cursor-pointer items-center gap-2 rounded-md px-3 py-2.5 text-sm ring-1 ring-inset ${value.paymentMethod === m.method ? 'bg-indigo-50 ring-2 ring-indigo-600' : 'bg-white ring-slate-300 hover:bg-slate-50'}`}>
+            <label key={m.method} className={`flex cursor-pointer items-center gap-2 rounded-md px-3 py-2.5 text-sm ring-1 ring-inset ${value.paymentMethod === m.method ? 'bg-primary-soft ring-2 ring-primary' : 'bg-surface ring-border-strong hover:bg-canvas'}`}>
               <input type="radio" name="paymentMethod" value={m.method} checked={value.paymentMethod === m.method} onChange={() => set({ paymentMethod: m.method })} className="accent-indigo-600" />
               {METHOD_LABEL[m.method] ?? m.method}
             </label>
           ))}
         </div>
-        {errors.paymentMethod && <p role="alert" className="mt-1 text-xs text-red-600">{errors.paymentMethod}</p>}
+        {errors.paymentMethod && <p role="alert" className="mt-1 text-xs text-danger">{errors.paymentMethod}</p>}
       </fieldset>
 
       {chosen && (
-        <Card className="bg-slate-50">
-          <p className="text-sm font-medium text-slate-900">Send {amount !== undefined ? <strong>{money(amount, currency)}</strong> : 'the course fee'} to:</p>
+        <Card className="bg-canvas">
+          <p className="text-sm font-medium text-fg">Send {amount !== undefined ? <strong>{money(amount, currency)}</strong> : 'the course fee'} to:</p>
           <dl className="mt-2 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
-            <div><dt className="text-slate-500">Account title</dt><dd className="font-medium">{chosen.accountTitle || '—'}</dd></div>
-            <div><dt className="text-slate-500">{chosen.method === 'BANK_TRANSFER' ? 'Account number' : 'Mobile number'}</dt><dd className="font-medium">{chosen.accountNumber || '—'}</dd></div>
-            {chosen.bankName && <div><dt className="text-slate-500">Bank</dt><dd className="font-medium">{chosen.bankName}</dd></div>}
-            {chosen.iban && <div><dt className="text-slate-500">IBAN</dt><dd className="font-medium">{chosen.iban}</dd></div>}
+            <div><dt className="text-fg-muted">Account title</dt><dd className="font-medium">{chosen.accountTitle || '—'}</dd></div>
+            <div><dt className="text-fg-muted">{chosen.method === 'BANK_TRANSFER' ? 'Account number' : 'Mobile number'}</dt><dd className="font-medium">{chosen.accountNumber || '—'}</dd></div>
+            {chosen.bankName && <div><dt className="text-fg-muted">Bank</dt><dd className="font-medium">{chosen.bankName}</dd></div>}
+            {chosen.iban && <div><dt className="text-fg-muted">IBAN</dt><dd className="font-medium">{chosen.iban}</dd></div>}
           </dl>
-          {chosen.instructions && <p className="mt-2 text-xs text-slate-600">{chosen.instructions}</p>}
+          {chosen.instructions && <p className="mt-2 text-xs text-fg-muted">{chosen.instructions}</p>}
         </Card>
       )}
 
@@ -97,7 +97,7 @@ export function PaymentSection({ value, onChange, errors, amount, currency = 'PK
       </div>
 
       <Field label="Payment screenshot or receipt" hint={`JPG, PNG, WebP or PDF, up to ${MAX_PROOF_MB} MB.`} error={errors.file}>
-        {(p) => <input {...p} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(e) => set({ file: e.target.files?.[0] ?? null })} className="block w-full text-sm text-slate-700 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-indigo-700 hover:file:bg-indigo-100" />}
+        {(p) => <FileInput {...p} file={value.file} accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(e) => set({ file: e.target.files?.[0] ?? null })} />}
       </Field>
     </div>
   );

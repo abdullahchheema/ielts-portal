@@ -12,6 +12,7 @@ import { UserContextService } from '../roles/user-context.service';
 import { AuditService } from '../audit/audit.service';
 import { isAdminRole } from '../common/roles';
 import { MfaService } from './mfa.service';
+import type { GoogleProfile } from './google';
 import { ACCESS_TTL_SEC, ADMIN_REFRESH_TTL_SEC, REFRESH_TTL_SEC, randomToken, sha256 } from './tokens';
 
 export interface Meta { ip?: string; userAgent?: string }
@@ -57,17 +58,19 @@ export class AuthService {
         throw e;
       });
 
-    await this.sendVerification(user.id, user.email);
+    await this.sendVerification(user.id, user.email, input.next);
     await this.audit.record({ userId: user.id, action: 'USER_REGISTERED', entityType: 'User', entityId: user.id, ...meta });
     return { id: user.id, email: user.email };
   }
 
-  async sendVerification(userId: string, email: string) {
+  async sendVerification(userId: string, email: string, next?: string) {
     const token = randomToken();
     await this.prisma.emailVerificationToken.create({
       data: { userId, tokenHash: sha256(token), expiresAt: new Date(Date.now() + 24 * 3600_000) },
     });
-    const link = `${this.config.APP_URL}/verify-email?token=${token}`;
+    const query = new URLSearchParams({ token });
+    if (next) query.set('next', next);
+    const link = `${this.config.APP_URL}/verify-email?${query.toString()}`;
     await this.mail.send(
       email,
       'Verify your email',
@@ -144,6 +147,32 @@ export class AuthService {
   }
 
   /** Signs a user in without a password step (used right after they apply for a batch and set their password). */
+  /** Signs in the account for a Google-verified email, creating a student account when there is none. */
+  async signInWithGoogle(profile: GoogleProfile, meta: Meta): Promise<Session> {
+    let user = await this.prisma.user.findFirst({ where: { email: profile.email, deletedAt: null } });
+    if (user) {
+      if (['SUSPENDED', 'BLOCKED', 'DEACTIVATED'].includes(user.status)) throw new AppError('ACCOUNT_INACTIVE', 403, 'This account is not active. Contact the academy.');
+      const ctx = await this.ctxService.get(user.id);
+      if (this.config.TWO_FACTOR_ENABLED === 'true' && ctx?.mfaEnabled) {
+        throw new AppError('MFA_REQUIRED', 403, 'This account uses two-step verification. Log in with your password and authenticator code.');
+      }
+      if (!user.emailVerifiedAt || user.status === 'PENDING_VERIFICATION') {
+        user = await this.prisma.user.update({ where: { id: user.id }, data: { emailVerifiedAt: new Date(), status: 'ACTIVE' } });
+      }
+    } else {
+      const studentRole = await this.prisma.role.findUniqueOrThrow({ where: { name: 'STUDENT' } });
+      user = await this.prisma.user.create({
+        data: {
+          email: profile.email, passwordHash: await argon2.hash(randomToken(32), { type: argon2.argon2id }), status: 'ACTIVE', emailVerifiedAt: new Date(),
+          roles: { create: { roleId: studentRole.id } },
+          student: { create: { firstName: profile.firstName || profile.email.split('@')[0], lastName: profile.lastName } },
+        },
+      });
+      await this.audit.record({ userId: user.id, action: 'USER_REGISTERED', entityType: 'User', entityId: user.id, after: { via: 'google' }, ...meta });
+    }
+    return this.startSession(user.id, meta);
+  }
+
   async startSession(userId: string, meta: Meta): Promise<Session> {
     const ctx = await this.ctxService.get(userId);
     return this.issueSession(userId, randomUUID(), meta, !!ctx && isAdminRole(ctx.roles));
@@ -242,6 +271,7 @@ export class AuthService {
       mfaEnabled: ctx.mfaEnabled,
       twoFactorEnabled: this.config.TWO_FACTOR_ENABLED === 'true',
       mfaSetupRequired: this.config.TWO_FACTOR_ENABLED === 'true' && isAdminRole(ctx.roles) && !ctx.mfaEnabled,
+      isOwner: !!this.config.OWNER_EMAIL && ctx.email.toLowerCase() === this.config.OWNER_EMAIL,
     };
   }
 }

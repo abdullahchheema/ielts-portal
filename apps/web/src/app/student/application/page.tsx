@@ -19,8 +19,8 @@ function Timeline({ app }: { app: Application }) {
     <ol className="mb-4 flex items-center gap-2 text-sm" aria-label="Application progress">
       {STEPS.map((s, i) => (
         <li key={s} className="flex items-center gap-2">
-          <span className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${app.status === 'REJECTED' && i === 1 ? 'bg-red-600 text-white' : i <= step ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500'}`}>{i < step || (i === step && app.status === 'ACTIVE') ? '✓' : i + 1}</span>
-          <span className={i <= step ? 'font-medium text-slate-900' : 'text-slate-400'}>{s}</span>
+          <span className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${app.status === 'REJECTED' && i === 1 ? 'bg-danger text-white' : i <= step ? 'bg-primary text-white' : 'bg-surface-muted text-fg-muted'}`}>{i < step || (i === step && app.status === 'ACTIVE') ? '✓' : i + 1}</span>
+          <span className={i <= step ? 'font-medium text-fg' : 'text-fg-subtle'}>{s}</span>
           {i < STEPS.length - 1 && <span aria-hidden className="mx-1 h-px w-6 bg-slate-300" />}
         </li>
       ))}
@@ -57,7 +57,7 @@ function RefundRequest({ orderId }: { orderId: string }) {
   const [reason, setReason] = useState('');
   const send = useMutation({ mutationFn: () => api(`/orders/${orderId}/refund-request`, { method: 'POST', body: { reason } }) });
   if (send.isSuccess) return <Alert kind="success">Refund request sent. We will email you once it has been reviewed.</Alert>;
-  if (!open) return <button className="text-sm text-slate-600 underline" onClick={() => setOpen(true)}>Request a refund</button>;
+  if (!open) return <button className="text-sm text-fg-muted underline" onClick={() => setOpen(true)}>Request a refund</button>;
   return (
     <Card className="mt-2">
       <h3 className="mb-2 font-semibold">Request a refund</h3>
@@ -91,10 +91,10 @@ function ApplicationPageInner() {
       <PageHeader title="Application & Payment" subtitle="Where your enrollment stands and the payment you submitted." />
       <div className="space-y-6">
         {apps.data.map((a) => (
-          <Card key={a.id} className={a.id === openId ? 'ring-2 ring-indigo-500' : undefined}>
+          <Card key={a.id} className={a.id === openId ? 'ring-2 ring-primary' : undefined}>
             <div ref={(el) => { refs.current[a.id] = el; }} />
             <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
-              <div><h2 className="text-lg font-semibold text-slate-900">{a.batch.name}</h2><p className="text-sm text-slate-500">Applied {date(a.createdAt)} · starts {date(a.batch.startAt)} · {scheduleText(a.batch)}</p></div>
+              <div><h2 className="text-lg font-semibold text-fg">{a.batch.name}</h2><p className="text-sm text-fg-muted">Applied {date(a.createdAt)} · starts {date(a.batch.startAt)} · {scheduleText(a.batch)}</p></div>
               <EnrollmentBadge status={a.status} />
             </div>
             <Timeline app={a} />
@@ -105,19 +105,19 @@ function ApplicationPageInner() {
             {a.canResubmit && <Alert kind="warning">Your payment proof was not accepted{a.payment?.rejectionReason ? `: ${a.payment.rejectionReason}` : '.'} Please upload a corrected one below.</Alert>}
 
             <dl className="mt-4 grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
-              <div><dt className="text-slate-500">Teacher</dt><dd className="font-medium">{teacherText(a.batch.mentors)}</dd></div>
-              <div><dt className="text-slate-500">Course fee</dt><dd className="font-medium">{a.order ? money(a.order.total, a.order.currency) : '—'}</dd></div>
+              <div><dt className="text-fg-muted">Teacher</dt><dd className="font-medium">{teacherText(a.batch.mentors)}</dd></div>
+              <div><dt className="text-fg-muted">Course fee</dt><dd className="font-medium">{a.order ? money(a.order.total, a.order.currency) : '—'}</dd></div>
               {a.payment && <>
-                <div><dt className="text-slate-500">Payment method</dt><dd className="font-medium">{METHOD_TEXT[a.payment.method] ?? a.payment.method}</dd></div>
-                <div><dt className="text-slate-500">Reference</dt><dd className="font-medium">{a.payment.reference}</dd></div>
-                <div><dt className="text-slate-500">Amount submitted</dt><dd className="font-medium">{money(a.payment.claimedAmount, a.order?.currency)}</dd></div>
-                <div><dt className="text-slate-500">Proof status</dt><dd><Badge status={a.payment.status} /></dd></div>
+                <div><dt className="text-fg-muted">Payment method</dt><dd className="font-medium">{METHOD_TEXT[a.payment.method] ?? a.payment.method}</dd></div>
+                <div><dt className="text-fg-muted">Reference</dt><dd className="font-medium">{a.payment.reference}</dd></div>
+                <div><dt className="text-fg-muted">Amount submitted</dt><dd className="font-medium">{money(a.payment.claimedAmount, a.order?.currency)}</dd></div>
+                <div><dt className="text-fg-muted">Proof status</dt><dd><Badge status={a.payment.status} /></dd></div>
               </>}
             </dl>
 
             {a.payment && (
               <div className="mt-4 max-w-sm">
-                <h3 className="mb-2 text-sm font-semibold text-slate-700">Your receipt</h3>
+                <h3 className="mb-2 text-sm font-semibold text-fg">Your receipt</h3>
                 <ReceiptViewer fileUrl={a.payment.fileUrl} fileMime={a.payment.fileMime} alt="Your payment receipt" />
               </div>
             )}

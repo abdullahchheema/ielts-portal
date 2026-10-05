@@ -1,5 +1,7 @@
 'use client';
 
+import { SkeletonTable } from '@/components/ui';
+
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Alert, Button, Card, Loading, PageHeader, Select, Table, Td } from '@/components/ui';
@@ -21,7 +23,7 @@ export default function BandConversionsPage() {
   const latest = data?.[type]?.[0];
   useEffect(() => { setDraft(null); setMsg(null); }, [type]);
 
-  if (isLoading) return <Loading />;
+  if (isLoading) return <SkeletonTable rows={6} cols={5} />;
   if (isError || !data) return <Alert>Could not load conversion tables.</Alert>;
   const rows = draft ?? latest?.rows ?? [];
   const edit = (i: number, band: string) => setDraft(rows.map((r, j) => (j === i ? { ...r, band } : r)));
@@ -40,10 +42,10 @@ export default function BandConversionsPage() {
       <PageHeader title="Band conversion" subtitle="Raw score (out of 40) → band. Shorter tests are scaled to 40 first. Publishing creates a new version; past scores are never changed." />
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <Select aria-label="Test type" className="!w-56" value={type} onChange={(e) => setType(e.target.value)}>{['LISTENING', 'READING_ACADEMIC', 'READING_GENERAL'].map((t) => <option key={t} value={t}>{label(t)}</option>)}</Select>
-        {latest && <span className="text-sm text-slate-600">Current: version {latest.version}, effective {date(latest.effectiveDate)}</span>}
+        {latest && <span className="text-sm text-fg-muted">Current: version {latest.version}, effective {date(latest.effectiveDate)}</span>}
       </div>
       {msg && <div className="mb-4"><Alert kind={msg.kind}>{msg.text}</Alert></div>}
-      <Card className="mb-4"><p className="text-sm text-slate-600">The defaults are the commonly published IELTS tables. Check them against the tables your academy uses before relying on them.</p></Card>
+      <Card className="mb-4"><p className="text-sm text-fg-muted">The defaults are the commonly published IELTS tables. Check them against the tables your academy uses before relying on them.</p></Card>
       <Table head={['Raw score', 'Band']}>
         {rows.map((r, i) => (
           <tr key={r.rawMin + '-' + r.rawMax}><Td>{r.rawMin === r.rawMax ? r.rawMin : r.rawMin + ' – ' + r.rawMax}</Td>
@@ -51,7 +53,7 @@ export default function BandConversionsPage() {
         ))}
       </Table>
       <div className="mt-4 flex items-center gap-3"><Button busy={busy} disabled={!draft} onClick={save}>Publish new version</Button>{draft && <Button variant="secondary" onClick={() => setDraft(null)}>Discard changes</Button>}</div>
-      {(data[type]?.length ?? 0) > 1 && <p className="mt-4 text-sm text-slate-500">Earlier versions: {data[type].slice(1).map((v) => 'v' + v.version + ' (' + date(v.effectiveDate) + ')').join(', ')}</p>}
+      {(data[type]?.length ?? 0) > 1 && <p className="mt-4 text-sm text-fg-muted">Earlier versions: {data[type].slice(1).map((v) => 'v' + v.version + ' (' + date(v.effectiveDate) + ')').join(', ')}</p>}
     </>
   );
 }

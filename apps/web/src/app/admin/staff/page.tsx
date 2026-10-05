@@ -2,13 +2,14 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Alert, Badge, Button, Card, Dialog, Field, Input, Loading, PageHeader, Table, Td } from '@/components/ui';
+import { Alert, Badge, Button, Card, Dialog, Field, Input, Loading, PageHeader, Table, Td, useConfirm } from '@/components/ui';
 import { api } from '@/lib/api';
+import { useMe } from '@/lib/auth';
 import { errorMessage } from '@/lib/errors';
 import { date } from '@/lib/format';
 import { roleLabel } from '@/lib/roles';
 
-interface Staff { id: string; email: string; status: string; lastLoginAt: string | null; mfaEnabled: boolean; roles: string[] }
+interface Staff { id: string; email: string; status: string; lastLoginAt: string | null; mfaEnabled: boolean; roles: string[]; isOwner: boolean }
 interface Role { id: string; name: string; description: string | null; users: number; permissions: string[] }
 const ASSIGNABLE = ['SUPER_ADMIN', 'ACADEMIC_ADMIN', 'CONTENT_MANAGER', 'FINANCE_ADMIN', 'SUPPORT_AGENT', 'MARKETING', 'MENTOR'];
 
@@ -35,6 +36,8 @@ export default function StaffPage() {
   const [edit, setEdit] = useState<Staff | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const me = useMe();
+  const confirm = useConfirm();
   const refresh = () => qc.invalidateQueries({ queryKey: ['staff'] });
 
   async function act(fn: () => Promise<unknown>, close: () => void) {
@@ -42,20 +45,40 @@ export default function StaffPage() {
     try { await fn(); await refresh(); close(); } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
   }
 
+  /** Only the owner can remove a Super Admin, and nobody can remove the owner or themselves. The API enforces the same rules. */
+  const canRemove = (s: Staff) => !!me.data && me.data.id !== s.id && !s.isOwner && (me.data.isOwner || !s.roles.includes('SUPER_ADMIN'));
+
+  async function remove(s: Staff) {
+    const ok = await confirm({
+      title: 'Remove this account?',
+      message: `${s.email} will be signed out, lose all staff roles and will not be able to log in. Their records and the audit history are kept.`,
+      tone: 'danger', confirmLabel: 'Remove account',
+    });
+    if (!ok) return;
+    setError(null);
+    try { await api(`/admin/users/${s.id}/remove`, { method: 'POST' }); await refresh(); } catch (e) { setError(errorMessage(e)); }
+  }
+
   return (
     <>
       <PageHeader title="Staff & roles" subtitle="Role changes sign the person out everywhere and are audited." actions={<Button onClick={() => { setPicked([]); setEmail(''); setError(null); setInvite(true); }}>Invite staff</Button>} />
+      {error && !invite && !edit && <div className="mb-4"><Alert>{error}</Alert></div>}
       {staff.isLoading && <Loading />}
       {staff.isError && <Alert>Could not load staff.</Alert>}
       {staff.data && (
         <Table head={['Email', 'Roles', '2FA', 'Last login', 'Status', '']}>
           {staff.data.map((s) => (
             <tr key={s.id}>
-              <Td className="font-medium">{s.email}</Td>
+              <Td className="font-medium">{s.email}{s.isOwner && <span className="ml-2 text-xs text-fg-muted">Owner</span>}</Td>
               <Td>{s.roles.filter((r) => ASSIGNABLE.includes(r)).map((r) => roleLabel(r)).join(', ')}</Td>
               <Td>{s.mfaEnabled ? <Badge status="ACTIVE" tone="green" /> : <Badge status="PENDING" tone="amber" />}</Td>
               <Td>{date(s.lastLoginAt, true)}</Td><Td><Badge status={s.status} /></Td>
-              <Td><Button variant="ghost" className="!py-1" onClick={() => { setPicked(s.roles.filter((r) => ASSIGNABLE.includes(r))); setError(null); setEdit(s); }}>Edit roles</Button></Td>
+              <Td>
+                <div className="flex flex-wrap gap-1">
+                  <Button variant="ghost" className="!py-1" onClick={() => { setPicked(s.roles.filter((r) => ASSIGNABLE.includes(r))); setError(null); setEdit(s); }}>Edit roles</Button>
+                  {canRemove(s) && <Button variant="ghost" tone="danger" className="!py-1" onClick={() => remove(s)}>Remove</Button>}
+                </div>
+              </Td>
             </tr>
           ))}
         </Table>
@@ -67,9 +90,9 @@ export default function StaffPage() {
           <div className="grid gap-4 md:grid-cols-2">
             {roles.data.filter((r) => ASSIGNABLE.includes(r.name)).map((r) => (
               <Card key={r.id}>
-                <div className="mb-1 flex items-center justify-between"><h3 className="font-medium">{roleLabel(r.name)}</h3><span className="text-xs text-slate-500">{r.users} user{r.users === 1 ? '' : 's'}</span></div>
-                <p className="mb-2 text-sm text-slate-500">{r.description}</p>
-                <p className="flex flex-wrap gap-1">{r.permissions.map((p) => <code key={p} className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">{p}</code>)}</p>
+                <div className="mb-1 flex items-center justify-between"><h3 className="font-medium">{roleLabel(r.name)}</h3><span className="text-xs text-fg-muted">{r.users} user{r.users === 1 ? '' : 's'}</span></div>
+                <p className="mb-2 text-sm text-fg-muted">{r.description}</p>
+                <p className="flex flex-wrap gap-1">{r.permissions.map((p) => <code key={p} className="rounded bg-surface-muted px-1.5 py-0.5 text-xs text-fg">{p}</code>)}</p>
               </Card>
             ))}
           </div>

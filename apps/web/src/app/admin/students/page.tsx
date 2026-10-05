@@ -1,5 +1,7 @@
 'use client';
 
+import { useConfirm } from '@/components/ui';
+
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState } from 'react';
@@ -19,6 +21,7 @@ interface Page { total: number; items: Row[] }
 const PAGE = 25;
 
 export default function StudentsPage() {
+  const confirm = useConfirm();
   const qc = useQueryClient();
   const { data: me } = useMe();
   const [search, setSearch] = useState('');
@@ -58,8 +61,8 @@ export default function StudentsPage() {
             {items.map((u) => (
               <ClickableRow key={u.id} onClick={() => setOpenId(u.student.id)}>
                 <Td>
-                  <Link href={`/admin/students/${u.student.id}`} className="font-medium text-indigo-700 hover:underline" onClick={(e) => e.stopPropagation()}>{u.student.firstName} {u.student.lastName}</Link>
-                  <span className="block text-xs text-slate-500">{u.email}</span>
+                  <Link href={`/admin/students/${u.student.id}`} className="font-medium text-primary hover:underline" onClick={(e) => e.stopPropagation()}>{u.student.firstName} {u.student.lastName}</Link>
+                  <span className="block text-xs text-fg-muted">{u.email}</span>
                 </Td>
                 <Td><IeltsBadge ielts={u.student.ielts} /></Td>
                 <Td>{date(u.student.ieltsExamDate)}</Td>
@@ -67,12 +70,12 @@ export default function StudentsPage() {
                 <Td>{date(u.createdAt)}</Td>
                 <Td><Badge status={u.status} /></Td>
                 <Td>{can(me, 'student.edit') && (u.status === 'ACTIVE'
-                  ? <Button variant="ghost" className="!py-1 text-red-600" onClick={(e) => { e.stopPropagation(); confirm(`Suspend ${u.email}? They will be signed out immediately.`) && setUserStatus(u.id, 'SUSPENDED'); }}>Suspend</Button>
+                  ? <Button variant="ghost" tone="danger" className="!py-1" onClick={(e) => { e.stopPropagation(); confirm({ message: `Suspend ${u.email}? They will be signed out immediately.`, tone: 'danger', confirmLabel: 'Suspend' }).then((ok) => { if (ok) { setUserStatus(u.id, 'SUSPENDED'); } }); }}>Suspend</Button>
                   : u.status === 'SUSPENDED' || u.status === 'BLOCKED' ? <Button variant="ghost" className="!py-1" onClick={(e) => { e.stopPropagation(); setUserStatus(u.id, 'ACTIVE'); }}>Reactivate</Button> : null)}</Td>
               </ClickableRow>
             ))}
           </Table>
-          <div className="mt-3 flex items-center justify-between text-sm text-slate-600">
+          <div className="mt-3 flex items-center justify-between text-sm text-fg-muted">
             <span>{skip + 1}–{Math.min(skip + PAGE, data.total)} of {data.total}{ieltsFilter ? ' (IELTS filter applies to this page only)' : ''}</span>
             <div className="flex gap-2"><Button variant="secondary" disabled={skip === 0} onClick={() => setSkip(Math.max(0, skip - PAGE))}>Previous</Button><Button variant="secondary" disabled={skip + PAGE >= data.total} onClick={() => setSkip(skip + PAGE)}>Next</Button></div>
           </div>

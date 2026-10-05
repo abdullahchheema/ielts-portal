@@ -10,7 +10,7 @@ export default function MyBatchPage() {
   if (apps.isError) return <Alert>Could not load your batch.</Alert>;
   const app = primaryApplication(apps.data);
   const b = app?.batch;
-  const row = (k: string, v: string) => <div className="flex justify-between gap-4 border-b border-slate-100 py-2.5 text-sm last:border-0"><dt className="text-slate-500">{k}</dt><dd className="text-right font-medium text-slate-900">{v}</dd></div>;
+  const row = (k: string, v: string) => <div className="flex justify-between gap-4 border-b border-border py-2.5 text-sm last:border-0"><dt className="text-fg-muted">{k}</dt><dd className="text-right font-medium text-fg">{v}</dd></div>;
 
   return (
     <>
@@ -27,7 +27,7 @@ export default function MyBatchPage() {
               {row('Teacher', teacherText(b.mentors))}
               {b.mentors.length > 1 && row('Teacher roles', b.mentors.map((m) => `${m.name} (${label(m.role)})`).join(', '))}
             </dl>
-            {b.mentors.length === 0 && <p className="mt-3 text-sm text-slate-500">A teacher will be assigned to your batch before it starts. You will be notified.</p>}
+            {b.mentors.length === 0 && <p className="mt-3 text-sm text-fg-muted">A teacher will be assigned to your batch before it starts. You will be notified.</p>}
           </Card>
         </>
       )}

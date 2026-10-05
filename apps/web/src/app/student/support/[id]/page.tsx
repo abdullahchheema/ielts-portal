@@ -1,5 +1,7 @@
 'use client';
 
+import { SkeletonTable } from '@/components/ui';
+
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
@@ -17,7 +19,7 @@ export default function TicketPage() {
   const [body, setBody] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  if (isLoading) return <Loading />;
+  if (isLoading) return <SkeletonTable rows={6} cols={5} />;
   if (isError || !t) return <Alert>Ticket not found.</Alert>;
 
   async function send() {
@@ -30,9 +32,9 @@ export default function TicketPage() {
     <>
       <PageHeader title={t.subject} subtitle={`${label(t.category)} · opened ${date(t.createdAt, true)}`} actions={<Badge status={t.status} />} />
       <div className="max-w-2xl space-y-3">
-        <Card><p className="mb-1 text-xs text-slate-500">You wrote</p><p className="whitespace-pre-wrap text-sm">{t.description}</p></Card>
+        <Card><p className="mb-1 text-xs text-fg-muted">You wrote</p><p className="whitespace-pre-wrap text-sm">{t.description}</p></Card>
         {t.messages.map((m) => (
-          <Card key={m.id} className={m.authorId === undefined ? '' : 'bg-indigo-50/40'}><p className="mb-1 text-xs text-slate-500">{date(m.createdAt, true)}</p><p className="whitespace-pre-wrap text-sm">{m.body}</p></Card>
+          <Card key={m.id} className={m.authorId === undefined ? '' : 'bg-primary-soft/40'}><p className="mb-1 text-xs text-fg-muted">{date(m.createdAt, true)}</p><p className="whitespace-pre-wrap text-sm">{m.body}</p></Card>
         ))}
         {t.status !== 'CLOSED' ? (
           <Card className="space-y-3">

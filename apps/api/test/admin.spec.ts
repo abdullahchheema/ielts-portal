@@ -159,8 +159,9 @@ describe('content files', () => {
     const opened = (await as(st.session)(http(app).get(`/content/${d.item}`)).expect(200)).body;
     expect(opened.content.fileUrl).toMatch(/\/files\/local\?key=/);
     expect(JSON.stringify(opened)).not.toContain('fileKey');
-    const u = new URL(opened.content.fileUrl);
-    const path = `${u.pathname}${u.search}`;
+    // Storage returns same-origin relative URLs (see storage.service.ts); resolve against a dummy base to inspect them.
+    const u = new URL(opened.content.fileUrl, 'http://localhost');
+    const path = `${u.pathname.replace(/^\/api/, '')}${u.search}`;
 
     const file = await http(app).get(path).expect(200);
     expect(file.headers['content-type']).toBe('application/pdf');

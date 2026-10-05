@@ -145,8 +145,11 @@ describe('live classes & attendance', () => {
     await as(main.session)(http(app).put(`/mentor/sessions/${p2}/attendance`)).send({ records: [{ studentId: st.studentId, status: 'EXCUSED' }] }).expect(200); // correction, no duplicate
     expect(await prisma.attendance.count({ where: { sessionId: p2 } })).toBe(1);
 
+    // The student must have been enrolled before these classes ran; a session held before joining does not count against them.
+    await prisma.enrollment.updateMany({ where: { studentId: st.studentId }, data: { enrolledAt: new Date(Date.now() - 5 * 86_400_000), accessStartsAt: new Date(Date.now() - 5 * 86_400_000) } });
     const summary = (await as(st.session)(http(app).get('/me/attendance')).expect(200)).body[0];
-    expect(summary).toMatchObject({ sessionsHeld: 2, present: 1, excused: 1, attendancePercent: 50 });
+    // An excused absence leaves the denominator: 1 attended out of 1 non-excused session.
+    expect(summary).toMatchObject({ sessionsHeld: 2, present: 1, excused: 1, attendancePercent: 100 });
 
     expect((await as(main.session)(http(app).delete(`/mentor/sessions/${p1}`)).expect(409)).body.error.code).toBe('CONFLICT');
     await as(main.session)(http(app).delete(`/mentor/sessions/${later.id}`)).expect(204);

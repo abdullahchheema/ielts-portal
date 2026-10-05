@@ -113,7 +113,7 @@ export class CoursesService {
         tx,
       );
       return version;
-    });
+    }, { timeout: 20_000, maxWait: 10_000 });
   }
 
   private async cloneTree(tx: Prisma.TransactionClient, fromVersionId: string, toVersionId: string) {

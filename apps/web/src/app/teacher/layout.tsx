@@ -1,5 +1,6 @@
 'use client';
 
+import { ClipboardCheck, Layers, LayoutDashboard } from 'lucide-react';
 import { ReactNode } from 'react';
 import { Shell } from '@/components/Shell';
 import { RequireAuth, useMe } from '@/lib/auth';
@@ -12,9 +13,9 @@ function TeacherShell({ children }: { children: ReactNode }) {
       title="Teacher Portal"
       me={me}
       groups={[{ items: [
-        { href: '/teacher', label: 'Dashboard' },
-        { href: '/teacher/batches', label: 'My Batches' },
-        { href: '/teacher/grading', label: 'Grading Queue' },
+        { href: '/teacher', label: 'Dashboard', icon: LayoutDashboard },
+        { href: '/teacher/batches', label: 'My Batches', icon: Layers },
+        { href: '/teacher/grading', label: 'Grading Queue', icon: ClipboardCheck },
       ] }]}
     >
       {children}

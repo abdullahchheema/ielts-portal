@@ -24,10 +24,10 @@ export default function TicketsPage() {
         <Table head={['Subject', 'Student', 'Category', 'Priority', 'Status', 'Opened', '']}>
           {data.items.map((t) => (
             <tr key={t.id}>
-              <Td className="font-medium">{t.subject}<span className="block text-xs font-normal text-slate-500">{t.messages} repl{t.messages === 1 ? 'y' : 'ies'}</span></Td>
-              <Td>{t.student}<span className="block text-xs text-slate-500">{t.email}</span></Td>
+              <Td className="font-medium">{t.subject}<span className="block text-xs font-normal text-fg-muted">{t.messages} repl{t.messages === 1 ? 'y' : 'ies'}</span></Td>
+              <Td>{t.student}<span className="block text-xs text-fg-muted">{t.email}</span></Td>
               <Td>{label(t.category)}</Td><Td>{label(t.priority)}</Td><Td><Badge status={t.status} /></Td><Td>{date(t.createdAt)}</Td>
-              <Td><Link href={'/admin/tickets/' + t.id} className="text-indigo-700 hover:underline">Open</Link></Td>
+              <Td><Link href={'/admin/tickets/' + t.id} className="text-primary hover:underline">Open</Link></Td>
             </tr>
           ))}
         </Table>

@@ -30,12 +30,12 @@ export function NotificationPrefs() {
   return (
     <Card className="max-w-xl space-y-3">
       <h2 className="font-semibold">Notifications</h2>
-      <p className="text-sm text-slate-600">Choose how we remind you. Payment, enrollment and grading messages are always sent.</p>
+      <p className="text-sm text-fg-muted">Choose how we remind you. Payment, enrollment and grading messages are always sent.</p>
       {msg && <Alert kind={msg.kind}>{msg.text}</Alert>}
       <table className="w-full text-sm">
-        <thead><tr className="text-left text-slate-500"><th className="py-1 font-medium">Reminder</th><th className="w-20 text-center font-medium">In app</th><th className="w-20 text-center font-medium">Email</th></tr></thead>
+        <thead><tr className="text-left text-fg-muted"><th className="py-1 font-medium">Reminder</th><th className="w-20 text-center font-medium">In app</th><th className="w-20 text-center font-medium">Email</th></tr></thead>
         <tbody>{rows.map((r) => (
-          <tr key={r.type} className="border-t border-slate-100">
+          <tr key={r.type} className="border-t border-border">
             <td className="py-2">{r.label}</td>
             <td className="text-center"><input type="checkbox" aria-label={r.label + ' in app'} checked={r.inApp} onChange={(e) => set(r.type, 'inApp', e.target.checked)} /></td>
             <td className="text-center"><input type="checkbox" aria-label={r.label + ' by email'} checked={r.email} onChange={(e) => set(r.type, 'email', e.target.checked)} /></td>

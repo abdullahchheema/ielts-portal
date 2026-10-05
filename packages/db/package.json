@@ -7,10 +7,11 @@
     "generate": "dotenv -e ../../.env -- prisma generate",
     "build": "prisma generate && tsc -p tsconfig.json",
     "migrate": "dotenv -e ../../.env -- prisma migrate deploy",
-    "migrate:dev": "dotenv -e ../../.env -- prisma migrate dev",
+    "migrate:dev": "node -e \"throw new Error('migrate dev is banned: no shadow database is configured, so it would create and drop a database on the production instance. Use npm run drift, a hand-written migration, then npm run migrate.')\"",
     "seed": "dotenv -e ../../.env -- tsx prisma/seed.ts",
     "reset": "dotenv -e ../../.env -- tsx prisma/reset.ts",
-    "seed:demo": "dotenv -e ../../.env -- tsx prisma/seed-demo.ts"
+    "seed:demo": "dotenv -e ../../.env -- tsx prisma/seed-demo.ts",
+    "drift": "node scripts/drift.js"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

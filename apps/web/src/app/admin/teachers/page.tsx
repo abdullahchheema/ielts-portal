@@ -6,8 +6,9 @@ import { TeacherApplicationInput } from '@ielts/validation';
 import { TeacherApplicationForm } from '@/components/TeacherApplicationForm';
 import { TeacherDetailDialog } from '@/components/TeacherDetailDialog';
 import { TeacherDocumentsUploader } from '@/components/TeacherDocumentsUploader';
-import { Alert, Badge, Button, ClickableRow, DetailDialog, Empty, Loading, PageHeader, Table, Td } from '@/components/ui';
+import { Alert, Badge, Button, ClickableRow, DetailDialog, Empty, Loading, PageHeader, Table, Td, useConfirm } from '@/components/ui';
 import { api } from '@/lib/api';
+import { can, useMe } from '@/lib/auth';
 import { errorMessage } from '@/lib/errors';
 
 interface Mentor { id: string; displayName: string; status: string; specializations: string[]; user: { email: string }; _count: { batches: number } }
@@ -42,6 +43,23 @@ export default function TeachersPage() {
   const [editLoading, setEditLoading] = useState(false);
   const [editBusy, setEditBusy] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
+  const me = useMe();
+  const confirm = useConfirm();
+
+  async function removeTeacher(m: Mentor) {
+    const ok = await confirm({
+      title: 'Remove this teacher?',
+      message: `${m.displayName} (${m.user.email}) will be signed out, removed from all their batches and will not be able to log in. Their past sessions and grading are kept.`,
+      tone: 'danger', confirmLabel: 'Remove teacher',
+    });
+    if (!ok) return;
+    setRemoveError(null);
+    try {
+      await api(`/admin/mentors/${m.id}/remove`, { method: 'POST' });
+      await qc.invalidateQueries({ queryKey: ['admin-mentors'] });
+    } catch (e) { setRemoveError(errorMessage(e)); }
+  }
 
   async function create(values: TeacherApplicationInput) {
     setBusy(true); setError(null);
@@ -85,12 +103,18 @@ export default function TeachersPage() {
       <PageHeader title="Teachers" subtitle="Teachers only see the batches they are assigned to." actions={<Button onClick={() => setOpen(true)}>Add teacher</Button>} />
       {isLoading && <Loading />}
       {isError && <Alert>Could not load teachers.</Alert>}
+      {removeError && <div className="mb-4"><Alert>{removeError}</Alert></div>}
       {data && (data.length === 0 ? <Empty>No teachers yet.</Empty> : (
         <Table head={['Name', 'Email', 'Specializations', 'Batches', 'Status', '']}>
           {data.map((m) => (
             <ClickableRow key={m.id} onClick={() => setViewId(m.id)}>
               <Td className="font-medium">{m.displayName}</Td><Td>{m.user.email}</Td><Td>{m.specializations.join(', ') || '—'}</Td><Td>{m._count.batches}</Td><Td><Badge status={m.status} /></Td>
-              <Td><Button variant="ghost" className="!py-1" onClick={(e) => { e.stopPropagation(); startEdit(m); }}>Edit</Button></Td>
+              <Td>
+                <div className="flex flex-wrap gap-1">
+                  <Button variant="ghost" className="!py-1" onClick={(e) => { e.stopPropagation(); startEdit(m); }}>Edit</Button>
+                  {can(me.data, 'teacher.manage') && <Button variant="ghost" tone="danger" className="!py-1" onClick={(e) => { e.stopPropagation(); removeTeacher(m); }}>Remove</Button>}
+                </div>
+              </Td>
             </ClickableRow>
           ))}
         </Table>

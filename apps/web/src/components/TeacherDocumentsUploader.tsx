@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Alert, Button, Select } from '@/components/ui';
+import { Alert, Button, FileInput, Select } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 
@@ -31,18 +31,18 @@ export function TeacherDocumentsUploader({ applicationId, onDone }: { applicatio
   return (
     <div className="space-y-4">
       {error && <Alert>{error}</Alert>}
-      <p className="text-sm text-slate-600">Upload supporting documents one at a time (JPG, PNG, WebP or PDF, up to 8MB each).</p>
+      <p className="text-sm text-fg-muted">Upload supporting documents one at a time (JPG, PNG, WebP or PDF, up to 8MB each).</p>
       <div className="flex flex-wrap items-end gap-3">
-        <div className="w-44"><Select aria-label="Document type" value={kind} onChange={(e) => setKind(e.target.value as (typeof KINDS)[number])}>
+        <div className="w-full sm:w-44"><Select aria-label="Document type" value={kind} onChange={(e) => setKind(e.target.value as (typeof KINDS)[number])}>
           {KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
         </Select></div>
-        <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="text-sm" />
+        <div className="min-w-0 flex-1"><FileInput aria-label="Document file" accept="image/jpeg,image/png,image/webp,application/pdf" file={file} onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></div>
         <Button type="button" disabled={!file} busy={busy} onClick={upload}>Upload</Button>
       </div>
       {uploaded.length > 0 && (
-        <ul className="list-inside list-disc text-sm text-slate-600">{uploaded.map((u, i) => <li key={i}>{u}</li>)}</ul>
+        <ul className="list-inside list-disc text-sm text-fg-muted">{uploaded.map((u, i) => <li key={i}>{u}</li>)}</ul>
       )}
-      <div className="flex justify-end border-t border-slate-100 pt-4"><Button onClick={onDone}>Done</Button></div>
+      <div className="flex justify-end border-t border-border pt-4"><Button onClick={onDone}>Done</Button></div>
     </div>
   );
 }

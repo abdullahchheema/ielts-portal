@@ -8,7 +8,10 @@ import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 
 function Verify() {
-  const token = useSearchParams().get('token');
+  const params = useSearchParams();
+  const token = params.get('token');
+  const next = params.get('next');
+  const loginHref = `/login?verified=1${next && next.startsWith('/') && !next.startsWith('//') ? `&next=${encodeURIComponent(next)}` : ''}`;
   const [state, setState] = useState<'working' | 'ok' | 'error'>('working');
   const [message, setMessage] = useState('');
   const ran = useRef(false); // strict-mode double effect must not spend the one-time token twice
@@ -27,7 +30,7 @@ function Verify() {
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">{state === 'ok' ? 'Email verified' : 'Could not verify'}</h1>
       {state === 'ok' ? <Alert kind="success">Your account is active.</Alert> : <Alert>{message}</Alert>}
-      <Link href="/login" className="text-sm text-indigo-700 hover:underline">Go to log in</Link>
+      <Link href={loginHref} className="text-sm text-primary hover:underline">Go to log in</Link>
     </div>
   );
 }

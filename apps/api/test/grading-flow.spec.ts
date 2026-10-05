@@ -139,8 +139,8 @@ describe('student submissions', () => {
     const again = (await upload(WEBM).expect(200)).body;
     expect(again.id).toBe(first.id);
     expect(await prisma.submission.count({ where: { studentId: st.studentId, assignmentId: c.speaking } })).toBe(1);
-    const url = new URL(first.audioUrl);
-    expect((await http(app).get(`${url.pathname}${url.search}`).expect(200)).headers['content-type']).toBe('audio/webm');
+    const url = new URL(first.audioUrl, 'http://localhost'); // relative same-origin URL
+    expect((await http(app).get(`${url.pathname.replace(/^\/api/, '')}${url.search}`).expect(200)).headers['content-type']).toBe('audio/webm');
   }, 90_000);
 });
 

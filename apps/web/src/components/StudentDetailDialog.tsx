@@ -113,7 +113,7 @@ export function StudentDetailDialog({ studentId, onClose }: { studentId: string 
               )}
               {payment?.proofs?.[0]?.fileUrl && (
                 <div className="mt-4">
-                  <h3 className="mb-2 text-sm font-semibold text-slate-900">Receipt</h3>
+                  <h3 className="mb-2 text-sm font-semibold text-fg">Receipt</h3>
                   <ReceiptViewer fileUrl={payment.proofs[0].fileUrl} fileMime={payment.proofs[0].fileMime} />
                 </div>
               )}
@@ -121,15 +121,15 @@ export function StudentDetailDialog({ studentId, onClose }: { studentId: string 
           )}
           {tab === 'timeline' && (
             <Section title="Timeline">
-              <ol className="space-y-3 border-l-2 border-slate-100 pl-4 text-sm">
-                {s.timeline.length === 0 && <li className="text-slate-500">No activity yet.</li>}
-                {s.timeline.map((t) => <li key={t.id}><p className="text-xs text-slate-500">{date(t.createdAt, true)}</p><p>{t.summary}</p></li>)}
+              <ol className="space-y-3 border-l-2 border-border pl-4 text-sm">
+                {s.timeline.length === 0 && <li className="text-fg-muted">No activity yet.</li>}
+                {s.timeline.map((t) => <li key={t.id}><p className="text-xs text-fg-muted">{date(t.createdAt, true)}</p><p>{t.summary}</p></li>)}
               </ol>
             </Section>
           )}
           {tab === 'notes' && (
             <Section title="Notes">
-              {s.notes ? <p className="whitespace-pre-wrap text-sm text-slate-800">{s.notes}</p> : <Empty>No notes recorded.</Empty>}
+              {s.notes ? <p className="whitespace-pre-wrap text-sm text-fg">{s.notes}</p> : <Empty>No notes recorded.</Empty>}
             </Section>
           )}
         </>

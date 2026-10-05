@@ -1,5 +1,6 @@
 'use client';
 
+import { BarChart3, BookMarked, BookOpen, CalendarDays, ClipboardList, Headphones, LayoutDashboard, LifeBuoy, Mic, PenLine, Receipt, Sparkles, Target, TrendingUp, UserCircle, Users } from 'lucide-react';
 import { ReactNode } from 'react';
 import { Shell } from '@/components/Shell';
 import { RequireAuth, useMe } from '@/lib/auth';
@@ -12,26 +13,26 @@ function StudentShell({ children }: { children: ReactNode }) {
       title="Student Portal"
       me={me}
       groups={[
-        { items: [{ href: '/student', label: 'Dashboard' }] },
+        { items: [{ href: '/student', label: 'Dashboard', icon: LayoutDashboard }] },
         { title: 'My course', items: [
-          { href: '/student/course', label: 'My Course' },
-          { href: '/student/batch', label: 'My Batch' },
-          { href: '/student/schedule', label: 'Class Schedule' },
-          { href: '/student/mock-tests', label: 'Mock Tests' },
+          { href: '/student/course', label: 'My Course', icon: BookOpen },
+          { href: '/student/batch', label: 'My Batch', icon: Users },
+          { href: '/student/schedule', label: 'Class Schedule', icon: CalendarDays },
+          { href: '/student/mock-tests', label: 'Mock Tests', icon: ClipboardList },
         ] },
         { title: 'Modules', items: [
-          { href: '/student/listening', label: 'Listening' },
-          { href: '/student/reading', label: 'Reading' },
-          { href: '/student/writing', label: 'Writing' },
-          { href: '/student/speaking', label: 'Speaking' },
-          { href: '/student/ai-practice', label: 'AI Practice' },
+          { href: '/student/listening', label: 'Listening', icon: Headphones },
+          { href: '/student/reading', label: 'Reading', icon: BookMarked },
+          { href: '/student/writing', label: 'Writing', icon: PenLine },
+          { href: '/student/speaking', label: 'Speaking', icon: Mic },
+          { href: '/student/ai-practice', label: 'AI Practice', icon: Sparkles },
         ] },
         { title: 'Me', items: [
-          { href: '/student/progress', label: 'Progress' },
-          { href: '/student/diagnostic', label: 'Diagnostic Test' },
-          { href: '/student/application', label: 'Application & Payment' },
-          { href: '/student/support', label: 'Support' },
-          { href: '/student/profile', label: 'Profile' },
+          { href: '/student/progress', label: 'Progress', icon: TrendingUp },
+          { href: '/student/diagnostic', label: 'Diagnostic Test', icon: Target },
+          { href: '/student/application', label: 'Application & Payment', icon: Receipt },
+          { href: '/student/support', label: 'Support', icon: LifeBuoy },
+          { href: '/student/profile', label: 'Profile', icon: UserCircle },
         ] },
       ]}
     >

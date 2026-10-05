@@ -58,10 +58,10 @@ function CreateBatch({ open, onClose }: { open: boolean; onClose: () => void }) 
           <Field label="Delivery">{(p) => <Select {...p} value={f.deliveryMode} onChange={(e) => set('deliveryMode', e.target.value)}><option value="ONLINE">Online</option><option value="ONSITE">Onsite</option><option value="HYBRID">Hybrid</option></Select>}</Field>
         </div>
         <fieldset>
-          <legend className="mb-1 text-sm font-medium text-slate-700">Class days</legend>
+          <legend className="mb-1 text-sm font-medium text-fg">Class days</legend>
           <div className="flex flex-wrap gap-2">
             {DAYS.map((d) => (
-              <label key={d} className={`cursor-pointer rounded-md px-3 py-1.5 text-sm ring-1 ring-inset ${days.includes(d) ? 'bg-indigo-50 font-medium text-indigo-700 ring-indigo-600' : 'ring-slate-300 hover:bg-slate-50'}`}>
+              <label key={d} className={`cursor-pointer rounded-md px-3 py-1.5 text-sm ring-1 ring-inset ${days.includes(d) ? 'bg-primary-soft font-medium text-primary ring-primary' : 'ring-border-strong hover:bg-canvas'}`}>
                 <input type="checkbox" className="sr-only" checked={days.includes(d)} onChange={() => setDays((cur) => (cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d]))} />{DAY_TEXT[d]}
               </label>
             ))}
@@ -96,13 +96,13 @@ export default function BatchesPage() {
         <Table head={['Batch', 'Starts', 'Schedule', 'Students', 'Teacher', 'Status', '']}>
           {data.map((b) => (
             <tr key={b.id}>
-              <Td className="font-medium">{b.name}<span className="block text-xs font-normal text-slate-500">{label(b.deliveryMode)}</span></Td>
+              <Td className="font-medium">{b.name}<span className="block text-xs font-normal text-fg-muted">{label(b.deliveryMode)}</span></Td>
               <Td>{date(b.startAt)}</Td>
               <Td>{b.days.length ? b.days.map((d) => DAY_TEXT[d]).join(', ') : '—'}{b.classTime ? ` · ${b.classTime}` : ''}</Td>
               <Td>{b.counts.enrolled} enrolled{b.counts.pending > 0 && <span className="block text-xs text-amber-700">{b.counts.pending} pending</span>}</Td>
               <Td>{b.mentorAssigned ? b.mentors.map((m) => m.mentor.displayName).join(', ') : <Badge status="DRAFT" tone="amber" text="Not assigned" />}</Td>
               <Td><Badge status={b.status} /></Td>
-              <Td><Link href={`/admin/batches/${b.id}`} className="text-indigo-700 hover:underline">Manage</Link></Td>
+              <Td><Link href={`/admin/batches/${b.id}`} className="text-primary hover:underline">Manage</Link></Td>
             </tr>
           ))}
         </Table>
