@@ -67,6 +67,11 @@ export class AdminBatchesController {
   createMentor(@Body(new ZodPipe(createMentorSchema)) body: CreateMentorInput, @CurrentUser() u: AuthUser, @Req() req: Request) {
     return this.batches.createMentor(body, actor(u, req));
   }
+
+  @RequirePermission('teacher.manage') @HttpCode(200) @Post('mentors/:id/remove')
+  removeMentor(@Param('id', uuid) id: string, @CurrentUser() u: AuthUser, @Req() req: Request) {
+    return this.batches.removeMentor(id, actor(u, req), u.email);
+  }
 }
 
 @Controller('mentor')

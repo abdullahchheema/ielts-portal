@@ -7,6 +7,7 @@ import { AppError, conflict, notFound } from '../common/app-error';
 import { ieltsSummary } from '../common/ielts';
 import { ADMIN_ROLES } from '../common/roles';
 import { APP_CONFIG, AppConfig } from '../config/config.module';
+import { removeAccount } from './account-removal';
 import { Actor } from '../courses/courses.service';
 import { MailService } from '../integrations/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -126,7 +127,11 @@ export class AdminService {
       orderBy: { createdAt: 'asc' },
       select: { id: true, email: true, status: true, lastLoginAt: true, mfa: { select: { confirmedAt: true } }, roles: { select: { role: { select: { name: true } } } } },
     });
-    return rows.map((u) => ({ id: u.id, email: u.email, status: u.status, lastLoginAt: u.lastLoginAt, mfaEnabled: !!u.mfa?.confirmedAt, roles: u.roles.map((r) => r.role.name) }));
+    const owner = this.config.OWNER_EMAIL;
+    return rows.map((u) => ({
+      id: u.id, email: u.email, status: u.status, lastLoginAt: u.lastLoginAt, mfaEnabled: !!u.mfa?.confirmedAt,
+      roles: u.roles.map((r) => r.role.name), isOwner: !!owner && u.email.toLowerCase() === owner,
+    }));
   }
 
   private assertAssignable(roleNames: string[]) {
@@ -180,6 +185,14 @@ export class AdminService {
       this.ctx.invalidate(userId);
       return { id: userId, roles: next };
     });
+  }
+
+  async removeStaff(userId: string, actor: Actor, actorEmail: string) {
+    const result = await this.prisma.$transaction((tx) => removeAccount(tx, this.audit, {
+      targetUserId: userId, actor, actorEmail, ownerEmail: this.config.OWNER_EMAIL, mustBeTeacher: false,
+    }));
+    this.ctx.invalidate(userId);
+    return result;
   }
 
   // ───────── audit log ─────────

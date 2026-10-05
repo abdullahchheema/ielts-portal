@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { z } from 'zod';
 import { emailSchema } from '@ielts/validation';
@@ -57,6 +57,11 @@ export class AdminController {
   @RequirePermission('admin.manage') @Post('staff')
   createStaff(@Body(new ZodPipe(staffBody)) body: z.infer<typeof staffBody>, @CurrentUser() u: AuthUser, @Req() req: Request) {
     return this.admin.createStaff(body, actor(u, req));
+  }
+
+  @RequirePermission('admin.manage') @HttpCode(200) @Post('users/:id/remove')
+  removeStaff(@Param('id', uuid) id: string, @CurrentUser() u: AuthUser, @Req() req: Request) {
+    return this.admin.removeStaff(id, actor(u, req), u.email);
   }
 
   @RequirePermission('admin.manage') @Put('users/:id/roles')

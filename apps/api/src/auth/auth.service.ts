@@ -269,6 +269,7 @@ export class AuthService {
       mfaEnabled: ctx.mfaEnabled,
       twoFactorEnabled: this.config.TWO_FACTOR_ENABLED === 'true',
       mfaSetupRequired: this.config.TWO_FACTOR_ENABLED === 'true' && isAdminRole(ctx.roles) && !ctx.mfaEnabled,
+      isOwner: !!this.config.OWNER_EMAIL && ctx.email.toLowerCase() === this.config.OWNER_EMAIL,
     };
   }
 }

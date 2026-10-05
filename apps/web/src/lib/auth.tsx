@@ -16,6 +16,7 @@ export interface Me {
   mfaEnabled: boolean;
   mfaSetupRequired: boolean;
   twoFactorEnabled?: boolean;
+  isOwner?: boolean;
 }
 
 const STAFF = ['SUPER_ADMIN', 'ACADEMIC_ADMIN', 'CONTENT_MANAGER', 'FINANCE_ADMIN', 'SUPPORT_AGENT', 'MARKETING'];

@@ -19,6 +19,8 @@ const schema = z.object({
   // Two-factor login for staff. Unset = on in production, off in development. The code stays in place; this just switches it.
   TWO_FACTOR_ENABLED: z.enum(['true', 'false']).optional(),
   RESEND_API_KEY: optional,
+  // The owner can remove any account, including other Super Admins. Nobody can remove the owner.
+  OWNER_EMAIL: z.string().trim().toLowerCase().email().optional(),
   // "Continue with Google" is shown only when both are set.
   GOOGLE_CLIENT_ID: optional,
   GOOGLE_CLIENT_SECRET: optional,

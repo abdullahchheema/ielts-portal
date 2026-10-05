@@ -8,6 +8,7 @@ import * as argon2 from 'argon2';
 import type { AssignMentorInput, CreateBatchInput, CreateMentorInput, UpdateBatchInput } from '@ielts/validation';
 import { AuditService } from '../audit/audit.service';
 import { randomToken, sha256 } from '../auth/tokens';
+import { removeAccount } from '../admin/account-removal';
 import { AppError, conflict, forbidden, notFound } from '../common/app-error';
 import { ieltsSummary } from '../common/ielts';
 import { APP_CONFIG, AppConfig } from '../config/config.module';
@@ -228,12 +229,22 @@ export class BatchesService {
   // ───────── mentors ─────────
   listMentors() {
     return this.prisma.mentorProfile.findMany({
+      where: { status: { not: 'REMOVED' } },
       orderBy: { displayName: 'asc' },
       include: { user: { select: { email: true, status: true } }, _count: { select: { batches: true } } },
     });
   }
 
-  /** `applicationId` links the created MentorProfile back to the TeacherApplication that produced it (teacher-applications approve flow). */
+  async removeMentor(mentorId: string, actor: Actor, actorEmail: string) {
+    const profile = await this.prisma.mentorProfile.findUnique({ where: { id: mentorId }, select: { userId: true } });
+    if (!profile) throw notFound('Teacher');
+    const result = await this.prisma.$transaction((tx) => removeAccount(tx, this.audit, {
+      targetUserId: profile.userId, actor, actorEmail, ownerEmail: this.config.OWNER_EMAIL, mustBeTeacher: true,
+    }));
+    this.ctx.invalidate(profile.userId);
+    return result;
+  }
+
   /** An approved teacher applicant already has a verified account from applying: this adds the mentor role to it. */
   async attachMentorRole(
     user: { id: string; email: string; status: string; emailVerifiedAt: Date | null },
