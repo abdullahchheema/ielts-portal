@@ -43,9 +43,13 @@ export class TeachersService {
   ) {}
 
   // ───────── public ─────────
-  /** A prospective teacher submits their application. No account is created — only the application record. */
-  async apply(input: TeacherApplicationInput) {
-    const { scalars, dateOfBirth, joiningDate, educations, experiences, certifications, references } = splitApplicationInput(input);
+  /** A prospective teacher applies from a verified account. The account's email is the one we contact and match on approval. */
+  async apply(input: TeacherApplicationInput, account: { id: string }) {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: account.id }, select: { email: true, emailVerifiedAt: true } });
+    if (!user.emailVerifiedAt) throw new AppError('EMAIL_NOT_VERIFIED', 403, 'Verify your email address before you apply.');
+    const pending = await this.prisma.teacherApplication.findFirst({ where: { email: user.email, status: 'PENDING' }, select: { id: true } });
+    if (pending) throw new AppError('CONFLICT', 409, 'You already have an application under review.');
+    const { scalars, dateOfBirth, joiningDate, educations, experiences, certifications, references } = splitApplicationInput({ ...input, email: user.email });
     const app = await this.prisma.teacherApplication.create({
       data: {
         ...scalars,
@@ -63,9 +67,9 @@ export class TeachersService {
   }
 
   /** One supporting document per call; the applicant has no account, so the application id scopes access. */
-  async addDocument(applicationId: string, kind: DocumentKind, file: { buffer: Buffer; size: number } | undefined, label?: string) {
-    const app = await this.prisma.teacherApplication.findUnique({ where: { id: applicationId }, select: { id: true } });
-    if (!app) throw notFound('Application');
+  async addDocument(applicationId: string, kind: DocumentKind, file: { buffer: Buffer; size: number } | undefined, label: string | undefined, account: { email: string }) {
+    const app = await this.prisma.teacherApplication.findUnique({ where: { id: applicationId }, select: { id: true, email: true } });
+    if (!app || app.email !== account.email) throw notFound('Application');
     if (!file) throw new AppError('VALIDATION_ERROR', 422, 'Some fields are invalid.', { file: 'Attach a file.' });
     if (file.size > MAX_DOCUMENT_BYTES) throw new AppError('FILE_TOO_LARGE', 413, 'The file is larger than 8 MB.');
     const sniffed = sniffFileType(file.buffer);
@@ -127,11 +131,11 @@ export class TeachersService {
     if (!app) throw notFound('Application');
     if (app.status !== 'PENDING') throw new AppError('CONFLICT', 409, 'This application has already been reviewed.');
 
-    const mentor = await this.batches.createMentor(
-      { email: app.email, displayName: app.fullName, bio: app.personalStatement ?? undefined, specializations: app.subjects, password: undefined },
-      actor,
-      app.id,
-    );
+    const profile = { displayName: app.fullName, bio: app.personalStatement ?? undefined, specializations: app.subjects };
+    const existing = await this.prisma.user.findFirst({ where: { email: app.email, deletedAt: null }, select: { id: true, email: true, status: true, emailVerifiedAt: true } });
+    const mentor = existing
+      ? await this.batches.attachMentorRole(existing, profile, actor, app.id)
+      : await this.batches.createMentor({ email: app.email, ...profile, password: undefined }, actor, app.id);
     const claimed = await this.prisma.teacherApplication.updateMany({
       where: { id, status: 'PENDING' },
       data: { status: 'APPROVED', reviewedBy: actor.userId, reviewedAt: new Date() },

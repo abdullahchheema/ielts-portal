@@ -1,12 +1,11 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { EnrollmentStatus, Prisma } from '@ielts/db';
-import * as argon2 from 'argon2';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { ApplicantInput, ApplicationPaymentInput, ApproveProofInput, RejectProofInput, applicantSchema, applicationPaymentSchema } from '@ielts/validation';
+import { ApplicationPaymentInput, ApproveProofInput, RejectProofInput, applicantProfileSchema, applicationPaymentSchema } from '@ielts/validation';
 import { AuditService } from '../audit/audit.service';
-import { AuthService, Meta, Session } from '../auth/auth.service';
+import { Meta } from '../auth/auth.service';
 import { AppError, notFound } from '../common/app-error';
 import { APP_CONFIG, AppConfig } from '../config/config.module';
 import { Actor } from '../courses/courses.service';
@@ -63,7 +62,6 @@ export class ApplicationsService {
     private readonly audit: AuditService,
     private readonly notify: NotificationsService,
     private readonly events: EventEmitter2,
-    private readonly auth: AuthService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
@@ -128,17 +126,17 @@ export class ApplicationsService {
   }
 
   /**
-   * One request from the enrollment form: creates the student account if needed, records the payment proof and
-   * leaves the enrollment in PENDING_PAYMENT until an admin verifies the payment. A missing teacher never blocks this.
+   * One request from the enrollment form for a signed-in student with a verified email: saves the background details,
+   * records the payment proof and leaves the enrollment in PENDING_PAYMENT until an admin verifies the payment.
    */
   async submit(
-    current: { userId: string; studentId: string } | null,
+    current: { userId: string; studentId: string },
     raw: Record<string, unknown>,
     file: { buffer: Buffer; size: number } | undefined,
     meta: Meta,
-  ): Promise<{ enrollmentId: string; status: string; session?: Session }> {
+  ): Promise<{ enrollmentId: string; status: string }> {
     const pay = parseOrThrow(applicationPaymentSchema, raw);
-    const applicant: ApplicantInput | null = current ? null : parseOrThrow(applicantSchema, raw);
+    const profile = parseOrThrow(applicantProfileSchema, raw);
     const sniffed = await this.checkProofFile(file);
     await this.assertMethodEnabled(pay.paymentMethod);
 
@@ -153,52 +151,39 @@ export class ApplicationsService {
     if (batch.endAt && batch.endAt <= now) throw new AppError('BATCH_NOT_OPEN', 409, 'This batch has already ended.');
     if (main.course.status !== 'PUBLISHED' || batch.version.status === 'DRAFT') throw new AppError('COURSE_UNPUBLISHED', 409, 'The course is not open for enrollment yet.');
 
-    const passwordHash = applicant ? await argon2.hash(applicant.password, { type: argon2.argon2id }) : null;
     const fileKey = `proofs/applications/${randomUUID()}.${sniffed.ext}`;
     await this.storage.put(fileKey, file!.buffer, sniffed.mime);
 
-    let created: { enrollmentId: string; userId: string; studentId: string; email: string; reference: string };
+    let created: { enrollmentId: string; reference: string };
     try {
       created = await this.prisma.$transaction(async (tx) => {
-        let userId: string; let studentId: string; let email: string;
-        if (current) {
-          ({ userId, studentId } = current);
-          email = (await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { email: true } })).email;
-          const live = await tx.enrollment.findFirst({ where: { studentId, deletedAt: null, status: { in: ['PENDING_PAYMENT', 'ACTIVE', 'PAUSED'] } } });
-          if (live) {
-            throw new AppError('ENROLLMENT_ALREADY_EXISTS', 409, live.status === 'PENDING_PAYMENT'
-              ? 'You already have an application waiting for payment verification.' : 'You are already enrolled in the course.');
-          }
-        } else {
-          const a = applicant!;
-          if (await tx.user.findUnique({ where: { email: a.email } })) {
-            throw new AppError('EMAIL_ALREADY_REGISTERED', 409, 'An account with this email already exists. Log in to continue your enrollment.');
-          }
-          const role = await tx.role.findUniqueOrThrow({ where: { name: 'STUDENT' } });
-          const user = await tx.user.create({
-            data: {
-              email: a.email, phone: a.phone, passwordHash: passwordHash!, status: 'ACTIVE', // can log in at once; email is verified later
-              roles: { create: { roleId: role.id } },
-              student: { create: {
-                firstName: a.firstName, lastName: a.lastName, city: a.city, country: a.country,
-                // currentBand is kept as a deprecated mirror of ieltsOverall for existing band charts/reports.
-                currentBand: a.ieltsHistory === 'TAKEN' ? (a.ieltsOverall ?? a.currentBand) : a.ieltsHistory === 'NEVER' ? null : a.currentBand,
-                targetBand: a.targetBand,
-                academicOrGeneral: a.testType, ieltsExamDate: a.examDate ? new Date(a.examDate) : undefined,
-                ieltsHistory: a.ieltsHistory,
-                ieltsOverall: a.ieltsHistory === 'NEVER' ? null : a.ieltsOverall,
-                ieltsListening: a.ieltsHistory === 'NEVER' ? null : a.ieltsListening,
-                ieltsReading: a.ieltsHistory === 'NEVER' ? null : a.ieltsReading,
-                ieltsWriting: a.ieltsHistory === 'NEVER' ? null : a.ieltsWriting,
-                ieltsSpeaking: a.ieltsHistory === 'NEVER' ? null : a.ieltsSpeaking,
-                ieltsTestDate: a.ieltsTestDate ? new Date(a.ieltsTestDate) : undefined,
-                ieltsAttempts: a.ieltsHistory === 'NEVER' ? null : a.ieltsAttempts,
-              } },
-            },
-            include: { student: true },
-          });
-          userId = user.id; studentId = user.student!.id; email = user.email;
+        const { userId, studentId } = current;
+        const account = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { emailVerifiedAt: true } });
+        if (!account.emailVerifiedAt) throw new AppError('EMAIL_NOT_VERIFIED', 403, 'Verify your email address before you apply.');
+        const live = await tx.enrollment.findFirst({ where: { studentId, deletedAt: null, status: { in: ['PENDING_PAYMENT', 'ACTIVE', 'PAUSED'] } } });
+        if (live) {
+          throw new AppError('ENROLLMENT_ALREADY_EXISTS', 409, live.status === 'PENDING_PAYMENT'
+            ? 'You already have an application waiting for payment verification.' : 'You are already enrolled in the course.');
         }
+        await tx.user.update({ where: { id: userId }, data: { phone: profile.phone } });
+        await tx.studentProfile.update({
+          where: { id: studentId },
+          data: {
+            city: profile.city, country: profile.country,
+            // currentBand is kept as a deprecated mirror of ieltsOverall for existing band charts/reports.
+            currentBand: profile.ieltsHistory === 'TAKEN' ? (profile.ieltsOverall ?? profile.currentBand) : profile.ieltsHistory === 'NEVER' ? null : profile.currentBand,
+            targetBand: profile.targetBand,
+            academicOrGeneral: profile.testType, ieltsExamDate: profile.examDate ? new Date(profile.examDate) : undefined,
+            ieltsHistory: profile.ieltsHistory,
+            ieltsOverall: profile.ieltsHistory === 'NEVER' ? null : profile.ieltsOverall,
+            ieltsListening: profile.ieltsHistory === 'NEVER' ? null : profile.ieltsListening,
+            ieltsReading: profile.ieltsHistory === 'NEVER' ? null : profile.ieltsReading,
+            ieltsWriting: profile.ieltsHistory === 'NEVER' ? null : profile.ieltsWriting,
+            ieltsSpeaking: profile.ieltsHistory === 'NEVER' ? null : profile.ieltsSpeaking,
+            ieltsTestDate: profile.ieltsTestDate ? new Date(profile.ieltsTestDate) : undefined,
+            ieltsAttempts: profile.ieltsHistory === 'NEVER' ? null : profile.ieltsAttempts,
+          },
+        });
 
         // Price comes from the database, never from the browser.
         const price = money(main.course.price);
@@ -228,7 +213,7 @@ export class ApplicationsService {
         await tx.paymentEvent.create({ data: { paymentId: payment.id, type: 'APPLICATION_SUBMITTED', actorId: userId, payload: { proofId: proof.id, method: pay.paymentMethod, flags } } });
         await tx.studentTimelineEvent.create({ data: { studentId, type: 'APPLICATION_SUBMITTED', summary: `Applied to ${batch.name} — payment awaiting verification`, meta: { enrollmentId: enrollment.id } } });
         await this.audit.record({ userId, action: 'APPLICATION_SUBMITTED', entityType: 'Enrollment', entityId: enrollment.id, after: { batchId: batch.id, orderReference: order.reference }, ip: meta.ip, userAgent: meta.userAgent }, tx);
-        return { enrollmentId: enrollment.id, userId, studentId, email, reference: order.reference };
+        return { enrollmentId: enrollment.id, reference: order.reference };
       }, { maxWait: 10_000, timeout: 20_000 });
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
@@ -237,12 +222,10 @@ export class ApplicationsService {
       throw e;
     }
 
-    if (applicant) await this.auth.sendVerification(created.userId, created.email).catch((e) => this.logger.warn(`verification email failed: ${e.message}`));
     await this.notify.notifyPermission('payment.verify', 'APPLICATION_SUBMITTED', 'New enrollment application', `Order ${created.reference} is waiting for payment verification.`, {
       entityType: 'ENROLLMENT', entityId: created.enrollmentId, link: `/admin/applications?open=${created.enrollmentId}`,
     });
-    const session = applicant ? await this.auth.startSession(created.userId, meta) : undefined;
-    return { enrollmentId: created.enrollmentId, status: 'PENDING_PAYMENT_VERIFICATION', session };
+    return { enrollmentId: created.enrollmentId, status: 'PENDING_PAYMENT_VERIFICATION' };
   }
 
   // ───────── student ─────────

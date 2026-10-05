@@ -19,6 +19,9 @@ const schema = z.object({
   // Two-factor login for staff. Unset = on in production, off in development. The code stays in place; this just switches it.
   TWO_FACTOR_ENABLED: z.enum(['true', 'false']).optional(),
   RESEND_API_KEY: optional,
+  // "Continue with Google" is shown only when both are set.
+  GOOGLE_CLIENT_ID: optional,
+  GOOGLE_CLIENT_SECRET: optional,
   MAIL_FROM: z.string().default('IELTS Portal <no-reply@localhost>'),
   JWT_ACCESS_SECRET: z.string().min(32),
   JWT_REFRESH_SECRET: z.string().min(32),

@@ -234,6 +234,27 @@ export class BatchesService {
   }
 
   /** `applicationId` links the created MentorProfile back to the TeacherApplication that produced it (teacher-applications approve flow). */
+  /** An approved teacher applicant already has a verified account from applying: this adds the mentor role to it. */
+  async attachMentorRole(
+    user: { id: string; email: string; status: string; emailVerifiedAt: Date | null },
+    profile: { displayName: string; bio?: string; specializations: string[] },
+    actor: Actor,
+    applicationId: string,
+  ) {
+    if (!user.emailVerifiedAt || user.status !== 'ACTIVE') throw new AppError('CONFLICT', 409, 'This applicant has not verified their email yet.');
+    const role = await this.prisma.role.findUniqueOrThrow({ where: { name: 'MENTOR' } });
+    const mentor = await this.prisma.$transaction(async (tx) => {
+      await tx.userRole.createMany({ data: [{ userId: user.id, roleId: role.id }], skipDuplicates: true });
+      const created = await tx.mentorProfile.create({
+        data: { userId: user.id, displayName: profile.displayName, bio: profile.bio, specializations: profile.specializations, applicationId },
+      });
+      await this.audit.record({ ...actor, action: 'ADMIN_GRANTED_MENTOR_ROLE', entityType: 'User', entityId: user.id, after: { displayName: profile.displayName, applicationId } }, tx);
+      return created;
+    });
+    await this.mail.send(user.email, 'Your teaching application was approved', `<p>Hello ${profile.displayName}, your application to teach with us was approved. Log in with your existing account to open your teacher portal: <a href="${this.config.APP_URL}/login">${this.config.APP_URL}/login</a></p>`);
+    return mentor;
+  }
+
   async createMentor(input: CreateMentorInput, actor: Actor, applicationId?: string) {
     const exists = await this.prisma.user.findUnique({ where: { email: input.email } });
     if (exists) throw new AppError('EMAIL_ALREADY_REGISTERED', 409, 'An account with this email already exists.');

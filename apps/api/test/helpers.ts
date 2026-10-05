@@ -98,7 +98,7 @@ export function apply(
   req = req.field('batchId', batchId).field('paymentMethod', o.method ?? 'BANK_TRANSFER')
     .field('transactionReference', o.txn ?? `TXN${uniq()}${uniq()}`).field('claimedAmount', String(o.amount ?? 10000)).field('transferDate', '2026-09-28');
   if (o.coupon) req = req.field('couponCode', o.coupon);
-  for (const [k, v] of Object.entries(o.applicant ?? {})) req = req.field(k, v);
+  for (const [k, v] of Object.entries({ phone: '0300-1234567', city: 'Lahore', country: 'Pakistan', ...o.applicant })) req = req.field(k, v);
   return req.attach('file', o.file ?? PNG, { filename: o.filename ?? 'proof.png', contentType: o.contentType ?? 'image/png' });
 }
 

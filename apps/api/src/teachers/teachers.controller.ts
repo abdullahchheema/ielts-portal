@@ -7,7 +7,7 @@ import {
   RejectTeacherApplicationInput, TeacherApplicationAdminUpdateInput, TeacherApplicationInput,
   rejectTeacherApplicationSchema, teacherApplicationAdminUpdateSchema, teacherApplicationSchema,
 } from '@ielts/validation';
-import { AuthUser, CurrentUser, Public, RequirePermission, clientMeta } from '../common/decorators';
+import { AuthUser, CurrentUser, RequirePermission, clientMeta } from '../common/decorators';
 import { ZodPipe } from '../common/zod.pipe';
 import { Actor } from '../courses/courses.service';
 import { DOCUMENT_KINDS, DocumentKind, MAX_DOCUMENT_BYTES, TeachersService } from './teachers.service';
@@ -19,23 +19,23 @@ const documentBodySchema = z.object({ kind: z.enum(DOCUMENT_KINDS), label: z.str
 const listQuery = z.object({ status: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'ALL']).default('PENDING') });
 type Upload = { buffer: Buffer; size: number } | undefined;
 
-@Controller('public/teacher-applications')
-export class PublicTeacherApplicationsController {
-  constructor(private readonly teachers: TeachersService) {}
-
-  @Public() @HttpCode(201) @Post()
-  apply(@Body(new ZodPipe(teacherApplicationSchema)) body: TeacherApplicationInput) { return this.teachers.apply(body); }
-}
-
-/** Document uploads happen right after submission, before any account exists, so this is scoped by applicationId alone. */
+/** Applicants apply from their own verified account, so every route here needs a signed-in user. */
 @Controller('teacher-applications')
-export class TeacherApplicationDocumentsController {
+export class TeacherApplicationsController {
   constructor(private readonly teachers: TeachersService) {}
 
-  @Public() @HttpCode(201) @Post(':id/documents')
+  @HttpCode(201) @Post()
+  apply(@Body(new ZodPipe(teacherApplicationSchema)) body: TeacherApplicationInput, @CurrentUser() user: AuthUser) {
+    return this.teachers.apply(body, { id: user.id });
+  }
+
+  @HttpCode(201) @Post(':id/documents')
   @UseInterceptors(documentUpload())
-  addDocument(@Param('id', uuid) id: string, @Body(new ZodPipe(documentBodySchema)) body: { kind: DocumentKind; label?: string }, @UploadedFile() file: Upload) {
-    return this.teachers.addDocument(id, body.kind, file, body.label);
+  addDocument(
+    @Param('id', uuid) id: string, @Body(new ZodPipe(documentBodySchema)) body: { kind: DocumentKind; label?: string },
+    @UploadedFile() file: Upload, @CurrentUser() user: AuthUser,
+  ) {
+    return this.teachers.addDocument(id, body.kind, file, body.label, { email: user.email });
   }
 }
 

@@ -40,10 +40,6 @@ async function createStaff(roleName: string): Promise<Session> {
   return login(app, email);
 }
 
-const applicant = (over: Record<string, string> = {}) => ({
-  firstName: 'Ayesha', lastName: 'Malik', email: `new-${uniq()}@test.local`, password: 'Str0ngPassw0rd!', phone: '0300-1234567', city: 'Lahore', country: 'Pakistan', ...over,
-});
-
 const resubmit = (s: Session, enrollmentId: string, txn: string) =>
   as(s)(http(app).post(`/applications/${enrollmentId}/payment-proof`))
     .field('paymentMethod', 'EASYPAISA').field('transactionReference', txn).field('claimedAmount', '10000').field('transferDate', '2026-09-29')
@@ -71,19 +67,25 @@ describe('public catalogue', () => {
 });
 
 describe('applying', () => {
-  it('creates the account, records the proof, signs the student in and waits for verification, with no teacher assigned', async () => {
-    const a = applicant();
-    const res = await apply(app, null, batchId, { method: 'JAZZCASH', applicant: { ...a, currentBand: '5.5', targetBand: '7', testType: 'ACADEMIC' } }).expect(201);
-    expect(res.body).toMatchObject({ status: 'PENDING_PAYMENT_VERIFICATION', signedIn: true });
-    expect(([] as string[]).concat(res.headers['set-cookie']).some((c) => c.startsWith('access_token='))).toBe(true);
+  const profile = { phone: '0300-1234567', city: 'Lahore', country: 'Pakistan' };
+
+  it('refuses anonymous visitors: an account has to exist and be verified before applying', async () => {
+    await apply(app, null, batchId, { applicant: profile }).expect(401);
+  });
+
+  it('records the proof and the background details for a verified student, with no teacher assigned', async () => {
+    const s = await createStudent(app, prisma);
+    const res = await apply(app, s.session, batchId, { method: 'JAZZCASH', applicant: { ...profile, currentBand: '5.5', targetBand: '7', testType: 'ACADEMIC' } }).expect(201);
+    expect(res.body).toEqual({ enrollmentId: expect.any(String), status: 'PENDING_PAYMENT_VERIFICATION' });
 
     const enrollment = await prisma.enrollment.findUniqueOrThrow({ where: { id: res.body.enrollmentId }, include: { student: { include: { user: true } }, orderItem: { include: { order: true } } } });
     expect(enrollment.status).toBe('PENDING_PAYMENT');
     expect(enrollment.batchId).toBe(batchId);
+    expect(enrollment.studentId).toBe(s.studentId);
     expect(enrollment.student.city).toBe('Lahore');
     expect(enrollment.student.user.phone).toBe('0300-1234567');
-    expect(Number(enrollment.student.targetBand)).toBe(7);
     expect(enrollment.student.user.status).toBe('ACTIVE');
+    expect(Number(enrollment.student.targetBand)).toBe(7);
     expect(Number(enrollment.orderItem!.order.total)).toBe(10000);
     const proof = await prisma.paymentProof.findFirstOrThrow({ where: { payment: { orderId: enrollment.orderItem!.orderId } } });
     expect(proof.paymentMethod).toBe('JAZZCASH');
@@ -93,7 +95,8 @@ describe('applying', () => {
 
   it('accepts unlimited applicants for the same batch', async () => {
     const before = await prisma.enrollment.count({ where: { batchId } });
-    const results = await Promise.all(Array.from({ length: 6 }, () => apply(app, null, batchId, { applicant: applicant() })));
+    const students = await Promise.all(Array.from({ length: 6 }, () => createStudent(app, prisma)));
+    const results = await Promise.all(students.map((s) => apply(app, s.session, batchId, { applicant: profile })));
     expect(results.map((r) => r.status)).toEqual([201, 201, 201, 201, 201, 201]);
     expect(await prisma.enrollment.count({ where: { batchId } })).toBe(before + 6);
     expect((await prisma.batch.findUniqueOrThrow({ where: { id: batchId } })).status).toBe('OPEN');
@@ -112,42 +115,34 @@ describe('applying', () => {
     expect(mine[0].displayStatus).toBe('PENDING_PAYMENT_VERIFICATION');
   });
 
-  it('validates the form and does not create an account when it fails', async () => {
-    const email = `bad-${uniq()}@test.local`;
-    const weak = await apply(app, null, batchId, { applicant: applicant({ email, password: 'short' }) }).expect(422);
-    expect(weak.body.error.details.password).toBeTruthy();
-    const noCity = await apply(app, null, batchId, { applicant: applicant({ email, city: '' }) }).expect(422);
-    expect(noCity.body.error.details.city).toBeTruthy();
-    const badMethod = await apply(app, null, batchId, { method: 'PAYPAL', applicant: applicant({ email }) }).expect(422);
-    expect(badMethod.body.error.details.paymentMethod).toBeTruthy();
-    expect(await prisma.user.count({ where: { email } })).toBe(0);
-  });
-
-  it('tells an existing email to log in instead of creating a second account', async () => {
+  it('validates the form before anything is written', async () => {
     const s = await createStudent(app, prisma);
-    const res = await apply(app, null, batchId, { applicant: applicant({ email: s.email }) }).expect(409);
-    expect(res.body.error.code).toBe('EMAIL_ALREADY_REGISTERED');
+    const noCity = await apply(app, s.session, batchId, { applicant: { ...profile, city: '' } }).expect(422);
+    expect(noCity.body.error.details.city).toBeTruthy();
+    const badMethod = await apply(app, s.session, batchId, { method: 'PAYPAL' }).expect(422);
+    expect(badMethod.body.error.details.paymentMethod).toBeTruthy();
+    expect(await prisma.enrollment.count({ where: { studentId: s.studentId } })).toBe(0);
   });
 
   it('refuses batches that are not open, and unknown batches', async () => {
+    const s = await createStudent(app, prisma);
     const draft = (await as(admin)(http(app).post('/admin/batches')).send({ name: 'Draft batch', startAt: daysFromNow(1) }).expect(201)).body;
-    expect((await apply(app, null, draft.id, { applicant: applicant() }).expect(409)).body.error.code).toBe('BATCH_NOT_OPEN');
-    await apply(app, null, '00000000-0000-4000-8000-000000000000', { applicant: applicant() }).expect(404);
+    expect((await apply(app, s.session, draft.id).expect(409)).body.error.code).toBe('BATCH_NOT_OPEN');
+    await apply(app, s.session, '00000000-0000-4000-8000-000000000000').expect(404);
   });
 
   it('rejects files whose bytes are not an allowed type, whatever the name/MIME claims', async () => {
-    const email = `exe-${uniq()}@test.local`;
-    const res = await apply(app, null, batchId, { file: EXE, filename: 'proof.png', contentType: 'image/png', applicant: applicant({ email }) }).expect(415);
+    const s = await createStudent(app, prisma);
+    const res = await apply(app, s.session, batchId, { file: EXE, filename: 'proof.png', contentType: 'image/png' }).expect(415);
     expect(res.body.error.code).toBe('UNSUPPORTED_FILE_TYPE');
-    expect(await prisma.user.count({ where: { email } })).toBe(0);
   });
 
   it('rejects oversized and missing files', async () => {
     const big = Buffer.concat([PNG, Buffer.alloc(5 * 1024 * 1024 + 10)]);
-    expect((await apply(app, null, batchId, { file: big, applicant: applicant() }).expect(413)).body.error.code).toBe('FILE_TOO_LARGE');
-    const signedIn = await createStudent(app, prisma);
-    const none = await as(signedIn.session)(http(app).post('/applications')).field('batchId', batchId).field('paymentMethod', 'BANK_TRANSFER').field('transactionReference', 'TXN12345')
-      .field('claimedAmount', '10000').field('transferDate', '2026-09-28');
+    const s = await createStudent(app, prisma);
+    expect((await apply(app, s.session, batchId, { file: big }).expect(413)).body.error.code).toBe('FILE_TOO_LARGE');
+    const none = await as(s.session)(http(app).post('/applications')).field('batchId', batchId).field('paymentMethod', 'BANK_TRANSFER').field('transactionReference', 'TXN12345')
+      .field('claimedAmount', '10000').field('transferDate', '2026-09-28').field('phone', '0300-1234567').field('city', 'Lahore').field('country', 'Pakistan');
     expect(none.status).toBe(422);
     expect(none.body.error.code).toBe('PROOF_REQUIRED');
   });
