@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { applicantProfileSchema } from '@ielts/validation';
+import { BAND_STEPS, COUNTRIES, PAKISTAN_CITIES, applicantProfileSchema } from '@ielts/validation';
 import { AccountGate } from '@/components/AccountGate';
 import { PaymentSection, PaymentValues, METHOD_LABEL, emptyPayment, paymentFormData, validatePayment } from '@/components/PaymentSection';
 import { PublicBatch } from '@/components/BatchCard';
@@ -17,17 +17,13 @@ import { date, money } from '@/lib/format';
 
 interface PublicCourse { title: string; price: string; currency: string }
 interface Details {
-  phone: string; city: string; country: string;
-  currentBand: string; targetBand: string; testType: string; examDate: string;
-  ieltsHistory: '' | 'NEVER' | 'TAKEN'; ieltsOverall: string; ieltsListening: string; ieltsReading: string; ieltsWriting: string; ieltsSpeaking: string; ieltsTestDate: string; ieltsAttempts: string;
+  phone: string; city: string; country: string; testType: string; targetBand: string; examDate: string;
+  ieltsHistory: '' | 'NEVER' | 'TAKEN'; ieltsOverall: string;
 }
-const BANDS = Array.from({ length: 19 }, (_, i) => (i * 0.5).toFixed(1));
-const EMPTY: Details = {
-  phone: '', city: '', country: 'Pakistan', currentBand: '', targetBand: '', testType: '', examDate: '',
-  ieltsHistory: '', ieltsOverall: '', ieltsListening: '', ieltsReading: '', ieltsWriting: '', ieltsSpeaking: '', ieltsTestDate: '', ieltsAttempts: '',
-};
+const EMPTY: Details = { phone: '', city: '', country: 'Pakistan', testType: '', targetBand: '', examDate: '', ieltsHistory: '', ieltsOverall: '' };
 const DAY: Record<string, string> = { MON: 'Mon', TUE: 'Tue', WED: 'Wed', THU: 'Thu', FRI: 'Fri', SAT: 'Sat', SUN: 'Sun' };
 const LABELS = ['Your details', 'Payment', 'Review'];
+const TEST_LABEL: Record<string, string> = { ACADEMIC: 'Academic', GENERAL: 'General Training' };
 
 function Steps({ step }: { step: number }) {
   return (
@@ -118,7 +114,7 @@ export default function EnrollPage() {
   const validateDetails = () => {
     const r = applicantProfileSchema.safeParse(d);
     const e: Record<string, string> = {};
-    if (!r.success) for (const i of r.error.issues) e[String(i.path[0])] = i.message;
+    if (!r.success) for (const i of r.error.issues) e[String(i.path[0])] ??= i.message;
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -167,27 +163,21 @@ export default function EnrollPage() {
           {step === 0 && (
             <div className="space-y-4">
               <h2 className="text-lg font-semibold">Your details</h2>
-              <p className="text-sm text-fg-muted">Applying as <span className="font-medium text-fg">{me.data.email}</span>.</p>
+              <p className="text-sm text-fg-muted">Applying as <span className="font-medium text-fg">{me.data.email}</span>. Every field is required.</p>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Phone / WhatsApp" error={errors.phone}>{(p) => <Input {...p} type="tel" autoComplete="tel" {...text('phone')} />}</Field>
-                <Field label="City" error={errors.city}>{(p) => <Input {...p} autoComplete="address-level2" {...text('city')} />}</Field>
-                <Field label="Country" error={errors.country}>{(p) => <Input {...p} autoComplete="country-name" {...text('country')} />}</Field>
+                <Field label="City" error={errors.city}>{(p) => <Select {...p} {...text('city')}><option value="">Select</option>{PAKISTAN_CITIES.map((c) => <option key={c} value={c}>{c}</option>)}</Select>}</Field>
+                <Field label="Country" error={errors.country}>{(p) => <Select {...p} {...text('country')}>{COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}</Select>}</Field>
+                <Field label="Test you are preparing for" error={errors.testType}>{(p) => <Select {...p} {...text('testType')}><option value="">Select</option><option value="ACADEMIC">Academic</option><option value="GENERAL">General Training</option></Select>}</Field>
+                <Field label="Target band" error={errors.targetBand}>{(p) => <Select {...p} {...text('targetBand')}><option value="">Select</option>{BAND_STEPS.map((b) => <option key={b}>{b}</option>)}</Select>}</Field>
+                <Field label="Planned exam date" error={errors.examDate}>{(p) => <Input {...p} type="date" {...text('examDate')} />}</Field>
               </div>
-              <fieldset className="rounded-md bg-canvas p-4">
-                <legend className="px-1 text-sm font-medium text-fg">Your background (optional)</legend>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Current band" error={errors.currentBand}>{(p) => <Select {...p} {...text('currentBand')}><option value="">Not sure</option>{BANDS.map((b) => <option key={b}>{b}</option>)}</Select>}</Field>
-                  <Field label="Target band" error={errors.targetBand}>{(p) => <Select {...p} {...text('targetBand')}><option value="">Select</option>{BANDS.map((b) => <option key={b}>{b}</option>)}</Select>}</Field>
-                  <Field label="Test type" error={errors.testType}>{(p) => <Select {...p} {...text('testType')}><option value="">Select</option><option value="ACADEMIC">Academic</option><option value="GENERAL">General Training</option></Select>}</Field>
-                  <Field label="Exam date" error={errors.examDate}>{(p) => <Input {...p} type="date" {...text('examDate')} />}</Field>
-                </div>
-              </fieldset>
 
               <fieldset className="rounded-md bg-canvas p-4">
                 <legend className="px-1 text-sm font-medium text-fg">Have you taken IELTS before?</legend>
                 <div className="flex gap-4 text-sm">
                   <label className="flex items-center gap-2">
-                    <input type="radio" name="ieltsHistory" checked={d.ieltsHistory === 'NEVER'} onChange={() => set({ ieltsHistory: 'NEVER', ieltsOverall: '', ieltsListening: '', ieltsReading: '', ieltsWriting: '', ieltsSpeaking: '', ieltsTestDate: '', ieltsAttempts: '' })} /> No, this is my first time
+                    <input type="radio" name="ieltsHistory" checked={d.ieltsHistory === 'NEVER'} onChange={() => set({ ieltsHistory: 'NEVER', ieltsOverall: '' })} /> No, this is my first time
                   </label>
                   <label className="flex items-center gap-2">
                     <input type="radio" name="ieltsHistory" checked={d.ieltsHistory === 'TAKEN'} onChange={() => set({ ieltsHistory: 'TAKEN' })} /> Yes, I have
@@ -195,18 +185,8 @@ export default function EnrollPage() {
                 </div>
                 {errors.ieltsHistory && <p className="mt-1 text-xs text-danger">{errors.ieltsHistory}</p>}
                 {d.ieltsHistory === 'TAKEN' && (
-                  <div className="mt-3 space-y-3">
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-                      <Field label="Overall" error={errors.ieltsOverall}>{(p) => <Select {...p} {...text('ieltsOverall')}><option value="">Select</option>{BANDS.map((b) => <option key={b}>{b}</option>)}</Select>}</Field>
-                      <Field label="Listening">{(p) => <Select {...p} {...text('ieltsListening')}><option value="">—</option>{BANDS.map((b) => <option key={b}>{b}</option>)}</Select>}</Field>
-                      <Field label="Reading">{(p) => <Select {...p} {...text('ieltsReading')}><option value="">—</option>{BANDS.map((b) => <option key={b}>{b}</option>)}</Select>}</Field>
-                      <Field label="Writing">{(p) => <Select {...p} {...text('ieltsWriting')}><option value="">—</option>{BANDS.map((b) => <option key={b}>{b}</option>)}</Select>}</Field>
-                      <Field label="Speaking">{(p) => <Select {...p} {...text('ieltsSpeaking')}><option value="">—</option>{BANDS.map((b) => <option key={b}>{b}</option>)}</Select>}</Field>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <Field label="Test date" error={errors.ieltsTestDate}>{(p) => <Input {...p} type="date" {...text('ieltsTestDate')} />}</Field>
-                      <Field label="Attempts" error={errors.ieltsAttempts}>{(p) => <Input {...p} type="number" min={1} {...text('ieltsAttempts')} />}</Field>
-                    </div>
+                  <div className="mt-3 max-w-xs">
+                    <Field label="Your latest overall band" error={errors.ieltsOverall}>{(p) => <Select {...p} {...text('ieltsOverall')}><option value="">Select</option>{BAND_STEPS.map((b) => <option key={b}>{b}</option>)}</Select>}</Field>
                   </div>
                 )}
               </fieldset>
@@ -228,6 +208,10 @@ export default function EnrollPage() {
                 <div className="sm:col-span-2"><dt className="text-fg-muted">Applying as</dt><dd className="font-medium">{me.data.email}</dd></div>
                 <div><dt className="text-fg-muted">Phone</dt><dd className="font-medium">{d.phone}</dd></div>
                 <div><dt className="text-fg-muted">Location</dt><dd className="font-medium">{d.city}, {d.country}</dd></div>
+                <div><dt className="text-fg-muted">Test</dt><dd className="font-medium">{TEST_LABEL[d.testType] ?? d.testType}</dd></div>
+                <div><dt className="text-fg-muted">Target band</dt><dd className="font-medium">{d.targetBand}</dd></div>
+                <div><dt className="text-fg-muted">Planned exam date</dt><dd className="font-medium">{d.examDate ? date(d.examDate) : '—'}</dd></div>
+                <div><dt className="text-fg-muted">Previous IELTS</dt><dd className="font-medium">{d.ieltsHistory === 'TAKEN' ? `Yes, overall ${d.ieltsOverall}` : 'No, first time'}</dd></div>
                 <div><dt className="text-fg-muted">Batch</dt><dd className="font-medium">{batch.name}</dd></div>
                 <div><dt className="text-fg-muted">Payment method</dt><dd className="font-medium">{METHOD_LABEL[payment.paymentMethod] ?? payment.paymentMethod}</dd></div>
                 <div><dt className="text-fg-muted">Reference</dt><dd className="font-medium">{payment.transactionReference}</dd></div>

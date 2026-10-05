@@ -170,18 +170,12 @@ export class ApplicationsService {
           where: { id: studentId },
           data: {
             city: profile.city, country: profile.country,
-            // currentBand is kept as a deprecated mirror of ieltsOverall for existing band charts/reports.
-            currentBand: profile.ieltsHistory === 'TAKEN' ? (profile.ieltsOverall ?? profile.currentBand) : profile.ieltsHistory === 'NEVER' ? null : profile.currentBand,
+            // currentBand mirrors ieltsOverall for existing band charts and reports.
+            currentBand: profile.ieltsOverall ?? null,
             targetBand: profile.targetBand,
-            academicOrGeneral: profile.testType, ieltsExamDate: profile.examDate ? new Date(profile.examDate) : undefined,
+            academicOrGeneral: profile.testType, ieltsExamDate: new Date(profile.examDate),
             ieltsHistory: profile.ieltsHistory,
-            ieltsOverall: profile.ieltsHistory === 'NEVER' ? null : profile.ieltsOverall,
-            ieltsListening: profile.ieltsHistory === 'NEVER' ? null : profile.ieltsListening,
-            ieltsReading: profile.ieltsHistory === 'NEVER' ? null : profile.ieltsReading,
-            ieltsWriting: profile.ieltsHistory === 'NEVER' ? null : profile.ieltsWriting,
-            ieltsSpeaking: profile.ieltsHistory === 'NEVER' ? null : profile.ieltsSpeaking,
-            ieltsTestDate: profile.ieltsTestDate ? new Date(profile.ieltsTestDate) : undefined,
-            ieltsAttempts: profile.ieltsHistory === 'NEVER' ? null : profile.ieltsAttempts,
+            ieltsOverall: profile.ieltsOverall ?? null,
           },
         });
 
@@ -303,7 +297,7 @@ export class ApplicationsService {
       this.prisma.enrollment.findMany({
         where, orderBy: { createdAt: q.status === 'PENDING' ? 'asc' : 'desc' }, skip: q.skip, take: q.take, // oldest pending first
         include: {
-          student: { select: { id: true, firstName: true, lastName: true, city: true, country: true, user: { select: { id: true, email: true, phone: true, emailVerifiedAt: true } } } },
+          student: { select: { id: true, firstName: true, lastName: true, city: true, country: true, academicOrGeneral: true, targetBand: true, ieltsExamDate: true, ieltsHistory: true, ieltsOverall: true, user: { select: { id: true, email: true, phone: true, emailVerifiedAt: true } } } },
           batch: { select: { id: true, name: true } },
           orderItem: { include: { order: { include: { payments: { include: { proofs: { orderBy: { createdAt: 'desc' }, take: 1 } } } } } } },
         },
@@ -318,7 +312,12 @@ export class ApplicationsService {
       const proof = order?.payments[0]?.proofs[0];
       return {
         id: e.id, status: e.status, displayStatus: DISPLAY_STATUS[e.status] ?? e.status, submittedAt: e.createdAt, enrolledAt: e.enrolledAt, source: e.source,
-        student: { id: e.student.id, name: `${e.student.firstName} ${e.student.lastName}`, email: e.student.user.email, phone: e.student.user.phone, city: e.student.city, country: e.student.country, emailVerified: !!e.student.user.emailVerifiedAt },
+        student: {
+          id: e.student.id, name: `${e.student.firstName} ${e.student.lastName}`, email: e.student.user.email, phone: e.student.user.phone, city: e.student.city, country: e.student.country, emailVerified: !!e.student.user.emailVerifiedAt,
+          background: {
+            testType: e.student.academicOrGeneral, targetBand: e.student.targetBand, examDate: e.student.ieltsExamDate, ieltsHistory: e.student.ieltsHistory, ieltsOverall: e.student.ieltsOverall,
+          },
+        },
         batch: e.batch,
         order: order ? { reference: order.reference, total: order.total, discount: order.discount, currency: order.currency } : null,
         proof: proof ? {

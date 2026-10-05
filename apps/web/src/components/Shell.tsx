@@ -10,6 +10,14 @@ import { Me, useLogout } from '@/lib/auth';
 import { NotificationBell } from './NotificationBell';
 
 export interface NavItem { href: string; label: string; show?: boolean; icon?: LucideIcon; badge?: number }
+
+/** The role a person signs in as. Teachers also hold the implicit STUDENT role, so MENTOR is checked first. */
+function portalLabel(roles: string[]): string {
+  if (roles.includes('MENTOR')) return 'Teacher';
+  const staff = roles.find((r) => r !== 'STUDENT');
+  if (staff) return staff.replace(/_/g, ' ').toLowerCase();
+  return 'Student';
+}
 export interface NavGroup { title?: string; items: NavItem[] }
 
 const COLLAPSE_KEY = 'ui:sidebar-collapsed';
@@ -102,7 +110,7 @@ export function Shell({ title, groups, me, children, width = 'default' }: { titl
       <Avatar email={me.email} />
       <div className={cx('min-w-0 flex-1', iconOnly && 'lg:hidden')}>
         <p className="truncate text-sm font-medium text-fg" title={me.email}>{me.email}</p>
-        <p className="truncate text-xs text-fg-muted">{me.roles?.[0]?.replace(/_/g, ' ').toLowerCase() ?? 'Signed in'}</p>
+        <p className="truncate text-xs text-fg-muted">{portalLabel(me.roles ?? [])}</p>
       </div>
       <button type="button" onClick={logout} aria-label="Log out" title="Log out" className="grid size-8 shrink-0 place-items-center rounded-md text-fg-muted transition-colors hover:bg-surface-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-ring">
         <LogOut aria-hidden className="size-4" />

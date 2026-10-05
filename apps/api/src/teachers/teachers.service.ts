@@ -27,7 +27,7 @@ function splitApplicationInput(input: TeacherApplicationInput) {
     joiningDate: joiningDate ? new Date(joiningDate) : undefined,
     educations: educations ?? [],
     experiences: (experiences ?? []).map((e) => ({ ...e, startDate: e.startDate ? new Date(e.startDate) : undefined, endDate: e.endDate ? new Date(e.endDate) : undefined })),
-    certifications: (certifications ?? []).map((c) => ({ ...c, issuedAt: c.issuedAt ? new Date(c.issuedAt) : undefined, expiresAt: c.expiresAt ? new Date(c.expiresAt) : undefined })),
+    certifications: certifications ?? [],
     references: references ?? [],
   };
 }
@@ -67,9 +67,9 @@ export class TeachersService {
   }
 
   /** One supporting document per call; the applicant has no account, so the application id scopes access. */
-  async addDocument(applicationId: string, kind: DocumentKind, file: { buffer: Buffer; size: number } | undefined, label: string | undefined, account: { email: string }) {
+  async addDocument(applicationId: string, kind: DocumentKind, file: { buffer: Buffer; size: number } | undefined, label: string | undefined, account: { email: string; canManage: boolean }) {
     const app = await this.prisma.teacherApplication.findUnique({ where: { id: applicationId }, select: { id: true, email: true } });
-    if (!app || app.email !== account.email) throw notFound('Application');
+    if (!app || (app.email !== account.email && !account.canManage)) throw notFound('Application');
     if (!file) throw new AppError('VALIDATION_ERROR', 422, 'Some fields are invalid.', { file: 'Attach a file.' });
     if (file.size > MAX_DOCUMENT_BYTES) throw new AppError('FILE_TOO_LARGE', 413, 'The file is larger than 8 MB.');
     const sniffed = sniffFileType(file.buffer);

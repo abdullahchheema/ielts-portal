@@ -15,7 +15,10 @@ import { date, money } from '@/lib/format';
 
 interface Application {
   id: string; status: string; displayStatus: string; submittedAt: string; enrolledAt: string | null;
-  student: { id: string; name: string; email: string; phone: string | null; city: string | null; country: string | null; emailVerified: boolean };
+  student: {
+    id: string; name: string; email: string; phone: string | null; city: string | null; country: string | null; emailVerified: boolean;
+    background: { testType: string | null; targetBand: string | null; examDate: string | null; ieltsHistory: string | null; ieltsOverall: string | null };
+  };
   batch: { id: string; name: string };
   order: { reference: string; total: string; discount: string; currency: string } | null;
   proof: {
@@ -133,6 +136,14 @@ function ApplicationCard({ a, onChanged }: { a: Application; onChanged: () => vo
               { label: 'City', value: a.student.city },
               { label: 'Country', value: a.student.country },
               { label: 'Email verified', value: a.student.emailVerified ? 'Yes' : 'No' },
+            ]} />
+            <h3 className="mb-2 mt-5 text-sm font-semibold text-fg">Background</h3>
+            <DefinitionList items={[
+              { label: 'Test', value: a.student.background.testType ? (a.student.background.testType === 'GENERAL' ? 'General Training' : 'Academic') : '—' },
+              { label: 'Target band', value: a.student.background.targetBand ?? '—' },
+              { label: 'Planned exam date', value: a.student.background.examDate ? date(a.student.background.examDate) : '—' },
+              { label: 'Taken IELTS before', value: a.student.background.ieltsHistory === 'TAKEN' ? 'Yes' : a.student.background.ieltsHistory === 'NEVER' ? 'No, first time' : '—' },
+              { label: 'Latest overall band', value: a.student.background.ieltsOverall ?? '—' },
             ]} />
           </Section>
           <Section title="Application">

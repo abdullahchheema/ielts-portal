@@ -142,7 +142,8 @@ describe('applying', () => {
     const s = await createStudent(app, prisma);
     expect((await apply(app, s.session, batchId, { file: big }).expect(413)).body.error.code).toBe('FILE_TOO_LARGE');
     const none = await as(s.session)(http(app).post('/applications')).field('batchId', batchId).field('paymentMethod', 'BANK_TRANSFER').field('transactionReference', 'TXN12345')
-      .field('claimedAmount', '10000').field('transferDate', '2026-09-28').field('phone', '0300-1234567').field('city', 'Lahore').field('country', 'Pakistan');
+      .field('claimedAmount', '10000').field('transferDate', '2026-09-28').field('phone', '0300-1234567').field('city', 'Lahore').field('country', 'Pakistan')
+      .field('testType', 'ACADEMIC').field('targetBand', '7').field('examDate', '2027-06-01').field('ieltsHistory', 'NEVER');
     expect(none.status).toBe(422);
     expect(none.body.error.code).toBe('PROOF_REQUIRED');
   });

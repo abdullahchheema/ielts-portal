@@ -10,6 +10,7 @@ import {
 import { AuthUser, CurrentUser, RequirePermission, clientMeta } from '../common/decorators';
 import { ZodPipe } from '../common/zod.pipe';
 import { Actor } from '../courses/courses.service';
+import { UserContextService } from '../roles/user-context.service';
 import { DOCUMENT_KINDS, DocumentKind, MAX_DOCUMENT_BYTES, TeachersService } from './teachers.service';
 
 const uuid = new ParseUUIDPipe();
@@ -22,7 +23,7 @@ type Upload = { buffer: Buffer; size: number } | undefined;
 /** Applicants apply from their own verified account, so every route here needs a signed-in user. */
 @Controller('teacher-applications')
 export class TeacherApplicationsController {
-  constructor(private readonly teachers: TeachersService) {}
+  constructor(private readonly teachers: TeachersService, private readonly ctx: UserContextService) {}
 
   @HttpCode(201) @Post()
   apply(@Body(new ZodPipe(teacherApplicationSchema)) body: TeacherApplicationInput, @CurrentUser() user: AuthUser) {
@@ -31,11 +32,12 @@ export class TeacherApplicationsController {
 
   @HttpCode(201) @Post(':id/documents')
   @UseInterceptors(documentUpload())
-  addDocument(
+  async addDocument(
     @Param('id', uuid) id: string, @Body(new ZodPipe(documentBodySchema)) body: { kind: DocumentKind; label?: string },
     @UploadedFile() file: Upload, @CurrentUser() user: AuthUser,
   ) {
-    return this.teachers.addDocument(id, body.kind, file, body.label, { email: user.email });
+    const canManage = !!(await this.ctx.get(user.id))?.permissions.has('teacher.manage');
+    return this.teachers.addDocument(id, body.kind, file, body.label, { email: user.email, canManage });
   }
 }
 

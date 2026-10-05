@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { COUNTRIES, PAKISTAN_CITIES, TEST_TYPES } from './lists';
 
 export const PAYMENT_METHODS = ['BANK_TRANSFER', 'JAZZCASH', 'EASYPAISA', 'OTHER'] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
@@ -6,7 +7,7 @@ export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 /** Multipart fields arrive as strings; blank optional fields become undefined. */
 const blank = (v: unknown) => (typeof v === 'string' && v.trim() === '' ? undefined : v);
 const optionalText = (max: number) => z.preprocess(blank, z.string().trim().max(max).optional());
-const optionalBand = z.preprocess(blank, z.coerce.number().min(0).max(9).refine((n) => Number.isInteger(n * 2), 'Use steps of 0.5').optional());
+const choice = <T extends readonly [string, ...string[]]>(values: T, message: string) => z.enum(values, { errorMap: () => ({ message }) });
 
 /** Details every applicant provides about their payment. */
 export const applicationPaymentSchema = z.object({
@@ -19,54 +20,19 @@ export const applicationPaymentSchema = z.object({
   couponCode: z.preprocess(blank, z.string().trim().toUpperCase().min(2).max(40).optional()),
 });
 
-const optionalInt = (min: number) => z.preprocess(blank, z.coerce.number().int().min(min).optional());
-const optionalDate = z.preprocess(blank, z.string().date().optional());
-
 /** Background and contact details collected on the enrollment form, once the applicant has a verified account. */
 export const applicantProfileSchema = z
   .object({
     phone: z.string().trim().min(6, 'Enter a phone number we can reach you on').max(20),
-    city: z.string().trim().min(1, 'Enter your city').max(80),
-    country: z.string().trim().min(1, 'Enter your country').max(80),
-    currentBand: optionalBand,
-    targetBand: optionalBand,
-    testType: z.preprocess(blank, z.enum(['ACADEMIC', 'GENERAL']).optional()),
-    examDate: z.preprocess(blank, z.string().date().optional()),
-    ieltsHistory: z.preprocess(blank, z.enum(['NEVER', 'TAKEN']).optional()),
-    ieltsOverall: optionalBand,
-    ieltsListening: optionalBand,
-    ieltsReading: optionalBand,
-    ieltsWriting: optionalBand,
-    ieltsSpeaking: optionalBand,
-    ieltsTestDate: optionalDate,
-    ieltsAttempts: optionalInt(1),
+    city: choice(PAKISTAN_CITIES, 'Choose your city'),
+    country: choice(COUNTRIES, 'Choose your country'),
+    testType: choice(TEST_TYPES, 'Choose the test you are preparing for'),
+    targetBand: z.coerce.number({ invalid_type_error: 'Choose your target band' }).min(0).max(9).refine((n) => Number.isInteger(n * 2), 'Use steps of 0.5'),
+    examDate: z.string().date('Enter your planned exam date'),
+    ieltsHistory: z.enum(['NEVER', 'TAKEN'], { errorMap: () => ({ message: 'Tell us whether you have taken IELTS before' }) }),
+    ieltsOverall: z.preprocess(blank, z.coerce.number().min(0).max(9).refine((n) => Number.isInteger(n * 2), 'Use steps of 0.5').optional()),
   })
-  .refine(
-    (v) => {
-      if (v.ieltsHistory === 'NEVER') {
-        return (
-          v.ieltsOverall === undefined &&
-          v.ieltsListening === undefined &&
-          v.ieltsReading === undefined &&
-          v.ieltsWriting === undefined &&
-          v.ieltsSpeaking === undefined &&
-          v.ieltsTestDate === undefined &&
-          v.ieltsAttempts === undefined
-        );
-      }
-      return true;
-    },
-    { message: 'Remove IELTS scores, test date and attempts when you have never taken the test.', path: ['ieltsHistory'] },
-  )
-  .refine(
-    (v) => {
-      if (v.ieltsHistory === 'TAKEN') {
-        return v.ieltsOverall !== undefined;
-      }
-      return true;
-    },
-    { message: 'Enter your overall band score.', path: ['ieltsOverall'] },
-  );
+  .refine((v) => v.ieltsHistory !== 'TAKEN' || v.ieltsOverall !== undefined, { message: 'Choose your overall band', path: ['ieltsOverall'] });
 
 export const approveProofSchema = z.object({
   /** Required when the claimed amount differs from the order total. */
