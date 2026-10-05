@@ -58,6 +58,30 @@ async function runCheck(c: { name: string; sql: string }) {
   }
 }
 
+// Objects that exist only in SQL. If a migration or a `prisma migrate` drop removes any of these, fail loudly.
+const REQUIRED_INDEXES = [
+  "submissions_status_submitted_at_idx", "submissions_student_id_idx", "band_conversion_lookup_idx",
+  "enrollments_one_live_per_batch",  // seat_reservations index intentionally gone: table dropped in 20261001000100
+ 
+  "payment_proofs_approved_txn_unique", "assessment_attempts_one_in_progress",
+  "submissions_one_open", "notifications_user_dedupe_key", "courses_single_live",
+];
+const REQUIRED_TRIGGERS = [
+  "audit_logs_no_update", "orders_no_delete", "order_items_no_delete", "payments_no_delete",
+  "payment_proofs_no_delete", "payment_events_no_mutation", "refunds_no_delete",
+];
+
+async function presenceChecks(): Promise<{ name: string; ok: boolean; detail: string }[]> {
+  const idx = await prisma.$queryRaw<{ indexname: string }[]>`SELECT indexname FROM pg_indexes WHERE schemaname = 'public'`;
+  const trg = await prisma.$queryRaw<{ tgname: string }[]>`SELECT t.tgname FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND NOT t.tgisinternal`;
+  const haveIdx = new Set(idx.map((r) => r.indexname));
+  const haveTrg = new Set(trg.map((r) => r.tgname));
+  const out: { name: string; ok: boolean; detail: string }[] = [];
+  for (const name of REQUIRED_INDEXES) out.push({ name: `index present: ${name}`, ok: haveIdx.has(name), detail: haveIdx.has(name) ? "" : "MISSING" });
+  for (const name of REQUIRED_TRIGGERS) out.push({ name: `trigger present: ${name}`, ok: haveTrg.has(name), detail: haveTrg.has(name) ? "" : "MISSING" });
+  return out;
+}
+
 async function main() {
   const counts = {
     tables: await prisma.$queryRaw<{ n: bigint }[]>`SELECT count(*) n FROM pg_tables WHERE schemaname='public' AND tablename <> '_prisma_migrations'`,
@@ -74,7 +98,13 @@ async function main() {
   console.log('tables', Number(counts.tables[0].n), '| with RLS', Number(counts.rls[0].n));
   console.log({ roles: counts.roles, perms: counts.perms, courses: counts.courses, sections: counts.sections, items: counts.items, batches: counts.batches, settings: counts.settings, superAdmins: counts.admin });
 
-  let failed = 0;
+  // RLS must cover every public table: a new table without it is exposed to Supabase REST roles.
+  const tableN = Number(counts.tables[0].n), rlsN = Number(counts.rls[0].n);
+  const rlsOk = tableN === rlsN;
+  console.log(rlsOk ? 'PASS' : 'FAIL', '- RLS enabled on every public table', rlsOk ? '' : `${tableN - rlsN} table(s) without RLS`);
+
+  let failed = rlsOk ? 0 : 1;
+  for (const p of await presenceChecks()) { if (!p.ok) failed++; console.log(p.ok ? 'PASS' : 'FAIL', '-', p.name, p.detail); }
   for (const c of CHECKS) {
     const r = await runCheck(c);
     if (!r.ok) failed++;

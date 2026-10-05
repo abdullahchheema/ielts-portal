@@ -1,3 +1,19 @@
+// WARNING: this schema is a SUBSET of the real database.
+//
+// The migrations in ./migrations are the source of truth. They also create objects Prisma
+// cannot express and will not see here: ~25 CHECK constraints, 3 functions, 10 triggers
+// (audit_logs / payment_events / submission_feedback / rubric_scores are immutable at the
+// engine level), 7 partial & expression unique indexes, and RLS on every table.
+//
+// Therefore: NEVER run `prisma migrate dev`. There is no shadow database configured, so it
+// would try to create and drop a database on the production instance, and it would generate
+// DROP statements for anything it cannot see. Use `npm run drift` to check, hand-write the
+// migration SQL, then `npm run migrate` (prisma migrate deploy).
+//
+// Partial/expression indexes that exist only in SQL — do not let a migration drop these:
+//   enrollments_one_live_per_batch, seat_reservations_one_open_per_student_batch,
+//   payment_proofs_approved_txn_unique, assessment_attempts_one_in_progress,
+//   submissions_one_open, notifications_user_dedupe_key, courses_single_live
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "rhel-openssl-3.0.x"]
@@ -268,6 +284,10 @@ model StudentProfile {
   dateOfBirth           DateTime? @map("date_of_birth") @db.Date
   gender                String?
   notes                 String?
+  targetListening Decimal? @map("target_listening") @db.Decimal(3, 1)
+  targetReading   Decimal? @map("target_reading")   @db.Decimal(3, 1)
+  targetWriting   Decimal? @map("target_writing")   @db.Decimal(3, 1)
+  targetSpeaking  Decimal? @map("target_speaking")  @db.Decimal(3, 1)
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
 
@@ -296,7 +316,7 @@ model MentorProfile {
   createdAt       DateTime @default(now()) @map("created_at")
 
   user        User                @relation(fields: [userId], references: [id])
-  application TeacherApplication? @relation(fields: [applicationId], references: [id])
+  application TeacherApplication? @relation(fields: [applicationId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   batches     BatchMentor[]
   sessions    LiveSession[]
 
@@ -304,7 +324,7 @@ model MentorProfile {
 }
 
 model TeacherApplication {
-  id                 String    @id @default(uuid()) @db.Uuid
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   status             String    @default("PENDING")
   fullName           String    @map("full_name")
   fatherName         String?   @map("father_name")
@@ -321,8 +341,8 @@ model TeacherApplication {
   emergencyName      String?   @map("emergency_name")
   emergencyRelation  String?   @map("emergency_relation")
   emergencyPhone     String?   @map("emergency_phone")
-  subjects           String[]
-  ieltsModules       String[]  @map("ielts_modules")
+  subjects           String[] @default([])
+  ieltsModules       String[]  @map("ielts_modules") @default([])
   teachingYears      Decimal?  @map("teaching_years") @db.Decimal(4, 1)
   ieltsYears         Decimal?  @map("ielts_years") @db.Decimal(4, 1)
   otherEnglishYears  Decimal?  @map("other_english_years") @db.Decimal(4, 1)
@@ -330,8 +350,8 @@ model TeacherApplication {
   onlineExperience   Boolean?  @map("online_experience")
   inPersonExperience Boolean?  @map("in_person_experience")
   preferredMode      String?   @map("preferred_mode")
-  languages          String[]
-  availableDays      String[]  @map("available_days")
+  languages          String[] @default([])
+  availableDays      String[]  @map("available_days") @default([])
   availableTime      String?   @map("available_time")
   employmentType     String?   @map("employment_type")
   workingHours       String?   @map("working_hours")
@@ -339,7 +359,7 @@ model TeacherApplication {
   noticePeriod       String?   @map("notice_period")
   expectedSalary     Decimal?  @map("expected_salary") @db.Decimal(12, 2)
   expectedHourlyRate Decimal?  @map("expected_hourly_rate") @db.Decimal(12, 2)
-  skills             String[]
+  skills             String[] @default([])
   achievements       String?
   publications       String?
   memberships        String?
@@ -364,7 +384,7 @@ model TeacherApplication {
 }
 
 model TeacherEducation {
-  id            String  @id @default(uuid()) @db.Uuid
+  id            String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   applicationId String  @map("application_id") @db.Uuid
   degree        String
   field         String?
@@ -374,14 +394,14 @@ model TeacherEducation {
   endYear       Int?    @map("end_year")
   grade         String?
 
-  application TeacherApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  application TeacherApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([applicationId])
   @@map("teacher_educations")
 }
 
 model TeacherExperience {
-  id               String    @id @default(uuid()) @db.Uuid
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   applicationId    String    @map("application_id") @db.Uuid
   organization     String
   jobTitle         String    @map("job_title")
@@ -392,28 +412,28 @@ model TeacherExperience {
   responsibilities String?
   reasonForLeaving String?   @map("reason_for_leaving")
 
-  application TeacherApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  application TeacherApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([applicationId])
   @@map("teacher_experiences")
 }
 
 model TeacherCertification {
-  id            String    @id @default(uuid()) @db.Uuid
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   applicationId String    @map("application_id") @db.Uuid
   name          String
   issuer        String?
   issuedAt      DateTime? @map("issued_at") @db.Date
   expiresAt     DateTime? @map("expires_at") @db.Date
 
-  application TeacherApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  application TeacherApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([applicationId])
   @@map("teacher_certifications")
 }
 
 model TeacherReference {
-  id            String  @id @default(uuid()) @db.Uuid
+  id            String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   applicationId String  @map("application_id") @db.Uuid
   name          String
   organization  String?
@@ -422,14 +442,14 @@ model TeacherReference {
   phone         String?
   email         String?
 
-  application TeacherApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  application TeacherApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([applicationId])
   @@map("teacher_references")
 }
 
 model TeacherDocument {
-  id            String   @id @default(uuid()) @db.Uuid
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   applicationId String   @map("application_id") @db.Uuid
   kind          String
   label         String?
@@ -437,7 +457,7 @@ model TeacherDocument {
   fileMime      String   @map("file_mime")
   createdAt     DateTime @default(now()) @map("created_at")
 
-  application TeacherApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  application TeacherApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([applicationId])
   @@map("teacher_documents")
@@ -653,6 +673,7 @@ model BatchMentor {
   mentor MentorProfile @relation(fields: [mentorId], references: [id])
 
   @@id([batchId, mentorId, mentorRole])
+  @@index([mentorId])
   @@map("batch_mentors")
 }
 
@@ -674,6 +695,7 @@ model ContentProgress {
   contentItem ContentItem    @relation(fields: [contentItemId], references: [id])
 
   @@unique([studentId, enrollmentId, contentItemId])
+  @@index([contentItemId, status])
   @@map("content_progress")
 }
 
@@ -708,6 +730,8 @@ model Enrollment {
   certificate Certificate?
 
   @@index([studentId, status])
+  @@index([batchId, status])
+  @@index([status, enrolledAt])
   @@map("enrollments")
 }
 
@@ -744,6 +768,7 @@ model Order {
   redemptions  CouponRedemption[]
 
   @@index([studentId, status])
+  @@index([status, createdAt])
   @@map("orders")
 }
 
@@ -782,6 +807,8 @@ model Payment {
   events  PaymentEvent[]
   refunds Refund[]
 
+  @@index([orderId])
+  @@index([status, createdAt])
   @@map("payments")
 }
 
@@ -994,6 +1021,7 @@ model AssessmentAttempt {
 
   @@unique([assessmentId, studentId, attemptNumber])
   @@index([studentId, status])
+  @@index([submittedAt])
   @@map("assessment_attempts")
 }
 
@@ -1010,6 +1038,7 @@ model AttemptAnswer {
   questionVersion QuestionVersion   @relation(fields: [questionVersionId], references: [id])
 
   @@unique([attemptId, questionVersionId])
+  @@index([questionVersionId, isCorrect])
   @@map("attempt_answers")
 }
 
@@ -1049,7 +1078,7 @@ model RubricScore {
 
   attempt    AssessmentAttempt? @relation(fields: [attemptId], references: [id])
   submission Submission?        @relation(fields: [submissionId], references: [id])
-  feedback   SubmissionFeedback? @relation(fields: [feedbackId], references: [id])
+  feedback   SubmissionFeedback? @relation(fields: [feedbackId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   criterion  RubricCriterion    @relation(fields: [criterionId], references: [id])
 
   @@map("rubric_scores")
@@ -1064,6 +1093,8 @@ model BandConversionTable {
   version       Int      @default(1)
   effectiveDate DateTime @map("effective_date") @db.Date
 
+  // Pinned to the index created in SQL (20260930000000_assessment_engine).
+  @@index([testType, version, rawMin], map: "band_conversion_lookup_idx")
   @@map("band_conversion_tables")
 }
 
@@ -1105,6 +1136,11 @@ model Submission {
   feedback     SubmissionFeedback[]
   rubricScores RubricScore[]
 
+  // Names pinned to the indexes already created in SQL (20260930000100_grading) so Prisma keeps them.
+  @@index([status, submittedAt], map: "submissions_status_submitted_at_idx")
+  @@index([studentId], map: "submissions_student_id_idx")
+  @@index([assignmentId, status])
+  @@index([gradedAt])
   @@map("submissions")
 }
 
@@ -1119,6 +1155,7 @@ model SubmissionFeedback {
   submission   Submission    @relation(fields: [submissionId], references: [id])
   rubricScores RubricScore[]
 
+  @@index([mentorId, createdAt])
   @@map("submission_feedback")
 }
 
@@ -1139,6 +1176,7 @@ model LiveSession {
   attendance Attendance[]
 
   @@index([batchId, startsAt])
+  @@index([mentorId, startsAt])
   @@map("live_sessions")
 }
 
@@ -1150,12 +1188,15 @@ model Attendance {
   joinedAt        DateTime?         @map("joined_at")
   leftAt          DateTime?         @map("left_at")
   minutesAttended Int?              @map("minutes_attended")
+  note        String?
+  markedAt    DateTime? @map("marked_at")
   markedBy        String?           @map("marked_by") @db.Uuid
 
   session LiveSession    @relation(fields: [sessionId], references: [id])
   student StudentProfile @relation(fields: [studentId], references: [id])
 
   @@unique([sessionId, studentId])
+  @@index([studentId, status])
   @@map("attendance")
 }
 
@@ -1210,7 +1251,7 @@ model SupportTicket {
 }
 
 model TicketMessage {
-  id        String   @id @default(uuid()) @db.Uuid
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   ticketId  String   @map("ticket_id") @db.Uuid
   authorId  String   @map("author_id") @db.Uuid
   body      String
@@ -1224,7 +1265,7 @@ model TicketMessage {
 }
 
 model Certificate {
-  id           String   @id @default(uuid()) @db.Uuid
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   enrollmentId String   @unique @map("enrollment_id") @db.Uuid
   studentId    String   @map("student_id") @db.Uuid
   code         String   @unique
@@ -1255,6 +1296,8 @@ model AuditLog {
 
   @@index([entityType, entityId])
   @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
   @@map("audit_logs")
 }
 

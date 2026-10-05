@@ -58,6 +58,7 @@ export const ErrorCodes = {
   UNSUPPORTED_FILE_TYPE: 'UNSUPPORTED_FILE_TYPE',
   UPLOAD_FAILED: 'UPLOAD_FAILED',
   FILE_UNAVAILABLE: 'FILE_UNAVAILABLE',
+  EXPORT_TOO_LARGE: 'EXPORT_TOO_LARGE',
 } as const;
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];

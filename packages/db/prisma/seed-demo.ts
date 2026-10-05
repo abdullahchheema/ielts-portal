@@ -229,6 +229,55 @@ async function main() {
   const marks: [string, string, string][] = [[past[0].id, s1.id, 'PRESENT'], [past[0].id, s2.id, 'PRESENT'], [past[0].id, s3.id, 'LATE'], [past[1].id, s1.id, 'PRESENT'], [past[1].id, s2.id, 'ABSENT'], [past[1].id, s3.id, 'PRESENT'], [past[2].id, s1.id, 'PRESENT'], [past[2].id, s2.id, 'EXCUSED'], [past[2].id, s3.id, 'PRESENT']];
   await prisma.attendance.createMany({ data: marks.map(([sessionId, studentId, status]) => ({ sessionId, studentId, status: status as never, markedBy: ahmed.userId })) });
 
+  // ── 30-session attendance scenario for risk and attendance analytics ────────────
+  // s1 attends almost everything (healthy), s2 mostly misses (at risk), s3 misses about a quarter of sessions (needs attention).
+  // Sessions are spaced two days apart, so the pattern covers roughly the last two months.
+  const scenarioRows: { sessionId: string; studentId: string; status: string; markedBy: string }[] = [];
+  const scenarioSessions: { id: string; startsAt: Date }[] = [];
+  for (let i = 0; i < 30; i++) {
+    const when = daysAgo(3 + i * 2, 14);
+    const ended = await prisma.liveSession.create({ data: { batchId: sept.id, mentorId: ahmed.id, topic: `Class ${i + 1}`, startsAt: when, endsAt: new Date(when.getTime() + 90 * 60_000), provider: 'ZOOM' } });
+    scenarioSessions.push({ id: ended.id, startsAt: when });
+    scenarioRows.push({ sessionId: ended.id, studentId: s1.id, status: i % 7 === 6 ? 'EXCUSED' : 'PRESENT', markedBy: ahmed.userId });
+    scenarioRows.push({ sessionId: ended.id, studentId: s2.id, status: i % 3 === 0 ? 'PRESENT' : 'ABSENT', markedBy: ahmed.userId });
+    scenarioRows.push({ sessionId: ended.id, studentId: s3.id, status: i % 4 === 0 ? 'ABSENT' : 'PRESENT', markedBy: ahmed.userId });
+  }
+  await prisma.attendance.createMany({ data: scenarioRows as never, skipDuplicates: true });
+
+  // ── A full batch of 25 for the running class, plus one late joiner ───────────────
+  // Twenty-one students with four attendance habits, and one student who joined ten days ago. The
+  // late joiner has no marks for classes that ran before they joined, which is how the engine should see them.
+  const extraRows: { sessionId: string; studentId: string; status: string; markedBy: string }[] = [];
+  for (let n = 9; n <= 30; n++) {
+    const late = n === 30;
+    const joined = daysAgo(late ? 10 : 40);
+    const u = await prisma.user.create({
+      data: {
+        email: `student${n}@example.com`, passwordHash, status: 'ACTIVE', emailVerifiedAt: daysAgo(20),
+        roles: { create: { roleId: studentRole } },
+        student: { create: { firstName: 'Demo', lastName: `Student ${n}`, city: 'Lahore', country: 'Pakistan', targetBand: 6.5, academicOrGeneral: 'ACADEMIC', ieltsExamDate: daysAhead(60 + n) } },
+      },
+      include: { student: true },
+    });
+    const studentId = u.student!.id;
+    await prisma.enrollment.create({
+      data: {
+        studentId, courseId: course.id, courseVersionId: version.id, batchId: sept.id, source: 'ONLINE_PURCHASE', status: 'ACTIVE',
+        createdAt: joined, enrolledAt: joined, accessStartsAt: joined, accessEndsAt: new Date(joined.getTime() + course.defaultAccessDays * DAY),
+      },
+    });
+    const habit = n % 4;
+    scenarioSessions.forEach((session, i) => {
+      if (session.startsAt < joined) return; // not enrolled yet: no mark
+      const status = habit === 0 ? 'PRESENT'
+        : habit === 1 ? (i % 5 === 0 ? 'ABSENT' : 'PRESENT')
+        : habit === 2 ? (i % 2 === 0 ? 'ABSENT' : 'PRESENT')
+        : (i % 4 === 0 ? 'LATE' : 'PRESENT');
+      extraRows.push({ sessionId: session.id, studentId, status, markedBy: ahmed.userId });
+    });
+  }
+  await prisma.attendance.createMany({ data: extraRows as never, skipDuplicates: true });
+
   console.log('Demo data loaded.');
 }
 
