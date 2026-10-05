@@ -25,7 +25,7 @@ function CreateAccount() {
   const onSubmit = handleSubmit(async (values) => {
     setError(null);
     try {
-      await api('/auth/register', { method: 'POST', body: { ...values, phone: values.phone || undefined }, noRefresh: true });
+      await api('/auth/register', { method: 'POST', body: { ...values, phone: values.phone || undefined, next: next ?? undefined }, noRefresh: true });
       setSentTo(values.email);
     } catch (e) {
       if (e instanceof ApiError && e.code === 'EMAIL_ALREADY_REGISTERED') setError('An account with this email already exists. Log in instead.');

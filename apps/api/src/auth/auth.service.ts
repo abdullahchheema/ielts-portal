@@ -58,17 +58,19 @@ export class AuthService {
         throw e;
       });
 
-    await this.sendVerification(user.id, user.email);
+    await this.sendVerification(user.id, user.email, input.next);
     await this.audit.record({ userId: user.id, action: 'USER_REGISTERED', entityType: 'User', entityId: user.id, ...meta });
     return { id: user.id, email: user.email };
   }
 
-  async sendVerification(userId: string, email: string) {
+  async sendVerification(userId: string, email: string, next?: string) {
     const token = randomToken();
     await this.prisma.emailVerificationToken.create({
       data: { userId, tokenHash: sha256(token), expiresAt: new Date(Date.now() + 24 * 3600_000) },
     });
-    const link = `${this.config.APP_URL}/verify-email?token=${token}`;
+    const query = new URLSearchParams({ token });
+    if (next) query.set('next', next);
+    const link = `${this.config.APP_URL}/verify-email?${query.toString()}`;
     await this.mail.send(
       email,
       'Verify your email',
