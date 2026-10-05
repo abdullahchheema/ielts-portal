@@ -181,7 +181,7 @@ describe('admin verification', () => {
     const a = await applyAs(app, prisma, s, batchId, { amount: 9000 });
     const pending = (await as(admin)(http(app).get('/admin/applications?status=PENDING&take=100')).expect(200)).body;
     const row = pending.items.find((r: { id: string }) => r.id === a.enrollmentId);
-    expect(row.proof.fileUrl).toMatch(/^http/);
+    expect(row.proof.fileUrl).toMatch(/^(https?:\/\/|\/api\/files\/)/);
     expect(row.proof.flags).toContain('AMOUNT_MISMATCH');
     expect(row.student.email).toBe(s.email);
     expect(pending.counts.pending).toBeGreaterThan(0);

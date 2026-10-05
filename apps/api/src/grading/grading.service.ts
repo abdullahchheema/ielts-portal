@@ -1,3 +1,4 @@
+import { overseesAllBatches } from '../common/scope';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@ielts/db';
 import { randomUUID } from 'node:crypto';
@@ -175,7 +176,7 @@ export class GradingService {
       const some = (roles: ('MAIN' | 'WRITING' | 'SPEAKING')[]) => ({ enrollment: { batch: { mentors: { some: { mentorId: r.mentorId, mentorRole: { in: roles } } } } } });
       return { OR: [{ assignment: { skill: 'WRITING' }, ...some(['MAIN', 'WRITING']) }, { assignment: { skill: 'SPEAKING' }, ...some(['MAIN', 'SPEAKING']) }] };
     }
-    if (r.permissions.has('batch.create')) return {}; // academic admins oversee every batch
+    if (overseesAllBatches(r.permissions)) return {}; // academic admins oversee every batch
     throw forbidden('You are not assigned to grade submissions.');
   }
 

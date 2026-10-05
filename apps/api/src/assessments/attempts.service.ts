@@ -1,3 +1,4 @@
+import { BandService } from '../analytics/band.service';
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Prisma } from '@ielts/db';
 import type { SaveAnswersInput } from '@ielts/validation';
@@ -33,6 +34,7 @@ export class AttemptsService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly prisma: PrismaService,
     private readonly learning: LearningService,
+    private readonly bands: BandService,
     private readonly storage: StorageService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
@@ -352,38 +354,10 @@ export class AttemptsService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** Per-skill band history (never overwritten) with latest and best. Writing/speaking join this in the grading pass. */
+  /** Per-skill band history. The estimate itself lives in BandService so every screen agrees. */
   async skillProgress(studentId: string) {
-    const rows = await this.prisma.assessmentAttempt.findMany({
-      where: { studentId, bandScore: { not: null }, assessment: { skill: { not: null } } },
-      orderBy: { submittedAt: 'asc' }, include: { assessment: { select: { skill: true, title: true } } },
-    });
-    const out: Record<string, { latest: number | null; best: number | null; series: { at: Date | null; band: number; title: string }[] }> = {};
-    for (const skill of ['LISTENING', 'READING', 'WRITING', 'SPEAKING']) out[skill] = { latest: null, best: null, series: [] };
-    for (const r of rows) {
-      const s = out[r.assessment.skill!];
-      if (!s) continue;
-      const band = Number(r.bandScore);
-      s.series.push({ at: r.submittedAt, band, title: r.assessment.title });
-      s.latest = band;
-      s.best = s.best === null ? band : Math.max(s.best, band);
-    }
-    // Mentor-graded writing/speaking bands join the same history.
-    const graded = await this.prisma.submission.findMany({
-      where: { studentId, status: 'GRADED', finalBand: { not: null } }, orderBy: { gradedAt: 'asc' },
-      include: { assignment: { select: { skill: true, contentItem: { select: { title: true } } } } },
-    });
-    for (const g of graded) {
-      const s = out[g.assignment.skill];
-      if (!s) continue;
-      const band = Number(g.finalBand);
-      s.series.push({ at: g.gradedAt, band, title: g.assignment.contentItem.title });
-      s.latest = band;
-      s.best = s.best === null ? band : Math.max(s.best, band);
-    }
-    for (const s of Object.values(out)) s.series.sort((x, y) => (x.at?.getTime() ?? 0) - (y.at?.getTime() ?? 0));
-    // latest = most recent by date across sources
-    for (const s of Object.values(out)) if (s.series.length) s.latest = s.series[s.series.length - 1].band;
-    return out;
+    const est = await this.bands.forStudent(studentId);
+    return est.skills;
   }
 
   // ───────── sweeper ─────────
