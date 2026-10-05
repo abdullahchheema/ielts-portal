@@ -11,7 +11,7 @@
     "seed": "dotenv -e ../../.env -- tsx prisma/seed.ts",
     "reset": "dotenv -e ../../.env -- tsx prisma/reset.ts",
     "seed:demo": "dotenv -e ../../.env -- tsx prisma/seed-demo.ts",
-    "drift": "dotenv -e ../../.env -- sh -c \"prisma migrate diff --from-url \\\"$DIRECT_URL\\\" --to-schema-datamodel prisma/schema.prisma --script\""
+    "drift": "node scripts/drift.js"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
