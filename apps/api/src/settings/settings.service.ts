@@ -1,4 +1,5 @@
 import { ANALYTICS_DEFAULTS, ANALYTICS_SETTING_SCHEMAS } from '../analytics/thresholds';
+import { REFERRAL_DEFAULTS, REFERRAL_SETTING_SCHEMAS } from '../referrals/settings';
 import { Controller, Get, Injectable, Put, Body, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { Prisma } from '@ielts/db';
@@ -28,6 +29,7 @@ export const SETTING_SCHEMAS = {
   'commerce.currency': z.string().length(3).toUpperCase(),
   'commerce.refund_window_days': z.number().int().min(0).max(365),
   ...ANALYTICS_SETTING_SCHEMAS,
+  ...REFERRAL_SETTING_SCHEMAS,
 } as const;
 
 export type SettingKey = keyof typeof SETTING_SCHEMAS;
@@ -41,6 +43,7 @@ const DEFAULTS: Record<SettingKey, unknown> = {
   'commerce.currency': 'PKR',
   'commerce.refund_window_days': 7,
   ...ANALYTICS_DEFAULTS,
+  ...REFERRAL_DEFAULTS,
 };
 
 @Injectable()
@@ -83,6 +86,10 @@ const patchSchema = z
     'analytics.band.window': ANALYTICS_SETTING_SCHEMAS['analytics.band.window'].optional(),
     'analytics.attendance.low_percent': ANALYTICS_SETTING_SCHEMAS['analytics.attendance.low_percent'].optional(),
     'analytics.grading.target_hours': ANALYTICS_SETTING_SCHEMAS['analytics.grading.target_hours'].optional(),
+    'referrals.reward': REFERRAL_SETTING_SCHEMAS['referrals.reward'].optional(),
+    'referrals.monthly_cap': REFERRAL_SETTING_SCHEMAS['referrals.monthly_cap'].optional(),
+    'referrals.qualify_after_days': REFERRAL_SETTING_SCHEMAS['referrals.qualify_after_days'].optional(),
+    'referrals.auto_reward': REFERRAL_SETTING_SCHEMAS['referrals.auto_reward'].optional(),
   })
   .strict()
   .refine((o) => Object.keys(o).length > 0, 'Provide at least one setting.');

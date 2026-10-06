@@ -7,7 +7,7 @@ import { AppError, notFound } from '../common/app-error';
 import { Actor } from '../courses/courses.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { ENROLLMENT_ACTIVATED, EnrollmentActivatedEvent } from './applications.service';
+import { ENROLLMENT_ACTIVATED, EnrollmentActivatedEvent } from './events';
 
 @Injectable()
 export class EnrollmentsService {

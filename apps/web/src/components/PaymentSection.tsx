@@ -1,9 +1,10 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { useEffect } from 'react';
-import { Alert, Card, Field, Input, Loading, Select, FileInput } from '@/components/ui';
+import { useEffect, useState } from 'react';
+import { Alert, Button, Card, Field, Input, Loading, Select, FileInput } from '@/components/ui';
 import { api } from '@/lib/api';
+import { errorMessage } from '@/lib/errors';
 import { money } from '@/lib/format';
 
 export interface PaymentMethodInfo {
@@ -11,11 +12,11 @@ export interface PaymentMethodInfo {
 }
 
 export interface PaymentValues {
-  paymentMethod: string; transactionReference: string; claimedAmount: string; transferDate: string; senderName: string; file: File | null;
+  paymentMethod: string; transactionReference: string; claimedAmount: string; transferDate: string; senderName: string; couponCode: string; file: File | null;
 }
 
 export const emptyPayment = (amount: string | number = ''): PaymentValues => ({
-  paymentMethod: '', transactionReference: '', claimedAmount: String(amount), transferDate: new Date().toISOString().slice(0, 10), senderName: '', file: null,
+  paymentMethod: '', transactionReference: '', claimedAmount: String(amount), transferDate: new Date().toISOString().slice(0, 10), senderName: '', couponCode: '', file: null,
 });
 
 export const METHOD_LABEL: Record<string, string> = { BANK_TRANSFER: 'Bank transfer', JAZZCASH: 'JazzCash', EASYPAISA: 'Easypaisa', OTHER: 'Other' };
@@ -41,14 +42,15 @@ export function paymentFormData(v: PaymentValues, extra: Record<string, string> 
   fd.append('claimedAmount', v.claimedAmount);
   fd.append('transferDate', v.transferDate);
   if (v.senderName.trim()) fd.append('senderName', v.senderName.trim());
+  if (v.couponCode.trim()) fd.append('couponCode', v.couponCode.trim().toUpperCase());
   for (const [k, val] of Object.entries(extra)) fd.append(k, val);
   if (v.file) fd.append('file', v.file);
   return fd;
 }
 
 /** Payment method picker, the account to pay into, and the proof fields. Used by the enrollment form and by resubmissions. */
-export function PaymentSection({ value, onChange, errors, amount, currency = 'PKR' }: {
-  value: PaymentValues; onChange: (v: PaymentValues) => void; errors: Record<string, string>; amount?: string | number; currency?: string;
+export function PaymentSection({ value, onChange, errors, amount, currency = 'PKR', batchId }: {
+  value: PaymentValues; onChange: (v: PaymentValues) => void; errors: Record<string, string>; amount?: string | number; currency?: string; batchId?: string;
 }) {
   const methods = useQuery({ queryKey: ['payment-methods'], queryFn: () => api<PaymentMethodInfo[]>('/public/payment-methods') });
   const set = (patch: Partial<PaymentValues>) => onChange({ ...value, ...patch });
@@ -90,6 +92,7 @@ export function PaymentSection({ value, onChange, errors, amount, currency = 'PK
       )}
 
       <div className="grid gap-4 sm:grid-cols-2">
+        {batchId && <CouponField batchId={batchId} value={value.couponCode} currency={currency} onChange={(couponCode) => set({ couponCode })} />}
         <Field label="Transaction / reference number" error={errors.transactionReference}>{(p) => <Input {...p} value={value.transactionReference} onChange={(e) => set({ transactionReference: e.target.value })} />}</Field>
         <Field label={`Amount paid (${currency})`} error={errors.claimedAmount}>{(p) => <Input {...p} type="number" inputMode="decimal" min={0} value={value.claimedAmount} onChange={(e) => set({ claimedAmount: e.target.value })} />}</Field>
         <Field label="Payment date" error={errors.transferDate}>{(p) => <Input {...p} type="date" max={new Date().toISOString().slice(0, 10)} value={value.transferDate} onChange={(e) => set({ transferDate: e.target.value })} />}</Field>
@@ -99,6 +102,41 @@ export function PaymentSection({ value, onChange, errors, amount, currency = 'PK
       <Field label="Payment screenshot or receipt" hint={`JPG, PNG, WebP or PDF, up to ${MAX_PROOF_MB} MB.`} error={errors.file}>
         {(p) => <FileInput {...p} file={value.file} accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(e) => set({ file: e.target.files?.[0] ?? null })} />}
       </Field>
+    </div>
+  );
+}
+
+/** Checks a coupon against the batch before the student pays. The server validates again on submit. */
+function CouponField({ batchId, value, currency, onChange }: { batchId: string; value: string; currency: string; onChange: (code: string) => void }) {
+  const [result, setResult] = useState<{ valid: boolean; reason?: string; discount?: string; total?: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function check() {
+    setBusy(true);
+    try {
+      setResult(await api<{ valid: boolean; reason?: string; discount?: string; total?: string }>('/coupons/preview', { method: 'POST', body: { code: value.trim().toUpperCase(), batchId } }));
+    } catch (e) {
+      setResult({ valid: false, reason: errorMessage(e) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <Field label="Coupon code (optional)">
+        {(p) => (
+          <div className="flex gap-2">
+            <Input {...p} value={value} onChange={(e) => { onChange(e.target.value); setResult(null); }} />
+            <Button variant="secondary" onClick={check} busy={busy} disabled={value.trim().length < 2}>Check</Button>
+          </div>
+        )}
+      </Field>
+      {result && (
+        <p className={result.valid ? 'text-sm text-success' : 'text-sm text-danger'} role="status">
+          {result.valid ? `Discount ${currency} ${Number(result.discount).toLocaleString()}. You pay ${currency} ${Number(result.total).toLocaleString()}.` : result.reason}
+        </p>
+      )}
     </div>
   );
 }

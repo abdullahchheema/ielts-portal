@@ -78,7 +78,12 @@ export class AttemptsService implements OnModuleInit {
 
   // ───────── start ─────────
   /** Which enrollment/content item unlocks this assessment for the student (or throws the reason it is closed). */
-  private async resolveAccess(studentId: string, assessment: { id: string; type: string }) {
+  private async resolveAccess(studentId: string, assessment: { id: string; type: string; origin?: string; generatedForStudentId?: string | null }) {
+    // A personal practice paper belongs to one student and is not tied to a course item.
+    if (assessment.origin === 'ADAPTIVE') {
+      if (assessment.generatedForStudentId !== studentId) throw new AppError('ASSESSMENT_NOT_AVAILABLE', 404, 'This assessment is not available.');
+      return { enrollmentId: null, itemId: null };
+    }
     const items = await this.prisma.contentItem.findMany({
       where: { status: 'PUBLISHED', metadataJson: { path: ['assessmentId'], equals: assessment.id } },
       select: { id: true },

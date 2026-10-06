@@ -65,6 +65,9 @@ export const createCouponSchema = z.object({
   courseId: z.string().uuid().optional(),
   batchId: z.string().uuid().optional(),
   userId: z.string().uuid().optional(),
+  name: z.string().trim().max(120).optional(),
+  description: z.string().trim().max(500).optional(),
+  status: z.enum(['DRAFT', 'ACTIVE']).default('ACTIVE'),
   firstPurchaseOnly: z.boolean().default(false),
   maxRedemptions: z.number().int().min(1).optional(),
   perUserLimit: z.number().int().min(1).default(1),
@@ -72,8 +75,17 @@ export const createCouponSchema = z.object({
   startsAt: z.string().datetime().optional(),
   expiresAt: z.string().datetime().optional(),
 });
+/** Students check a code against a batch before paying. Read-only: nothing is reserved. */
+export const couponPreviewSchema = z.object({
+  code: z.string().trim().toUpperCase().min(2).max(40),
+  batchId: z.string().uuid(),
+});
+
 export const updateCouponSchema = z.object({
   active: z.boolean().optional(),
+  status: z.enum(['DRAFT', 'ACTIVE', 'DISABLED']).optional(),
+  name: z.string().trim().max(120).nullable().optional(),
+  description: z.string().trim().max(500).nullable().optional(),
   maxRedemptions: z.number().int().min(1).nullable().optional(),
   expiresAt: z.string().datetime().nullable().optional(),
   startsAt: z.string().datetime().nullable().optional(),
@@ -82,6 +94,7 @@ export const updateCouponSchema = z.object({
 export type ApproveProofInput = z.infer<typeof approveProofSchema>;
 export type RejectProofInput = z.infer<typeof rejectProofSchema>;
 export type ManualEnrollmentInput = z.infer<typeof manualEnrollmentSchema>;
+export type CouponPreviewInput = z.infer<typeof couponPreviewSchema>;
 export type CreateCouponInput = z.infer<typeof createCouponSchema>;
 export type UpdateCouponInput = z.infer<typeof updateCouponSchema>;
 

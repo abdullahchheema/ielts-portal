@@ -1,6 +1,6 @@
 'use client';
 
-import { UserCheck, BarChart3, FileCheck2, GraduationCap, Layers, Lock, Library, LayoutDashboard, ListChecks, MessagesSquare, Receipt, RotateCcw, ScrollText, Settings, Scale, Tag, UserRound, Wallet, ClipboardList, UsersRound } from 'lucide-react';
+import { UserCheck, BarChart3, Database, FileCheck2, Gift, GraduationCap, Layers, Lock, Library, LayoutDashboard, ListChecks, MessagesSquare, Receipt, RotateCcw, ScrollText, Settings, Scale, Tag, UserRound, Wallet, ClipboardList, UsersRound } from 'lucide-react';
 import { ReactNode } from 'react';
 import { Shell } from '@/components/Shell';
 import { RequireAuth, can, useMe } from '@/lib/auth';
@@ -27,12 +27,14 @@ function AdminShell({ children }: { children: ReactNode }) {
         { title: 'Academics', items: [
           { href: '/admin/course', label: 'Course', icon: Library, show: c('course.view') },
           { href: '/admin/assessments', label: 'Assessments', icon: ListChecks, show: c('assessment.manage') },
+          { href: '/admin/question-bank', label: 'Question bank', icon: Database, show: c('question.manage') },
           { href: '/admin/bands', label: 'Band conversion', icon: Scale, show: c('assessment.manage') },
         ] },
         { title: 'Finance', items: [
           { href: '/admin/orders', label: 'Payments & orders', icon: Wallet, show: c('payment.view') },
           { href: '/admin/refunds', label: 'Refunds', icon: RotateCcw, show: c('payment.refund') },
           { href: '/admin/coupons', label: 'Coupons', icon: Tag, show: c('coupon.manage') },
+          { href: '/admin/referrals', label: 'Referrals', icon: Gift, show: c('referral.manage') },
         ] },
         { title: 'Support', items: [{ href: '/admin/tickets', label: 'Tickets', icon: MessagesSquare, show: c('ticket.manage') }] },
         { title: 'Reports', items: [

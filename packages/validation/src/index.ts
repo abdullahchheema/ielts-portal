@@ -85,6 +85,8 @@ export * from './grading';
 export * from './ops';
 export * from './teacher';
 export * from './lists';
+export * from './question-bank';
+export * from './referrals';
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;

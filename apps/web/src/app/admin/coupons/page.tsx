@@ -9,7 +9,7 @@ import { date } from '@/lib/format';
 
 interface Coupon {
   id: string; code: string; discountType: 'PERCENTAGE' | 'FIXED'; value: string; active: boolean; redeemedCount: number;
-  maxRedemptions: number | null; perUserLimit: number; expiresAt: string | null; firstPurchaseOnly: boolean;
+  maxRedemptions: number | null; perUserLimit: number; expiresAt: string | null; firstPurchaseOnly: boolean; status: string;
 }
 
 export default function CouponsPage() {
@@ -48,7 +48,7 @@ export default function CouponsPage() {
               <Td>{c.discountType === 'PERCENTAGE' ? `${Number(c.value)}%` : `PKR ${Number(c.value).toLocaleString()}`}</Td>
               <Td>{c.redeemedCount}{c.maxRedemptions ? ` / ${c.maxRedemptions}` : ''}</Td>
               <Td>{c.perUserLimit}</Td><Td>{date(c.expiresAt)}</Td>
-              <Td><Badge status={c.active ? 'ACTIVE' : 'DRAFT'} tone={c.active ? 'green' : 'slate'} /></Td>
+              <Td><Badge status={c.status} /></Td>
               <Td><Button variant="ghost" className="!py-1" onClick={() => toggle(c)}>{c.active ? 'Disable' : 'Enable'}</Button></Td>
             </tr>
           ))}

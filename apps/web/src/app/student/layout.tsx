@@ -1,6 +1,6 @@
 'use client';
 
-import { BarChart3, BookMarked, BookOpen, CalendarDays, ClipboardList, Headphones, LayoutDashboard, LifeBuoy, Mic, PenLine, Receipt, Sparkles, Target, TrendingUp, UserCircle, Users } from 'lucide-react';
+import { BarChart3, BookMarked, BookOpen, CalendarDays, ClipboardList, Gift, Headphones, LayoutDashboard, LifeBuoy, Mic, PenLine, Receipt, Sparkles, Target, TrendingUp, UserCircle, Users } from 'lucide-react';
 import { ReactNode } from 'react';
 import { Shell } from '@/components/Shell';
 import { RequireAuth, useMe } from '@/lib/auth';
@@ -31,6 +31,7 @@ function StudentShell({ children }: { children: ReactNode }) {
           { href: '/student/progress', label: 'Progress', icon: TrendingUp },
           { href: '/student/diagnostic', label: 'Diagnostic Test', icon: Target },
           { href: '/student/application', label: 'Application & Payment', icon: Receipt },
+          { href: '/student/referrals', label: 'Referrals', icon: Gift },
           { href: '/student/support', label: 'Support', icon: LifeBuoy },
           { href: '/student/profile', label: 'Profile', icon: UserCircle },
         ] },

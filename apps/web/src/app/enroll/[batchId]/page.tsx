@@ -197,7 +197,7 @@ export default function EnrollPage() {
             <div className="space-y-4">
               <h2 className="text-lg font-semibold">Payment</h2>
               <p className="text-sm text-fg-muted">Pay the course fee, then upload your receipt. Your place is confirmed once the academy verifies the payment.</p>
-              <PaymentSection value={payment} onChange={setPay} errors={errors} amount={price} currency={course.data.currency} />
+              <PaymentSection value={payment} onChange={setPay} errors={errors} amount={price} currency={course.data.currency} batchId={batchId} />
             </div>
           )}
 

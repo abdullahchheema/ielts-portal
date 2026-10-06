@@ -15,12 +15,14 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentMethodSetting, SettingsService } from '../settings/settings.service';
 import { CouponsService } from './coupons.service';
+import { ReferralsService } from '../referrals/referrals.service';
 import { money, newOrderReference, releaseCouponForOrder } from './commerce.helpers';
 
 export const MAX_PROOF_BYTES = 4 * 1024 * 1024;
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
-export const ENROLLMENT_ACTIVATED = 'enrollment.activated';
-export interface EnrollmentActivatedEvent { enrollmentId: string; studentId: string; userId: string; orderId?: string; source: string }
+export { ENROLLMENT_ACTIVATED } from './events';
+import { ENROLLMENT_ACTIVATED, type EnrollmentActivatedEvent } from './events';
+export type { EnrollmentActivatedEvent };
 
 /** What a student sees for an enrollment's state. The database enum is reused; only the wording is academic. */
 export const DISPLAY_STATUS: Partial<Record<EnrollmentStatus, string>> = {
@@ -59,6 +61,7 @@ export class ApplicationsService {
     private readonly storage: StorageService,
     private readonly settings: SettingsService,
     private readonly coupons: CouponsService,
+    private readonly referrals: ReferralsService,
     private readonly audit: AuditService,
     private readonly notify: NotificationsService,
     private readonly events: EventEmitter2,
@@ -182,6 +185,7 @@ export class ApplicationsService {
         // Price comes from the database, never from the browser.
         const price = money(main.course.price);
         const order = await tx.order.create({ data: { reference: newOrderReference(), studentId, subtotal: price, discount: 0, tax: 0, total: price, currency: main.course.currency, status: 'PENDING_REVIEW' } });
+        await this.referrals.markApplied(tx, studentId, order.id);
         let discount = money(0);
         if (pay.couponCode) {
           ({ discount } = await this.coupons.reserveForCheckout(tx, { code: pay.couponCode, studentId, userId, courseId: main.course.id, batchId: batch.id, price, orderId: order.id }));

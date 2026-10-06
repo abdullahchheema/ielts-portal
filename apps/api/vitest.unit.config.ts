@@ -4,5 +4,5 @@ import { defineConfig } from 'vitest/config';
 /** Pure-logic specs only: no database, no network. Fast enough to run on every push. */
 export default defineConfig({
   plugins: [swc.vite({ module: { type: 'es6' } })],
-  test: { include: ['test/grading.spec.ts', 'test/release.spec.ts', 'test/band.spec.ts', 'test/risk.spec.ts', 'test/csv.spec.ts', 'test/content.spec.ts', 'test/platform.spec.ts'] },
+  test: { include: ['test/grading.spec.ts', 'test/release.spec.ts', 'test/band.spec.ts', 'test/risk.spec.ts', 'test/csv.spec.ts', 'test/content.spec.ts', 'test/platform.spec.ts', 'test/rules.spec.ts'] },
 });
