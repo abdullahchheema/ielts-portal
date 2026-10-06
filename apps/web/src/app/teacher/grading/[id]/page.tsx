@@ -5,8 +5,8 @@ import { SkeletonTable } from '@/components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { Alert, Badge, Button, Card, Field, Loading, PageHeader, Select, Textarea } from '@/components/ui';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, Badge, Button, Card, Field, Input, Loading, PageHeader, Select, Textarea } from '@/components/ui';
 import { IeltsBadge, IeltsSummaryLike } from '@/components/IeltsSummary';
 import { ApiError, api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
@@ -16,7 +16,7 @@ interface Detail {
   id: string; status: string; revision: number; submittedAt: string; late: boolean; wordCount: number | null; body: string | null; audioUrl: string | null; finalBand: number | null;
   assignment: { title: string; skill: string; instructions: string | null; minWords: number | null };
   rubric: { name: string; criteria: { id: string; name: string }[] } | null;
-  student: { name: string; currentBand: number | null; targetBand: number | null; ielts?: IeltsSummaryLike };
+  student: { id: string; name: string; currentBand: number | null; targetBand: number | null; ielts?: IeltsSummaryLike };
   feedback: { id: string; createdAt: string; comment: string | null; finalBand: number | null; scores: { criterionId: string; criterion: string; score: number; comment: string | null }[] }[];
 }
 
@@ -42,6 +42,42 @@ export default function GradePage() {
     setNotes(Object.fromEntries(f.scores.map((x) => [x.criterionId, x.comment ?? ''])));
     setComment(f.comment ?? '');
   }, [s?.id, s?.revision]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Autosave: the draft is kept per teacher and submission. Stale saves are refused by revision, so two tabs never overwrite each other.
+  const draftQ = useQuery({
+    queryKey: ['grade-draft', id],
+    queryFn: () => api<{ revision: number; scores: { criterionId: string; score: number }[]; comment: string | null }>(`/mentor/submissions/${id}/draft`),
+    enabled: !!s, retry: false,
+  });
+  const draftRev = useRef(0);
+  const hydrated = useRef(false);
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+  useEffect(() => {
+    if (!draftQ.data || hydrated.current) return;
+    hydrated.current = true;
+    draftRev.current = draftQ.data.revision;
+    if (draftQ.data.revision && !s?.feedback[0]) {
+      setScores(Object.fromEntries(draftQ.data.scores.map((x) => [x.criterionId, String(x.score)])));
+      setComment(draftQ.data.comment ?? '');
+    }
+  }, [draftQ.data, s?.feedback]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!hydrated.current || !s || s.feedback[0]) return;
+    const t = setTimeout(async () => {
+      const rows = (s.rubric?.criteria ?? []).filter((c) => scores[c.id] !== undefined && scores[c.id] !== '').map((c) => ({ criterionId: c.id, score: Number(scores[c.id]) }));
+      try {
+        const out = await api<{ revision: number }>(`/mentor/submissions/${id}/draft`, { method: 'PUT', body: { revision: draftRev.current, scores: rows, comment: comment || null } });
+        draftRev.current = out.revision;
+        setSavedAt(new Date().toLocaleTimeString());
+      } catch (e) {
+        if (e instanceof ApiError && e.code === 'CONFLICT') {
+          const fresh = await draftQ.refetch();
+          if (fresh.data) draftRev.current = fresh.data.revision;
+        }
+      }
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [scores, comment]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (isLoading) return <SkeletonTable rows={6} cols={5} />;
   if (isError || !s) return <Alert>{errorMessage(error)}</Alert>;
@@ -93,9 +129,42 @@ export default function GradePage() {
           ))}
           <div className="rounded-md bg-primary-soft px-3 py-2 text-sm" aria-live="polite">Overall band: <strong className="text-lg text-indigo-800">{preview === null ? '—' : preview.toFixed(1)}</strong></div>
           <Field label="Overall comment for the student">{(p) => <Textarea {...p} rows={4} value={comment} onChange={(e) => setComment(e.target.value)} />}</Field>
+          {savedAt && !s.feedback[0] && <p className="text-xs text-fg-subtle" aria-live="polite">Draft saved at {savedAt}</p>}
           <Button onClick={submit} busy={busy} disabled={preview === null} className="w-full">{s.status === 'GRADED' ? 'Save new grade' : 'Submit grade'}</Button>
+          <GrammarTag studentId={s.student.id} />
         </Card>
       </div>
     </>
+  );
+}
+
+const GRAMMAR_CODES = ['ARTICLES', 'TENSES', 'PREPOSITIONS', 'SUBJECT_VERB', 'WORD_FORM', 'FRAGMENTS', 'RUN_ONS', 'CONDITIONALS', 'COMPLEX', 'PUNCTUATION'] as const;
+
+/** A teacher's grammar note for the student. Stored with the student's grammar history, separately from the grade. */
+function GrammarTag({ studentId }: { studentId: string }) {
+  const [code, setCode] = useState('');
+  const [excerpt, setExcerpt] = useState('');
+  const [correction, setCorrection] = useState('');
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  async function save() {
+    setBusy(true); setMsg(null);
+    try {
+      await api(`/mentor/students/${studentId}/grammar-tags`, { method: 'POST', body: { categoryCode: code, excerpt, correction: correction || undefined } });
+      setExcerpt(''); setCorrection(''); setMsg('Grammar note saved.');
+    } catch (e) { setMsg(errorMessage(e)); } finally { setBusy(false); }
+  }
+  return (
+    <div className="space-y-2 border-t border-border pt-4">
+      <p className="text-sm font-medium">Grammar note</p>
+      <Select aria-label="Grammar category" value={code} onChange={(e) => setCode(e.target.value)}>
+        <option value="">Choose a category</option>
+        {GRAMMAR_CODES.map((c) => <option key={c} value={c}>{c.toLowerCase().replace(/_/g, ' ')}</option>)}
+      </Select>
+      <Input aria-label="Excerpt from the essay" placeholder="The phrase from the essay" value={excerpt} maxLength={300} onChange={(e) => setExcerpt(e.target.value)} />
+      <Input aria-label="Suggested correction" placeholder="Suggested correction (optional)" value={correction} maxLength={300} onChange={(e) => setCorrection(e.target.value)} />
+      {msg && <p className="text-xs text-fg-muted" aria-live="polite">{msg}</p>}
+      <Button variant="secondary" onClick={save} busy={busy} disabled={!code || excerpt.trim().length < 3}>Save grammar note</Button>
+    </div>
   );
 }

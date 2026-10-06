@@ -61,7 +61,7 @@ function QuestionInput({ q, value, onChange, disabled }: { q: Question; value: u
   );
 }
 
-function ResultView({ r, lessonHref }: { r: Result; lessonHref: string }) {
+function ResultView({ r, attemptId, lessonHref }: { r: Result; attemptId: string; lessonHref: string }) {
   const { score } = r;
   return (
     <>
@@ -81,6 +81,7 @@ function ResultView({ r, lessonHref }: { r: Result; lessonHref: string }) {
                 <p className="mb-2 text-sm font-medium"><span className="mr-2 text-fg-subtle">{i + 1}.</span>{q.prompt.text} <span className={q.correct ? 'text-success' : 'text-danger'}>{q.correct ? '✓ Correct' : '✗ Incorrect'}</span></p>
                 <p className="text-sm text-fg-muted">Your answer: <strong>{describe(q, q.yourAnswer)}</strong></p>
                 {!q.correct && <p className="text-sm text-fg-muted">Correct answer: <strong>{describe(q, q.correctAnswer)}</strong></p>}
+                <ExplainButton attemptId={attemptId} questionVersionId={q.id} />
               </Card></li>
             ))}
           </ol>
@@ -192,7 +193,7 @@ export default function AttemptPage() {
 
   if (isLoading) return <Loading />;
   if (isError || !data) return <Alert>{errorMessage(error)}</Alert>;
-  if (result) return <ResultView r={result} lessonHref="/student/course" />;
+  if (result) return <ResultView r={result} attemptId={id} lessonHref="/student/course" />;
 
   const mm = remaining !== null ? `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}` : null;
   const low = remaining !== null && remaining < 300;
@@ -235,5 +236,26 @@ export default function AttemptPage() {
         ))}
       </div>
     </>
+  );
+}
+
+/** An AI explanation of one reviewed question. It is advice from the tutor, not a grade, and nothing is stored. */
+function ExplainButton({ attemptId, questionVersionId }: { attemptId: string; questionVersionId: string }) {
+  const [text, setText] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function explain() {
+    setBusy(true); setError(null);
+    try {
+      const out = await api<{ explanation: string }>(`/me/tutor/attempts/${attemptId}/explain`, { method: 'POST', body: { questionVersionId } });
+      setText(out.explanation);
+    } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
+  }
+  return (
+    <div className="mt-2 space-y-2">
+      {text === null && <Button variant="ghost" className="!py-1 text-sm" onClick={explain} busy={busy}>Explain this question</Button>}
+      {text !== null && <p className="rounded-md bg-accent-soft p-3 text-sm text-fg">{text}</p>}
+      {error && <Alert>{error}</Alert>}
+    </div>
   );
 }

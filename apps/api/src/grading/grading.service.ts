@@ -168,7 +168,7 @@ export class GradingService {
       assignment: { include: { contentItem: { select: { title: true } }, rubric: { include: { criteria: { orderBy: { sequence: 'asc' as const } } } } } },
       student: {
         select: {
-          firstName: true, lastName: true, currentBand: true, targetBand: true,
+          id: true, firstName: true, lastName: true, currentBand: true, targetBand: true,
           ieltsHistory: true, ieltsOverall: true, ieltsListening: true, ieltsReading: true, ieltsWriting: true, ieltsSpeaking: true, ieltsTestDate: true, ieltsAttempts: true,
         },
       },
