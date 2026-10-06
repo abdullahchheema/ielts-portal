@@ -28,7 +28,7 @@ function StudentShell({ children }: { children: ReactNode }) {
           { href: '/student/writing-ai', label: 'Writing practice', icon: PenLine },
           { href: '/student/speaking-ai', label: 'Speaking practice', icon: Mic },
           { href: '/student/simulator', label: 'Full simulator', icon: ClipboardList },
-          { href: '/student/ai-practice', label: 'AI Practice', icon: Sparkles },
+          { href: '/student/tutor', label: 'AI tutor', icon: Sparkles },
         ] },
         { title: 'Me', items: [
           { href: '/student/progress', label: 'Progress', icon: TrendingUp },

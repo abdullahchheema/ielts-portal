@@ -35,7 +35,7 @@ export const attendanceSchema = z.object({
 });
 
 // ── support ──
-export const TICKET_CATEGORIES = ['ACCOUNT', 'PAYMENT', 'COURSE', 'TECHNICAL', 'CLASS', 'ASSESSMENT', 'MENTOR', 'OTHER'] as const;
+export const TICKET_CATEGORIES = ['ACCOUNT', 'PAYMENT', 'COURSE', 'TECHNICAL', 'CLASS', 'ASSESSMENT', 'MENTOR', 'OTHER', 'ENROLLMENT', 'CERTIFICATE'] as const;
 export const ticketCreateSchema = z.object({
   category: z.enum(TICKET_CATEGORIES),
   subject: z.string().trim().min(3).max(160),

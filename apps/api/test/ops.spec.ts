@@ -170,7 +170,8 @@ describe('support tickets', () => {
     await as(finance.session)(http(app).get('/admin/tickets')).expect(403);
     await as(st.session)(http(app).get('/admin/tickets')).expect(403);
 
-    const list = (await as(agent.session)(http(app).get('/admin/tickets?status=OPEN')).expect(200)).body;
+    // Payment tickets are routed to finance and become ASSIGNED, so the list is read without a status filter.
+    const list = (await as(agent.session)(http(app).get('/admin/tickets')).expect(200)).body;
     expect(list.items.map((i: { id: string }) => i.id)).toContain(t.id);
     await as(agent.session)(http(app).post(`/admin/tickets/${t.id}/messages`)).send({ body: 'Checking with finance', internal: true }).expect(200);
     await as(agent.session)(http(app).post(`/admin/tickets/${t.id}/messages`)).send({ body: 'Could you resend the receipt?' }).expect(200);

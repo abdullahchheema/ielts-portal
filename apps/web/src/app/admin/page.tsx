@@ -1,49 +1,89 @@
 'use client';
 
-import { BookOpen, FileCheck2, GraduationCap, Layers, UserRound, Users, Wallet } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Empty, Loading, PageHeader, Section, SkeletonCards, StatCard } from '@/components/ui';
+import Link from 'next/link';
+import { Alert, Badge, Card, PageHeader, Section, SkeletonCards, StatCard, Table, Td } from '@/components/ui';
 import { api } from '@/lib/api';
+import { date } from '@/lib/format';
 
-interface Dash {
-  students: number | null; pendingApplications: number | null; pendingVerifications: number | null; enrolledStudents: number | null;
-  activeBatches: number | null; upcomingBatches: number | null; teachers: number | null;
+interface Metric { key: string; label: string; value: number; href: string; attention: boolean }
+interface Center {
+  metrics: Metric[];
+  batchHealth?: { batch: string; status: string; reasons: string[] }[];
+  riskDistribution?: Record<string, number>;
+  enrolmentTrend?: { week: string; count: number }[];
+  recentActivity?: { action: string; entityType: string; createdAt: string }[];
+  alerts?: { level: 'RED' | 'YELLOW'; message: string }[];
 }
 
-export default function AdminDashboard() {
-  const { data, isLoading, isError } = useQuery({ queryKey: ['admin-dashboard'], queryFn: () => api<Dash>('/admin/dashboard') });
-  if (isLoading) return <><PageHeader title="Dashboard" subtitle="Where the academy stands today." /><SkeletonCards count={6} /></>;
-  if (isError || !data) return <Alert>Could not load the dashboard.</Alert>;
-
-  const needsAction = [
-    { label: 'Pending applications', value: data.pendingApplications, href: '/admin/applications', icon: FileCheck2, attention: (data.pendingApplications ?? 0) > 0 },
-    { label: 'Payments to verify', value: data.pendingVerifications, href: '/admin/applications', icon: Wallet, attention: (data.pendingVerifications ?? 0) > 0 },
-  ].filter((t) => t.value !== null);
-  const overview = [
-    { label: 'Enrolled students', value: data.enrolledStudents, href: '/admin/students', icon: GraduationCap },
-    { label: 'Total students', value: data.students, href: '/admin/students', icon: Users },
-    { label: 'Active batches', value: data.activeBatches, href: '/admin/batches', icon: Layers },
-    { label: 'Upcoming batches', value: data.upcomingBatches, href: '/admin/batches', icon: BookOpen },
-    { label: 'Teachers', value: data.teachers, href: '/admin/teachers', icon: UserRound },
-  ].filter((t) => t.value !== null);
-
+/** What needs intervention first. Every number links to the screen where it is handled. */
+export default function AdminHome() {
+  const { data, isLoading, isError } = useQuery({ queryKey: ['command-center'], queryFn: () => api<Center>('/admin/command-center'), refetchInterval: 120_000 });
   return (
     <>
-      <PageHeader title="Dashboard" subtitle="Where the academy stands today. Items that need action are listed first." />
-      {needsAction.length === 0 && overview.length === 0 ? <Empty title="No figures yet">The dashboard has nothing to show for your role.</Empty> : null}
-      {needsAction.length > 0 && (
-        <Section title="Needs action" description="Work waiting on the academy team.">
-          <div className="grid gap-4 sm:grid-cols-2">
-            {needsAction.map((t) => <StatCard key={t.label} label={t.label} value={t.value} href={t.href} icon={t.icon} attention={t.attention} />)}
+      <PageHeader title="Command centre" subtitle="What needs intervention, in order of urgency." />
+      {isLoading && <SkeletonCards count={4} />}
+      {isError && <Alert>Could not load the command centre.</Alert>}
+      {data && (
+        <div className="space-y-8">
+          {data.alerts && data.alerts.length > 0 && (
+            <Section title="System alerts">
+              <ul className="space-y-2">
+                {data.alerts.map((a, i) => (
+                  <li key={i}><Alert kind={a.level === 'RED' ? 'error' : 'warning'}>{a.message}</Alert></li>
+                ))}
+              </ul>
+            </Section>
+          )}
+
+          <Section title="Needs attention">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {data.metrics.map((m) => (
+                <StatCard key={m.key} label={m.label} value={m.value} href={m.href} attention={m.attention} />
+              ))}
+            </div>
+          </Section>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            {data.batchHealth && (
+              <Section title="Batch health">
+                <Card className="space-y-3">
+                  {data.batchHealth.length === 0 ? <p className="text-sm text-fg-muted">No open batches.</p> : data.batchHealth.map((b) => (
+                    <div key={b.batch} className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-medium text-fg">{b.batch}</p>
+                        {b.reasons.length > 0 && <p className="text-xs text-fg-muted">{b.reasons.join(' · ')}</p>}
+                      </div>
+                      <Badge status={b.status === 'RED' ? 'RED' : b.status === 'YELLOW' ? 'AMBER' : 'GREEN'} text={b.status.toLowerCase()} />
+                    </div>
+                  ))}
+                </Card>
+              </Section>
+            )}
+            {data.riskDistribution && (
+              <Section title="Student risk">
+                <Card>
+                  <ul className="grid grid-cols-2 gap-3 text-sm">
+                    {Object.entries(data.riskDistribution).map(([k, v]) => (
+                      <li key={k} className="flex justify-between"><span className="text-fg-muted">{k.replace('_', ' ').toLowerCase()}</span><span className="font-medium tabular-nums text-fg">{v}</span></li>
+                    ))}
+                  </ul>
+                  <Link href="/admin/engagement" className="mt-3 inline-block text-sm font-medium text-primary hover:underline">Open engagement</Link>
+                </Card>
+              </Section>
+            )}
           </div>
-        </Section>
-      )}
-      {overview.length > 0 && (
-        <Section title="Overview">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-            {overview.map((t) => <StatCard key={t.label} label={t.label} value={t.value} href={t.href} icon={t.icon} />)}
-          </div>
-        </Section>
+
+          {data.recentActivity && (
+            <Section title="Recent activity">
+              <Table head={['When', 'Action', 'Record']}>
+                {data.recentActivity.map((a, i) => (
+                  <tr key={i}><Td>{date(a.createdAt)}</Td><Td className="font-mono text-xs">{a.action}</Td><Td>{a.entityType}</Td></tr>
+                ))}
+              </Table>
+            </Section>
+          )}
+        </div>
       )}
     </>
   );

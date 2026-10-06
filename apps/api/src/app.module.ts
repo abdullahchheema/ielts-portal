@@ -13,6 +13,11 @@ import { EngagementModule } from './engagement/engagement.service';
 import { RecordingsModule } from './recordings/recordings.service';
 import { LeaderboardModule } from './leaderboards/leaderboard.service';
 import { TeacherWorkspaceModule } from './teacher-workspace/teacher-workspace';
+import { NotesModule } from './admin-ops/notes';
+import { SearchModule } from './admin-ops/search';
+import { CommandCenterModule } from './admin-ops/command-center';
+import { SupportAssistantModule } from './admin-ops/assistant';
+import { TutorModule } from './tutor/tutor';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { Controller, Get, Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
@@ -57,7 +62,7 @@ class HealthController {
 
 @Module({
   imports: [
-    AnalyticsModule, AiModule, JobsModule, QuestionBankModule, WritingModule, SpeakingModule, MockExamsModule, SimulatorModule, InsightsModule, StudyPlanModule, VocabularyModule, GrammarModule, EngagementModule, RecordingsModule, LeaderboardModule, TeacherWorkspaceModule,
+    AnalyticsModule, AiModule, JobsModule, QuestionBankModule, WritingModule, SpeakingModule, MockExamsModule, SimulatorModule, InsightsModule, StudyPlanModule, VocabularyModule, GrammarModule, EngagementModule, RecordingsModule, LeaderboardModule, TeacherWorkspaceModule, NotesModule, SearchModule, CommandCenterModule, SupportAssistantModule, TutorModule,
     ConfigModule, PrismaModule, IntegrationsModule, AuditModule, EventEmitterModule.forRoot(), JwtModule.register({}),
     AuthModule, RolesModule, SettingsModule, NotificationsModule, CoursesModule, BatchesModule, CommerceModule, LearningModule, AssessmentsModule, GradingModule, LiveModule, SupportModule, ReportsModule, LifecycleModule, CertificatesModule, AdminModule, TeachersModule,
   ],

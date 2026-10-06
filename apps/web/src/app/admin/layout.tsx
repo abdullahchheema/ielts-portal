@@ -1,15 +1,32 @@
 'use client';
 
 import { UserCheck, BarChart3, Database, FileCheck2, Gift, GraduationCap, Layers, Lock, Library, LayoutDashboard, ListChecks, MessagesSquare, Receipt, RotateCcw, ScrollText, Settings, Scale, Tag, UserRound, Wallet, ClipboardList, UsersRound } from 'lucide-react';
-import { ReactNode } from 'react';
+import { ReactNode, useCallback, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Shell } from '@/components/Shell';
+import { CommandItem, CommandPalette, useCommandShortcut } from '@/components/ui';
+import { api } from '@/lib/api';
 import { RequireAuth, can, useMe } from '@/lib/auth';
+
+interface SearchSection { type: string; items: { id: string; label: string; sub?: string; href: string }[] }
 
 function AdminShell({ children }: { children: ReactNode }) {
   const { data: me } = useMe();
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const openPalette = useCallback(() => setOpen(true), []);
+  useCommandShortcut(openPalette);
+  const results = useQuery({
+    queryKey: ['global-search', query],
+    queryFn: () => api<SearchSection[]>(`/search?q=${encodeURIComponent(query.trim())}`),
+    enabled: open && query.trim().length >= 2,
+  });
+  const items: CommandItem[] = (results.data ?? []).flatMap((s) => s.items.map((i) => ({ id: i.id, group: s.type, label: i.label, hint: i.sub, href: i.href })));
   if (!me) return null;
   const c = (p: string) => can(me, p);
   return (
+    <>
+    <CommandPalette open={open} onClose={() => { setOpen(false); setQuery(''); }} items={items} query={query} onQuery={setQuery} loading={results.isFetching} />
     <Shell
       title="Admin Portal"
       me={me}
@@ -58,6 +75,7 @@ function AdminShell({ children }: { children: ReactNode }) {
     >
       {children}
     </Shell>
+    </>
   );
 }
 

@@ -208,6 +208,7 @@ enum TicketStatus {
   WAITING_FOR_STUDENT
   RESOLVED
   CLOSED
+  ASSIGNED
 }
 
 enum TicketCategory {
@@ -219,6 +220,8 @@ enum TicketCategory {
   ASSESSMENT
   MENTOR
   OTHER
+  ENROLLMENT
+  CERTIFICATE
 }
 
 enum NotificationChannel {
@@ -261,6 +264,9 @@ model User {
   referralAttribution  Referral?              @relation("ReferredUser")
   referralsDecided     Referral[]             @relation("ReferralDecider")
   creditEntriesCreated AccountCreditLedger[]  @relation("CreditCreator")
+  internalNotes        InternalNote[]         @relation("NoteAuthor")
+  knowledgeEdited      KnowledgeArticle[]     @relation("KnowledgeEditor")
+  tutorConversations   AiConversation[]      @relation("TutorOwner")
   vocabularyItemsCreated VocabularyItem[]     @relation("VocabularyCreator")
   attendanceEventsActed AttendanceEvent[]     @relation("AttendanceActor")
   correctionsRequested  AttendanceCorrection[] @relation("CorrectionRequester")
@@ -1321,6 +1327,8 @@ model SupportTicket {
   assignedTo  String?        @map("assigned_to") @db.Uuid
   createdAt   DateTime       @default(now()) @map("created_at")
   resolvedAt  DateTime?      @map("resolved_at")
+  slaDueAt        DateTime?  @map("sla_due_at")
+  firstResponseAt DateTime?  @map("first_response_at")
 
   user     User            @relation(fields: [studentId], references: [id])
   messages TicketMessage[]
@@ -1417,6 +1425,8 @@ model AiRequest {
   costEstimate Decimal? @map("cost_estimate") @db.Decimal(10, 4)
   errorCode    String?  @map("error_code")
   createdAt    DateTime @default(now()) @map("created_at")
+
+  messages     AiMessage[]
 
   @@index([userId, createdAt], map: "ai_requests_user_created_idx")
   @@index([feature, createdAt], map: "ai_requests_feature_created_idx")
@@ -2089,4 +2099,70 @@ model BatchHealthSnapshot {
   batch Batch @relation(fields: [batchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@map("batch_health_snapshots")
+}
+
+// ───────── Admin experience ─────────
+model InternalNote {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  targetType String    @map("target_type")
+  targetId   String    @map("target_id") @db.Uuid
+  authorId   String    @map("author_id") @db.Uuid
+  body       String
+  visibility String    @default("ALL_STAFF")
+  pinned     Boolean   @default(false)
+  deletedAt  DateTime? @map("deleted_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  author User @relation("NoteAuthor", fields: [authorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([targetType, targetId, createdAt], map: "internal_notes_target_idx")
+  @@map("internal_notes")
+}
+
+model KnowledgeArticle {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title     String
+  body      String
+  audience  String   @default("STAFF")
+  status    String   @default("DRAFT")
+  updatedById String? @map("updated_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  updatedBy User? @relation("KnowledgeEditor", fields: [updatedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("knowledge_articles")
+}
+
+model AiConversation {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  mode      String    @default("GENERAL")
+  title     String    @default("New chat")
+  deletedAt DateTime? @map("deleted_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  user     User        @relation("TutorOwner", fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  messages AiMessage[]
+
+  @@index([userId, updatedAt], map: "ai_conversations_user_idx")
+  @@map("ai_conversations")
+}
+
+model AiMessage {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId String   @map("conversation_id") @db.Uuid
+  role           String
+  content        String
+  sources        Json?
+  aiRequestId    String?  @map("ai_request_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  aiRequest    AiRequest?     @relation(fields: [aiRequestId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([conversationId, createdAt], map: "ai_messages_conversation_idx")
+  @@map("ai_messages")
 }
