@@ -6,6 +6,8 @@ import { Alert, Card, Empty, Loading, PageHeader, Section, Select, StatCard, Tab
 import { api } from '@/lib/api';
 import { date, label } from '@/lib/format';
 
+interface Themes { text: string; source: 'AI' | 'RULES' }
+
 interface Npsish { responses: number; promoters: number; passives: number; detractors: number; nps: number | null; responseRate?: number | null; suppressed: boolean }
 interface Summary {
   days: number;
@@ -100,6 +102,8 @@ export default function FeedbackPage() {
             )}
           </Section>
 
+          <ThemesPanel days={days} />
+
           <Section title="Recent responses">
             {s.recent.length === 0 ? <Empty title="No responses in this period" /> : (
               <ul className="space-y-3">
@@ -119,5 +123,26 @@ export default function FeedbackPage() {
         </>
       )}
     </>
+  );
+}
+
+/** A plain-language summary of the comment themes. Written by the AI when available; otherwise the recurring words. */
+function ThemesPanel({ days }: { days: number }) {
+  const [enabled, setEnabled] = useState(false);
+  const themes = useQuery({ queryKey: ['admin-feedback-themes', days], queryFn: () => api<Themes>(`/admin/feedback/themes?days=${days}`), enabled });
+  return (
+    <Section title="Summary of themes" description="Written from the comments, without names. Check it against the responses before acting on it.">
+      <Card className="space-y-3">
+        {!enabled && <button type="button" className="text-sm font-medium text-primary hover:underline" onClick={() => setEnabled(true)}>Summarise the comments</button>}
+        {themes.isLoading && <Loading />}
+        {themes.isError && <Alert>Could not summarise the comments.</Alert>}
+        {themes.data && (
+          <>
+            <p className="text-sm text-fg">{themes.data.text}</p>
+            <p className="text-xs text-fg-subtle">{themes.data.source === 'AI' ? 'Written by the AI.' : 'Recurring words, because the AI is not available.'}</p>
+          </>
+        )}
+      </Card>
+    </Section>
   );
 }

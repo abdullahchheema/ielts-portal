@@ -13,6 +13,8 @@ export interface PaymentMethodInfo {
 
 export interface PaymentValues {
   paymentMethod: string; transactionReference: string; claimedAmount: string; transferDate: string; senderName: string; couponCode: string; file: File | null;
+  /** Spend the account credit on this order. The server works out the amount; the amount paid must match it. */
+  useCredit?: boolean;
 }
 
 export const emptyPayment = (amount: string | number = ''): PaymentValues => ({
@@ -43,6 +45,7 @@ export function paymentFormData(v: PaymentValues, extra: Record<string, string> 
   fd.append('transferDate', v.transferDate);
   if (v.senderName.trim()) fd.append('senderName', v.senderName.trim());
   if (v.couponCode.trim()) fd.append('couponCode', v.couponCode.trim().toUpperCase());
+  if (v.useCredit) fd.append('useCredit', 'true');
   for (const [k, val] of Object.entries(extra)) fd.append(k, val);
   if (v.file) fd.append('file', v.file);
   return fd;
@@ -93,6 +96,7 @@ export function PaymentSection({ value, onChange, errors, amount, currency = 'PK
 
       <div className="grid gap-4 sm:grid-cols-2">
         {batchId && <CouponField batchId={batchId} value={value.couponCode} currency={currency} onChange={(couponCode) => set({ couponCode })} />}
+        <CreditOption value={!!value.useCredit} onChange={(useCredit) => set({ useCredit })} />
         <Field label="Transaction / reference number" error={errors.transactionReference}>{(p) => <Input {...p} value={value.transactionReference} onChange={(e) => set({ transactionReference: e.target.value })} />}</Field>
         <Field label={`Amount paid (${currency})`} error={errors.claimedAmount}>{(p) => <Input {...p} type="number" inputMode="decimal" min={0} value={value.claimedAmount} onChange={(e) => set({ claimedAmount: e.target.value })} />}</Field>
         <Field label="Payment date" error={errors.transferDate}>{(p) => <Input {...p} type="date" max={new Date().toISOString().slice(0, 10)} value={value.transferDate} onChange={(e) => set({ transferDate: e.target.value })} />}</Field>
@@ -138,5 +142,20 @@ function CouponField({ batchId, value, currency, onChange }: { batchId: string; 
         </p>
       )}
     </div>
+  );
+}
+
+/** Offers the student's account credit when they have some. The server decides the amount and never makes the order free. */
+function CreditOption({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
+  const q = useQuery({ queryKey: ['my-referrals-balance'], queryFn: () => api<{ balance: string }>('/me/referrals'), retry: false });
+  const balance = Number(q.data?.balance ?? 0);
+  if (!(balance > 0)) return null;
+  return (
+    <label className="flex items-start gap-2 text-sm text-fg sm:col-span-2">
+      <input type="checkbox" className="mt-1" checked={value} onChange={(e) => onChange(e.target.checked)} />
+      <span>
+        Use my account credit ({balance.toFixed(2)} available). It reduces what you owe on this order. Enter the amount you actually paid below.
+      </span>
+    </label>
   );
 }
