@@ -38,6 +38,10 @@ function AdminShell({ children }: { children: ReactNode }) {
           { href: '/admin/referrals', label: 'Referrals', icon: Gift, show: c('referral.manage') },
         ] },
         { title: 'Support', items: [{ href: '/admin/tickets', label: 'Tickets', icon: MessagesSquare, show: c('ticket.manage') }] },
+        { title: 'Student care', items: [
+          { href: '/admin/engagement', label: 'Engagement', icon: UsersRound, show: c('engagement.followup') },
+          { href: '/admin/attendance-corrections', label: 'Attendance corrections', icon: ClipboardList, show: c('attendance.correct') },
+        ] },
         { title: 'Reports', items: [
           { href: '/admin/analytics', label: 'Analytics', icon: BarChart3, show: c('report.academic.view') && c('student.view') },
           { href: '/admin/analytics/content', label: 'Course & questions', icon: Library, show: c('report.academic.view') && c('course.view') },

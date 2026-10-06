@@ -1,4 +1,5 @@
 import { overseesAllBatches } from '../common/scope';
+import { attendanceWarnings, DEFAULT_ATTENDANCE_RULES } from '../engagement/engagement-rules';
 import { Body, Controller, Delete, Get, HttpCode, Injectable, Module, Param, ParseUUIDPipe, Patch, Post, Put, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { AttendanceInput, SessionInput, UpdateSessionInput, attendanceSchema, sessionSchema, updateSessionSchema } from '@ielts/validation';
@@ -9,10 +10,15 @@ import { ZodPipe } from '../common/zod.pipe';
 import { Actor } from '../courses/courses.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { AttendanceCorrectionsModule } from './attendance-corrections';
+import { ClassSessionsModule } from './class-sessions';
 import { UserContextService } from '../roles/user-context.service';
 
 const JOIN_EARLY_MS = 15 * 60_000;
-export interface Reviewer { userId: string; mentorId?: string; canOverseeAll: boolean }
+export interface Reviewer { userId: string; mentorId?: string; canOverseeAll: boolean; canCorrect?: boolean }
+
+/** After this long, a teacher can no longer change a mark directly; they must request a correction. */
+export const ATTENDANCE_EDIT_WINDOW_HOURS = 24;
 const bad = (field: string, msg: string) => new AppError('VALIDATION_ERROR', 422, 'Some fields are invalid.', { [field]: msg });
 
 @Injectable()
@@ -137,6 +143,12 @@ export class LiveService {
         where: { sessionId, studentId: { in: input.records.map((x) => x.studentId) } },
       })).map((a) => [a.studentId, a]));
       const corrections: { attendanceId: string; studentId: string; before: AttendanceSnapshot; after: AttendanceSnapshot }[] = [];
+      // Past the edit window a teacher cannot overwrite a mark. Staff with attendance.correct still can, and it is audited.
+      const windowClosed = Date.now() > s.endsAt.getTime() + ATTENDANCE_EDIT_WINDOW_HOURS * 3_600_000;
+      if (windowClosed && !r.canOverseeAll && !r.canCorrect) {
+        const wouldChange = input.records.some((x) => { const p = before.get(x.studentId); return !!p && p.status !== x.status; });
+        if (wouldChange) throw new AppError('CONFLICT', 409, 'The edit window for this class has closed. Request a correction instead.');
+      }
       for (const x of input.records) {
         const prev = before.get(x.studentId);
         const noteProvided = x.note !== undefined;
@@ -149,6 +161,10 @@ export class LiveService {
         // A correction is a change to a status or note that already existed. An unchanged re-save writes no diff.
         const changed = prev && (prev.status !== x.status || (prev.note ?? null) !== note);
         if (prev && changed) corrections.push({ attendanceId: row.id, studentId: x.studentId, before: snapshot(prev), after: snapshot(row) });
+        // Every mark and change is recorded as an append-only event, separate from the mutable row.
+        if (!prev || changed) {
+          await tx.attendanceEvent.create({ data: { sessionId, studentId: x.studentId, action: prev ? 'CHANGED' : 'MARKED', beforeStatus: prev?.status ?? null, afterStatus: x.status, actorId: actor.userId } });
+        }
       }
       await this.audit.record({ ...actor, action: 'ATTENDANCE_MARKED', entityType: 'LiveSession', entityId: sessionId, after: { count: input.records.length, corrected: corrections.length } }, tx);
       // Per-record before and after for corrections, so a change to a historical record is never anonymous.
@@ -160,7 +176,19 @@ export class LiveService {
         await this.audit.record({ ...actor, action: 'ATTENDANCE_CORRECTED_BULK', entityType: 'LiveSession', entityId: sessionId, after: { corrections } }, tx);
       }
     });
+    await this.recalcWarnings(input.records.map((x) => x.studentId)).catch(() => undefined);
     return { ok: true };
+  }
+
+  /** Recomputes attendance warnings for the given students. Each warning is written once per window. */
+  async recalcWarnings(studentIds: string[]) {
+    const now = new Date();
+    for (const studentId of [...new Set(studentIds)]) {
+      const rows = await this.prisma.attendance.findMany({ where: { studentId }, select: { status: true, session: { select: { startsAt: true } } }, take: 500 });
+      const marked = rows.map((r) => ({ startsAt: r.session.startsAt, status: r.status as 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED' }));
+      const warnings = attendanceWarnings(marked, DEFAULT_ATTENDANCE_RULES, now);
+      if (warnings.length) await this.prisma.attendanceWarning.createMany({ data: warnings.map((w) => ({ studentId, rule: w.rule, windowKey: w.windowKey, message: w.message })), skipDuplicates: true });
+    }
   }
 
   // ───────── student ─────────
@@ -221,7 +249,7 @@ export class LiveController {
 
   private async rev(u: AuthUser): Promise<Reviewer> {
     const c = (await this.ctx.get(u.id))!;
-    return { userId: u.id, mentorId: u.mentorId, canOverseeAll: overseesAllBatches(c.permissions) };
+    return { userId: u.id, mentorId: u.mentorId, canOverseeAll: overseesAllBatches(c.permissions), canCorrect: c.permissions.has('attendance.correct') };
   }
 
   @RequirePermission('teaching.view') @Get('mentor/batches/:id/sessions')
@@ -258,5 +286,5 @@ export class LiveController {
   }
 }
 
-@Module({ controllers: [LiveController], providers: [LiveService], exports: [LiveService] })
+@Module({ imports: [AttendanceCorrectionsModule, ClassSessionsModule], controllers: [LiveController], providers: [LiveService], exports: [LiveService] })
 export class LiveModule {}

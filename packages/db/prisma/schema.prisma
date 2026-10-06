@@ -262,6 +262,12 @@ model User {
   referralsDecided     Referral[]             @relation("ReferralDecider")
   creditEntriesCreated AccountCreditLedger[]  @relation("CreditCreator")
   vocabularyItemsCreated VocabularyItem[]     @relation("VocabularyCreator")
+  attendanceEventsActed AttendanceEvent[]     @relation("AttendanceActor")
+  correctionsRequested  AttendanceCorrection[] @relation("CorrectionRequester")
+  correctionsDecided    AttendanceCorrection[] @relation("CorrectionDecider")
+  followUpAssigned      FollowUpTask[]         @relation("FollowUpAssignee")
+  followUpCreated       FollowUpTask[]         @relation("FollowUpCreator")
+  recordingsUploaded    ClassRecording[]       @relation("RecordingUploader")
 
   @@map("users")
 }
@@ -313,7 +319,15 @@ model StudentProfile {
   referralReceived     Referral?             @relation("ReferredStudent")
   creditLedger         AccountCreditLedger[]
   generatedAssessments Assessment[]          @relation("PersonalAssessment")
+  attendanceEvents     AttendanceEvent[]
+  attendanceCorrections AttendanceCorrection[]
+  attendanceWarnings AttendanceWarning[]
+  engagement           StudentEngagement?
+  engagementHistory    EngagementStatusHistory[]
+  followUpTasks        FollowUpTask[]
+  recordingViews       RecordingView[]
   snapshots            StudentSnapshot[]
+  leaderboardOptOut    Boolean   @default(false) @map("leaderboard_opt_out")
   studyPlans           StudyPlan[]
   studyPlanTasks       StudyPlanTask[]
   studentVocabulary    StudentVocabulary[]
@@ -680,6 +694,8 @@ model Batch {
   enrollments  Enrollment[]
   sessions     LiveSession[]
   orderItems   OrderItem[]
+  recordings   ClassRecording[]
+  leaderboards LeaderboardSnapshot[]
 
   @@map("batches")
 }
@@ -1220,10 +1236,19 @@ model LiveSession {
   provider     String?
   meetingUrl   String?  @map("meeting_url")
   recordingUrl String?  @map("recording_url")
+  title        String?
+  status       String   @default("SCHEDULED")
+  cancelledAt  DateTime? @map("cancelled_at")
+  cancelReason String? @map("cancel_reason")
+  startedAt    DateTime? @map("started_at")
+  endedAt      DateTime? @map("ended_at")
 
   batch      Batch          @relation(fields: [batchId], references: [id])
   mentor     MentorProfile? @relation(fields: [mentorId], references: [id])
   attendance Attendance[]
+  attendanceEvents AttendanceEvent[]
+  attendanceCorrections AttendanceCorrection[]
+  recordings ClassRecording[]
 
   @@index([batchId, startsAt])
   @@index([mentorId, startsAt])
@@ -1876,4 +1901,160 @@ model GrammarObservation {
 
   @@index([studentId, observedAt], map: "grammar_observations_student_idx")
   @@map("grammar_observations")
+}
+
+// ───────── Engagement ─────────
+model AttendanceEvent {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId    String   @map("session_id") @db.Uuid
+  studentId    String   @map("student_id") @db.Uuid
+  action       String
+  beforeStatus String?  @map("before_status")
+  afterStatus  String?  @map("after_status")
+  actorId      String?  @map("actor_id") @db.Uuid
+  reason       String?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  session LiveSession    @relation(fields: [sessionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  actor   User?          @relation("AttendanceActor", fields: [actorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([sessionId, studentId, createdAt], map: "attendance_events_session_student_idx")
+  @@map("attendance_events")
+}
+
+model AttendanceCorrection {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId     String    @map("session_id") @db.Uuid
+  studentId     String    @map("student_id") @db.Uuid
+  requestedById String    @map("requested_by") @db.Uuid
+  fromStatus    String?   @map("from_status")
+  toStatus      String    @map("to_status")
+  reason        String
+  status        String    @default("PENDING")
+  decidedById   String?   @map("decided_by") @db.Uuid
+  decidedAt     DateTime? @map("decided_at")
+  decisionNote  String?   @map("decision_note")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  session     LiveSession    @relation(fields: [sessionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  student     StudentProfile @relation(fields: [studentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  requestedBy User           @relation("CorrectionRequester", fields: [requestedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  decidedBy   User?          @relation("CorrectionDecider", fields: [decidedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("attendance_corrections")
+}
+
+model AttendanceWarning {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentId  String   @map("student_id") @db.Uuid
+  rule       String
+  windowKey  String   @map("window_key")
+  message    String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([studentId, rule, windowKey], map: "attendance_warnings_unique")
+  @@map("attendance_warnings")
+}
+
+model StudentEngagement {
+  studentId         String    @id @map("student_id") @db.Uuid
+  status            String    @default("ACTIVE")
+  lastActivityAt    DateTime? @map("last_activity_at")
+  lastActivityLabel String?   @map("last_activity_label")
+  reasons           String[]  @default([])
+  computedAt        DateTime  @default(now()) @map("computed_at")
+
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("student_engagement")
+}
+
+model EngagementStatusHistory {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentId  String   @map("student_id") @db.Uuid
+  fromStatus String?  @map("from_status")
+  toStatus   String   @map("to_status")
+  reasons    String[] @default([])
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([studentId, createdAt], map: "engagement_status_history_student_idx")
+  @@map("engagement_status_history")
+}
+
+model FollowUpTask {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentId   String    @map("student_id") @db.Uuid
+  assigneeId  String    @map("assignee_id") @db.Uuid
+  dueAt       DateTime? @map("due_at")
+  status      String    @default("OPEN")
+  note        String
+  source      String    @default("MANUAL")
+  createdById String?   @map("created_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  student   StudentProfile @relation(fields: [studentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  assignee  User           @relation("FollowUpAssignee", fields: [assigneeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdBy User?          @relation("FollowUpCreator", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([assigneeId, status], map: "follow_up_tasks_assignee_idx")
+  @@map("follow_up_tasks")
+}
+
+model ClassRecording {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId    String   @map("session_id") @db.Uuid
+  batchId      String   @map("batch_id") @db.Uuid
+  storageKey   String?  @unique @map("storage_key")
+  externalUrl  String?  @map("external_url")
+  durationSec  Int?     @map("duration_sec")
+  sizeBytes    BigInt?  @map("size_bytes")
+  mime         String?
+  status       String   @default("READY")
+  availability String   @default("BATCH")
+  uploadedById String   @map("uploaded_by") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  session    LiveSession    @relation(fields: [sessionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  batch      Batch          @relation(fields: [batchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  uploadedBy User           @relation("RecordingUploader", fields: [uploadedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  views      RecordingView[]
+
+  @@index([batchId, createdAt], map: "class_recordings_batch_idx")
+  @@map("class_recordings")
+}
+
+model RecordingView {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recordingId String    @map("recording_id") @db.Uuid
+  studentId   String    @map("student_id") @db.Uuid
+  positionSec Int       @default(0) @map("position_sec")
+  completedAt DateTime? @map("completed_at")
+  startedAt   DateTime  @default(now()) @map("started_at")
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  recording ClassRecording   @relation(fields: [recordingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  student   StudentProfile   @relation(fields: [studentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([recordingId, studentId], map: "recording_views_unique")
+  @@map("recording_views")
+}
+
+model LeaderboardSnapshot {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  batchId    String   @map("batch_id") @db.Uuid
+  periodType String   @map("period_type")
+  periodKey  String   @map("period_key")
+  entries    Json
+  computedAt DateTime @default(now()) @map("computed_at")
+
+  batch Batch @relation(fields: [batchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([batchId, periodType, periodKey], map: "leaderboard_snapshots_unique")
+  @@map("leaderboard_snapshots")
 }

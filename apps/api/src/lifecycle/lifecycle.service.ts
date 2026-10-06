@@ -10,6 +10,7 @@ import { Actor } from '../courses/courses.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SchedulerService } from '../jobs/scheduler.service';
+import { EngagementModule, EngagementService } from '../engagement/engagement.service';
 
 const DAY = 86_400_000;
 const SWEEP_EVERY_MS = 5 * 60_000;
@@ -24,6 +25,7 @@ export class LifecycleService implements OnModuleInit {
     private readonly notify: NotificationsService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly scheduler: SchedulerService,
+    private readonly engagement: EngagementService,
   ) {}
 
   /** Runs on the shared scheduler. The sweep is idempotent, so a missed or duplicated tick is harmless. */
@@ -34,7 +36,9 @@ export class LifecycleService implements OnModuleInit {
   /** Safe to run on any number of instances: every state change is conditional and every reminder is de-duplicated. */
   async sweep(now = new Date()) {
     const expired = await this.expireEnrollments(now);
-    const reminders = (await this.expiryReminders(now)) + (await this.classReminders(now)) + (await this.deadlineReminders(now));
+    // Class reminders come from the engagement module; its deduplication keys make repeated sweeps safe.
+    const classSent = (await this.engagement.sendReminders(now)).sent;
+    const reminders = (await this.expiryReminders(now)) + classSent + (await this.deadlineReminders(now));
     if (expired || reminders) this.logger.log(`Expired ${expired} enrollment(s); sent ${reminders} reminder(s).`);
     return { expired, reminders };
   }
@@ -73,24 +77,6 @@ export class LifecycleService implements OnModuleInit {
           email: true, optional: true, dedupeKey: `${key}:${e.id}`, entityType: 'ENROLLMENT', entityId: e.id, link: `/student/application?open=${e.id}`,
         });
         if (sent) n++;
-      }
-    }
-    return n;
-  }
-
-  private async classReminders(now: Date): Promise<number> {
-    const sessions = await this.prisma.liveSession.findMany({ where: { startsAt: { gt: now, lte: new Date(now.getTime() + DAY) } }, select: { id: true, topic: true, startsAt: true, batchId: true }, take: 200 });
-    let n = 0;
-    for (const s of sessions) {
-      const students = await this.prisma.enrollment.findMany({ where: { batchId: s.batchId, status: 'ACTIVE', deletedAt: null }, select: { student: { select: { userId: true } } } });
-      const minutes = (s.startsAt.getTime() - now.getTime()) / 60_000;
-      for (const e of students) {
-        if (await this.notify.notifyUser(e.student.userId, 'CLASS_REMINDER', `Class tomorrow: ${s.topic}`, `Starts ${s.startsAt.toUTCString()}.`, {
-          email: true, optional: true, dedupeKey: `class24:${s.id}`, entityType: 'SESSION', entityId: s.id, link: '/student/schedule',
-        })) n++;
-        if (minutes <= 30 && await this.notify.notifyUser(e.student.userId, 'CLASS_REMINDER', `Starting soon: ${s.topic}`, 'Your class starts in about 30 minutes. The join link is on your Live classes page.', {
-          email: true, optional: true, dedupeKey: `class30:${s.id}`, entityType: 'SESSION', entityId: s.id, link: '/student/schedule',
-        })) n++;
       }
     }
     return n;
@@ -192,5 +178,5 @@ export class LifecycleController {
   transfer(@Param('id', uuid) id: string, @Body(new ZodPipe(transferSchema)) body: TransferInput, @CurrentUser() u: AuthUser, @Req() req: Request) { return this.lifecycle.transfer(id, body, actor(u, req)); }
 }
 
-@Module({ controllers: [LifecycleController], providers: [LifecycleService], exports: [LifecycleService] })
+@Module({ imports: [EngagementModule], controllers: [LifecycleController], providers: [LifecycleService], exports: [LifecycleService] })
 export class LifecycleModule {}

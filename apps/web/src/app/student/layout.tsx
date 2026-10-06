@@ -40,6 +40,8 @@ function StudentShell({ children }: { children: ReactNode }) {
           { href: '/student/diagnostic', label: 'Diagnostic Test', icon: Target },
           { href: '/student/application', label: 'Application & Payment', icon: Receipt },
           { href: '/student/referrals', label: 'Referrals', icon: Gift },
+          { href: '/student/recordings', label: 'Class recordings', icon: Headphones },
+          { href: '/student/leaderboard', label: 'Leaderboard', icon: Target },
           { href: '/student/support', label: 'Support', icon: LifeBuoy },
           { href: '/student/profile', label: 'Profile', icon: UserCircle },
         ] },
