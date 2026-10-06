@@ -70,7 +70,7 @@ describe('statement reconciliation', () => {
 
     const imp = (await post(admin, '/admin/reconciliation/imports', {
       method: 'BANK_TRANSFER',
-      lines: [{ reference: good, amount: price, date: '2026-09-28' }, { reference: bad, amount: price - 1000, date: '2026-09-28' }],
+      lines: [{ reference: good, amount: price, date: '2026-09-28' }, { reference: bad, amount: Math.round(price / 2), date: '2026-09-28' }],
     }).expect(201)).body;
     expect(imp.rows).toBe(2);
 
