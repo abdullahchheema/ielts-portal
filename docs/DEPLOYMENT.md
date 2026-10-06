@@ -29,6 +29,14 @@ The browser only ever talks to the **web** origin. Next.js proxies `/api/*` to t
 | `S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET` | API | **Required in production.** Without them files are written to the server's disk (`.storage/`), which is lost on redeploy and not shared between instances. Use a **private** bucket. |
 | `REDIS_URL` | API | Optional. Without it rate limiting is per instance. |
 | `DISABLE_SWEEPER` | API | See "Background work" |
+| `CRON_SECRET` | API, GitHub secret | Shared secret for `/api/internal/cron`. Set the same value on both sides. |
+| `CRON_URL` | GitHub secret | Full URL of `/api/internal/cron` on the deployed web app, used by `.github/workflows/cron.yml` |
+| `CLASS_REMINDER_ENABLED` | API | Kill switch for class reminder emails. Defaults to on. |
+| `OWNER_EMAIL` | API | The owner account. Staff cannot change its roles or suspend it through the app. |
+| `AI_PROVIDER` | API | `mock`, `openai` or `none`. Production with no key and no value set runs with AI off. See `docs/AI.md`. |
+| `AI_API_KEY` | API | OpenAI key. Keep it in the host's secret store. |
+| `AI_MODEL`, `AI_TRANSCRIPTION_PROVIDER`, `AI_TRANSCRIPTION_MODEL` | API | Model choices. Defaults are in `.env.example`. |
+| `AI_TIMEOUT_MS`, `AI_DAILY_LIMIT` | API | Per-call timeout and the per-student daily limit per feature |
 | `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` | seed only | Used once to create the first super admin |
 
 ## First deploy
@@ -45,9 +53,38 @@ Run migrations **before** starting a new API version. Migrations only move forwa
 
 ## Background work
 
-Two timers run inside every API process: timed-attempt auto-submit (every minute) and enrollment expiry plus reminders (every five minutes). All state changes are conditional updates and reminders are de-duplicated, so running several API instances is safe — they simply share the work.
+Every task (timed-attempt auto-submit, enrolment expiry, class reminders, engagement recompute, study-plan refresh, mock-exam advancement) is registered with one scheduler. Each task runs under a lease, so two overlapping runs never execute the same task twice, and every task is idempotent.
 
-To run them on one instance only, set `DISABLE_SWEEPER=true` on the others.
+The scheduler is triggered in two ways, and either alone is enough:
+
+1. **In-process.** Each API process ticks once a minute. Set `DISABLE_SWEEPER=true` on any instance that should not run tasks.
+2. **External, every five minutes (recommended on serverless hosts).** `.github/workflows/cron.yml` calls `/api/internal/cron` with `Authorization: Bearer $CRON_SECRET`. It needs two repository secrets: `CRON_URL` (the full URL of the deployed web app's `/api/internal/cron`) and `CRON_SECRET`. GitHub may delay scheduled runs by a few minutes, which is harmless. cron-job.org works the same way if you prefer it.
+
+On Vercel's Hobby plan the daily cron in `apps/web/vercel.json` is only a fallback. Use the external ping for timely reminders.
+
+A late or repeated call does nothing harmful: reminders are de-duplicated and state changes are conditional.
+
+## Direct uploads and playback (S3 CORS)
+
+Speaking answers and class recordings are uploaded from the browser straight to the bucket with a presigned `PUT`, and recordings play from a signed `GET` in the browser. Both are cross-origin requests, so the bucket needs a CORS rule that allows the web origin (`APP_URL`):
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://your-app.example.com"],
+    "AllowedMethods": ["GET", "PUT", "HEAD"],
+    "AllowedHeaders": ["Content-Type", "Content-Length"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3000
+  }
+]
+```
+
+Do not allow `*` as an origin. Without this rule uploads fail in the browser with a CORS error, and the API never sees them.
+
+## Upgrading to the expansion release
+
+Migrations from `20261006000000_platform_foundations` through `20261015000000_feedback` add the AI, jobs, insights, engagement, teacher, admin, finance, lifecycle and feedback tables. They are additive, and no existing payment, grade, attendance mark or published content changes state. Run `npm run db:migrate`, then `npm run drift -w @ielts/db` to confirm the schema and database agree. Run `npm run db:seed` once to add the new permissions to the built-in roles.
 
 ## Before you take real payments
 
@@ -55,7 +92,8 @@ To run them on one instance only, set `DISABLE_SWEEPER=true` on the others.
 - [ ] `TWO_FACTOR_ENABLED=true` in production.
 - [ ] Never run `npm run db:reset` against production (it refuses when `NODE_ENV=production`, but do not rely on that alone).
 - [ ] Storage bucket is private; receipts open only through the admin queue's short-lived links.
-- [ ] `S3_*` configured (receipts must survive a redeploy).
+- [ ] `S3_*` configured (receipts must survive a redeploy), with the CORS rule above.
+- [ ] `CRON_SECRET` set on the host and as a GitHub secret, and `CRON_URL` set, so reminders and expiries run on time.
 - [ ] Email works end to end (register a test student; check the verification email arrives).
 - [ ] Every staff account has MFA enabled (Staff & roles shows the status).
 - [ ] Supabase backups / point-in-time recovery enabled, and a restore has been tested at least once.

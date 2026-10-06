@@ -55,10 +55,20 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
    * Runs every due task, stopping new starts once `budgetMs` has passed. Safe to call from the
    * timer, the cron route, or several instances at once.
    */
-  async tick(budgetMs = 50_000, now = new Date()): Promise<Record<string, TaskOutcome>> {
+  /**
+   * Runs the due tasks within the budget. The most overdue tasks go first (never-run first), so a task that keeps
+   * losing its slot to heavier tasks eventually runs. `only` restricts the tick to one named task.
+   */
+  async tick(budgetMs = 50_000, now = new Date(), only?: string): Promise<Record<string, TaskOutcome>> {
     const started = Date.now();
     const out: Record<string, TaskOutcome> = {};
-    for (const task of this.tasks.values()) {
+    const candidates = [...this.tasks.values()].filter((t) => !only || t.name === only);
+    const runs = await this.prisma.scheduledTaskRun.findMany({ where: { taskName: { in: candidates.map((t) => t.name) } }, select: { taskName: true, lastRunAt: true } });
+    const lastRun = new Map(runs.map((r) => [r.taskName, r.lastRunAt]));
+    candidates.sort((a, b) => (lastRun.get(a.name)?.getTime() ?? 0) - (lastRun.get(b.name)?.getTime() ?? 0));
+    for (const task of candidates) {
+      // Not-due tasks are decided from the read above, so a quiet tick costs one query, not three per task.
+      if (!isDue(lastRun.get(task.name) ?? null, task.everyMs, now)) { out[task.name] = { status: 'SKIPPED_NOT_DUE' }; continue; }
       if (Date.now() - started > budgetMs) {
         out[task.name] = { status: 'SKIPPED_BUDGET' };
         continue;

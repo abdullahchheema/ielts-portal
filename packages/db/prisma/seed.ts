@@ -327,6 +327,24 @@ async function seedSettings() {
   }
 }
 
+/** One feedback survey per trigger. Wording is editable later; the trigger mapping is fixed. */
+const FEEDBACK_SURVEYS = [
+  { triggerKind: 'ONBOARDING', title: 'Getting started', questions: [{ key: 'overall', label: 'What would make your first weeks easier?' }, { key: 'technical', label: 'Any trouble using the platform?' }] },
+  { triggerKind: 'MID_COURSE', title: 'Mid-course check-in', questions: [{ key: 'overall', label: 'What is working well, and what is not?' }, { key: 'teacher', label: 'How is your teacher helping you?' }, { key: 'course', label: 'What would you change about the course?' }] },
+  { triggerKind: 'MOCK_EXAM', title: 'After your mock exam', questions: [{ key: 'overall', label: 'How useful was the mock exam?' }, { key: 'technical', label: 'Did anything go wrong during the exam?' }] },
+  { triggerKind: 'COMPLETION', title: 'Course completed', questions: [{ key: 'overall', label: 'What helped you most on the course?' }, { key: 'teacher', label: 'How was your teacher?' }, { key: 'course', label: 'What would make the course better for the next student?' }] },
+] as const;
+
+async function seedFeedbackSurveys() {
+  for (const survey of FEEDBACK_SURVEYS) {
+    await prisma.feedbackSurvey.upsert({
+      where: { triggerKind: survey.triggerKind },
+      update: {},
+      create: { triggerKind: survey.triggerKind, title: survey.title, questions: survey.questions as never },
+    });
+  }
+}
+
 /** Everything a fresh install needs: safe to run in production and to re-run. */
 export async function seedReference() {
   await seedRbac();
@@ -334,6 +352,7 @@ export async function seedReference() {
   await seedAssessmentData(); // band tables + rubrics (the course tasks below reference the rubrics)
   await seedCourse();
   await seedSettings();
+  await seedFeedbackSurveys();
 }
 
 if (require.main === module) {

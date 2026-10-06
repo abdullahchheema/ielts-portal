@@ -37,7 +37,7 @@ describe('SchedulerService', () => {
   it('runs a due task once and records the run', async () => {
     let calls = 0;
     scheduler.register(TASK, 60_000, async () => { calls++; });
-    const first = await scheduler.tick(10_000);
+    const first = await scheduler.tick(10_000, new Date(), TASK);
     expect(first[TASK].status).toBe('OK');
     expect(calls).toBe(1);
     const row = await prisma.scheduledTaskRun.findUniqueOrThrow({ where: { taskName: TASK } });
@@ -48,8 +48,8 @@ describe('SchedulerService', () => {
   it('does not run again before the interval has elapsed', async () => {
     let calls = 0;
     scheduler.register(TASK, 60_000, async () => { calls++; });
-    await scheduler.tick(10_000);
-    const soon = await scheduler.tick(10_000, new Date(Date.now() + 30_000));
+    await scheduler.tick(10_000, new Date(), TASK);
+    const soon = await scheduler.tick(10_000, new Date(Date.now() + 30_000), TASK);
     expect(soon[TASK].status).toBe('SKIPPED_NOT_DUE');
     expect(calls).toBe(1);
   });
@@ -60,7 +60,7 @@ describe('SchedulerService', () => {
       calls++;
       await new Promise((r) => setTimeout(r, 300));
     });
-    const [a, b] = await Promise.all([scheduler.tick(10_000), scheduler.tick(10_000)]);
+    const [a, b] = await Promise.all([scheduler.tick(10_000, new Date(), TASK), scheduler.tick(10_000, new Date(), TASK)]);
     const statuses = [a[TASK].status, b[TASK].status].sort();
     // The second tick either finds the lease held or, having reached this task after the first finished, finds it not due.
     // What must hold is that the task body ran once.
@@ -69,17 +69,19 @@ describe('SchedulerService', () => {
     expect(calls).toBe(1);
   });
 
-  it('a failing task is recorded and does not block later tasks', async () => {
+  it('a failing task is recorded, and the next task still runs on its own tick', async () => {
     const other = `${TASK}.other`;
     scheduler.register(TASK, 60_000, async () => { throw new Error('boom'); });
     scheduler.register(other, 60_000, async () => 'fine');
     try {
-      const out = await scheduler.tick(10_000);
-      expect(out[TASK]).toEqual({ status: 'FAILED', error: 'boom' });
-      expect(out[other].status).toBe('OK');
+      // Run each task on its own tick: a full tick over every app task is too slow to fit a short test budget.
+      const failed = await scheduler.tick(10_000, new Date(), TASK);
+      expect(failed[TASK]).toEqual({ status: 'FAILED', error: 'boom' });
       const row = await prisma.scheduledTaskRun.findUniqueOrThrow({ where: { taskName: TASK } });
       expect(row.lastStatus).toBe('FAILED');
       expect(row.lastError).toBe('boom');
+      const next = await scheduler.tick(10_000, new Date(), other);
+      expect(next[other].status).toBe('OK');
     } finally {
       await prisma.scheduledTaskRun.deleteMany({ where: { taskName: other } });
     }

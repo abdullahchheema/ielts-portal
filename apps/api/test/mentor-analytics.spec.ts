@@ -66,7 +66,8 @@ describe('teacher analytics respects batch assignment', () => {
     const batchId = await createOpenBatch(app, admin);
     const s = await enrollStudent(app, prisma, admin, batchId);
     const session = await prisma.liveSession.create({
-      data: { batchId, topic: 'History check', startsAt: new Date(Date.now() - 2 * 86_400_000), endsAt: new Date(Date.now() - 2 * 86_400_000 + 3_600_000) },
+      // Inside the attendance edit window (24 hours), so the teacher's own change is allowed and recorded.
+      data: { batchId, topic: 'History check', startsAt: new Date(Date.now() - 2 * 3_600_000), endsAt: new Date(Date.now() - 2 * 3_600_000 + 3_600_000) },
     });
     const assigned = await teacher(batchId);
     const stranger = await teacher();

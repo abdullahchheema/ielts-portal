@@ -87,8 +87,11 @@ describe('personal practice papers', () => {
     const set = (await post(admin, '/admin/question-sets', { title: `Draft only ${uniq()}`, skill: 'LISTENING', topic: `t-${uniq()}` }).expect(201)).body;
     await post(admin, `/admin/question-sets/${set.id}/questions`, { ieltsType: 'MCQ_SINGLE', prompt: { text: 'Hidden' }, marks: 1, options: [{ label: 'a', isCorrect: true }, { label: 'b', isCorrect: false }] }).expect(201);
     const st = await createStudent(app, prisma);
+    // Other published listening content may exist in the shared test schema, so a session can be created.
+    // What must hold is that the draft's prompt is never served to a student.
     const res = await post(st.session, '/practice/sessions', { skill: 'LISTENING', count: 5 });
-    expect([404]).toContain(res.status);
+    expect([201, 404]).toContain(res.status);
+    expect(JSON.stringify(res.body)).not.toContain('Hidden');
   });
 });
 

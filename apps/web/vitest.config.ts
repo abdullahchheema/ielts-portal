@@ -8,6 +8,8 @@ export default defineConfig({
   resolve: { alias: { '@': path.resolve(__dirname, 'src') } },
   test: {
     environment: 'jsdom',
+    // Threads start reliably on Windows; the default forks pool timed out waiting for workers here.
+    pool: 'threads',
     include: ['src/**/*.test.{ts,tsx}'],
     setupFiles: ['src/test/setup.ts'],
   },

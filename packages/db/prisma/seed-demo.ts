@@ -278,6 +278,46 @@ async function main() {
   }
   await prisma.attendance.createMany({ data: extraRows as never, skipDuplicates: true });
 
+  // ── Lifecycle history and feedback for the running class ───────────────────────
+  // Students 9 to 29 went through enrolment and activation; student 30 (the late joiner) is still enrolled.
+  // Feedback comes from a fixed list of scores, so the NPS dashboard shows every category. Every feedback
+  // row here follows the same anonymity rule the app uses: an anonymous response has no student or request link.
+  const onboarding = await prisma.feedbackSurvey.findUniqueOrThrow({ where: { triggerKind: 'ONBOARDING' } });
+  const demoScores = [10, 9, 9, 8, 7, 6, 4, 10, 9, 3, 8, 9, 10, 5, 9, 8, 7, 10, 6, 9, 9, 10, 4];
+  const demoComments = [
+    'The speaking practice helped a lot, and the teacher explains clearly.',
+    'Speaking classes are useful. The schedule changed twice, which was confusing.',
+    'Helpful teacher and clear feedback on my speaking.',
+    'More speaking practice please. The recordings help when I miss a class.',
+    null,
+    'The platform works well on my phone.',
+  ];
+  const studentRows = await prisma.studentProfile.findMany({ where: { firstName: 'Demo', lastName: { startsWith: 'Student' } }, select: { id: true, lastName: true } });
+  const ordered = studentRows.sort((a, b) => Number(a.lastName.replace(/\D/g, '')) - Number(b.lastName.replace(/\D/g, '')));
+  for (const [i, st] of ordered.entries()) {
+    const n = Number(st.lastName.replace(/\D/g, ''));
+    const steps = n === 30 ? ['ENROLLED'] : ['ENROLLED', 'ACTIVE'];
+    let from: string | null = null;
+    for (const to of steps) {
+      await prisma.studentLifecycleTransition.create({ data: { studentId: st.id, fromStage: from, toStage: to, reason: from === null ? 'Enrolment activated (demo)' : 'First class attended (demo)', source: 'SYSTEM' } });
+      from = to;
+    }
+    await prisma.studentLifecycle.create({ data: { studentId: st.id, stage: steps[steps.length - 1] } });
+
+    if (n === 30 || i >= demoScores.length) continue;
+    const req = await prisma.feedbackRequest.create({
+      data: { surveyId: onboarding.id, studentId: st.id, batchId: sept.id, triggerRef: st.id, status: 'COMPLETED', respondedAt: daysAgo(i % 9) },
+    });
+    const anonymous = i % 3 === 0;
+    await prisma.feedbackResponse.create({
+      data: {
+        surveyId: onboarding.id, batchId: sept.id, triggerKind: 'ONBOARDING', anonymous, score: demoScores[i],
+        studentId: anonymous ? null : st.id, requestId: anonymous ? null : req.id,
+        commentOverall: demoComments[i % demoComments.length],
+      },
+    });
+  }
+
   console.log('Demo data loaded.');
 }
 

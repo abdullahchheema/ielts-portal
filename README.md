@@ -63,12 +63,20 @@ A first gate in `apps/web/src/proxy.ts` redirects visitors without a session to 
 | Area | Highlights |
 |---|---|
 | **Applications** | Public batch list, one-request application (creates the account, stores the receipt), admin queue with Pending / Enrolled / Rejected tabs, duplicate-reference and amount-mismatch flags, coupons, manual enrollment, refunds. |
-| **Learning** | Release rules, per-item progress, module pages (Listening, Reading, Writing, Speaking, Mock Tests), skill progress history. AI practice is a placeholder page. |
+| **Learning** | Release rules, per-item progress, module pages (Listening, Reading, Writing, Speaking, Mock Tests), skill progress history. |
 | **Assessments** | Question bank with versions, timed attempts, autosave, idempotent submit, auto-grading, raw-to-band conversion from versioned tables. |
 | **Writing and speaking** | Draft autosave, browser audio recording, teacher grading queue scoped to assigned batches, rubric scores, IELTS rounding, regrades keep history. |
 | **Live classes** | Scheduling, join links 15 minutes before class, attendance sheets. |
 | **Teacher portal** | Dashboard, assigned batches, roster, classes and attendance, per-student **Results** (latest/best band per skill, last mock), grading queue. |
 | **Admin portal** | Dashboard (students, pending applications, enrolled, active/upcoming batches, teachers), applications, batches (days, time, optional teachers, remove/archive), teachers, the one course and its content builder, assessments, settings (payment methods), staff and roles, audit log, reports. |
+| **AI** | Writing and speaking estimates shown beside teacher grades, an AI tutor, and a support reply assistant. Advisory only and always labelled; off, or a deterministic mock, when not configured. See [docs/AI.md](docs/AI.md). |
+| **Question bank and mocks** | Stimulus sets with items tagged by IELTS task type, composed mock exams drawn from approved content, and a full timed simulator (listening, reading, writing, speaking) that resumes after a refresh. |
+| **Student intelligence** | Weakness analysis by skill and task type, a readiness estimate with plain reasons, a target-band planner, a personal study plan, spaced vocabulary review, a grammar tracker, writing history, and an optional leaderboard. |
+| **Engagement** | Attendance corrections with an audit trail, activity status with follow-ups, class recordings, reminders that skip cancelled classes, and batch-level attendance. |
+| **Teacher workspace** | Grading queue with autosaved drafts and priorities, a workload view, batch health, and cohort comparison with an audited CSV export. |
+| **Admin command centre** | Permission-filtered metrics that link to filtered lists, global search, internal notes with visibility rules, support routing with response targets, referrals, and coupons with a live preview. |
+| **Finance and security** | Payment risk flags that a person reviews (nothing is rejected automatically), statement import and reconciliation, numbered certificates with QR verification, and revocation. |
+| **Lifecycle, alumni and feedback** | A student stage history, an alumni area with certificates and a revision library, and NPS with anonymous feedback. |
 
 ## Two-factor sign-in
 
@@ -77,8 +85,9 @@ Controlled by `TWO_FACTOR_ENABLED` (default: on in production, **off** elsewhere
 ## Tests
 
 ```
-npm run test:unit -w @ielts/api   # pure logic, no database, seconds
+npm run test:unit -w @ielts/api   # pure logic and the route inventory, no database, seconds
 npm test -w @ielts/api            # full integration suite (long: it talks to the remote database)
+npm test -w @ielts/web            # component and hook tests, jsdom, no network
 ```
 
 Integration tests run against an isolated `test` schema **in the same database** (never `public`). It is dropped and rebuilt each run; set `REUSE_TEST_DB=1` to keep it between runs (rebuild after adding migrations or changing the seed).
@@ -97,4 +106,14 @@ See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Not built yet
 
-AI-assisted practice and feedback (placeholder page only) · subscriptions · mobile app · a dedicated worker process (sweepers run inside the API) · SMS/WhatsApp channels · non-Latin names on certificates · drag-and-drop reordering in the course builder.
+Known gaps, roughly in order of value:
+
+- Referral credit can be earned and recorded, but it is not yet applied at checkout.
+- The mid-course feedback survey is defined but its trigger is not wired.
+- Grammar observations from teacher comments are not yet captured in the grading view.
+- Study plans have no AI-written summary; they use deterministic rules only.
+- Live classes use external meeting links. A pluggable live-class provider is not wired.
+- Scope checks for teachers are applied in each service rather than through one shared module.
+- Browser end-to-end tests (Playwright) are not set up.
+
+Also not built: subscriptions · mobile app · SMS/WhatsApp channels · non-Latin names on certificates · drag-and-drop reordering in the course builder.
