@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { OnEvent } from '@nestjs/event-emitter';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { Prisma } from '@ielts/db';
 import { AuditService } from '../audit/audit.service';
 import { conflict, notFound } from '../common/app-error';
@@ -9,6 +9,9 @@ import { allowedNext, canTransition, LifecycleStage, isLifecycleStage } from './
 
 /** Other modules emit this with a system signal. They never import this service, so there are no import cycles. */
 export const LIFECYCLE_SIGNAL = 'lifecycle.signal';
+/** Emitted after every committed stage change, so other modules (feedback) can react without importing this one. */
+export const LIFECYCLE_CHANGED = 'lifecycle.changed';
+export interface LifecycleChanged { studentId: string; from: string | null; to: string; transitionId: string }
 
 export interface LifecycleSignal {
   studentId: string;
@@ -25,7 +28,7 @@ export interface LifecycleSignal {
 export class LifecycleStageService {
   private readonly logger = new Logger(LifecycleStageService.name);
 
-  constructor(private readonly prisma: PrismaService, private readonly audit: AuditService) {}
+  constructor(private readonly prisma: PrismaService, private readonly audit: AuditService, private readonly events: EventEmitter2) {}
 
   @OnEvent(LIFECYCLE_SIGNAL, { async: true })
   async onSignal(signal: LifecycleSignal) {
@@ -40,16 +43,18 @@ export class LifecycleStageService {
   /** Applies a system signal. Returns whether the stage changed. Never throws: a failure here must not break the event's source. */
   async signal(s: LifecycleSignal): Promise<{ changed: boolean; from: string | null; to: string }> {
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      const result = await this.prisma.$transaction(async (tx) => {
         const cur = await tx.studentLifecycle.findUnique({ where: { studentId: s.studentId }, select: { stage: true } });
         const from = cur && isLifecycleStage(cur.stage) ? cur.stage : null;
         if (from === s.to || !canTransition(from, s.to)) {
           if (from !== s.to) this.logger.debug(`Lifecycle signal ${s.to} ignored for ${s.studentId} at ${from}`);
-          return { changed: false, from, to: s.to };
+          return { changed: false as const, from, to: s.to };
         }
-        await this.write(tx, s.studentId, from, s.to, s.reason, 'SYSTEM', null);
-        return { changed: true, from, to: s.to };
+        const transitionId = await this.write(tx, s.studentId, from, s.to, s.reason, 'SYSTEM', null);
+        return { changed: true as const, from, to: s.to, transitionId };
       });
+      if (result.changed) this.events.emit(LIFECYCLE_CHANGED, { studentId: s.studentId, from: result.from, to: result.to, transitionId: result.transitionId } satisfies LifecycleChanged);
+      return { changed: result.changed, from: result.from, to: result.to };
     } catch (err) {
       // A concurrent signal may have written first (unique key or moved stage). The next signal will reconcile.
       this.logger.warn(`Lifecycle signal ${s.to} for ${s.studentId} not applied: ${(err as Error).message}`);
@@ -69,13 +74,16 @@ export class LifecycleStageService {
         const next = from ? allowedNext(from).map((s) => s.toLowerCase().replace(/_/g, ' ')).join(', ') : 'any stage';
         throw conflict('CONFLICT', `A student cannot move from ${(from ?? 'no stage').toLowerCase().replace(/_/g, ' ')} to ${to.toLowerCase().replace(/_/g, ' ')}. Allowed next: ${next}.`);
       }
-      await this.write(tx, studentId, from, to, reason, 'STAFF', actor.userId);
+      const transitionId = await this.write(tx, studentId, from, to, reason, 'STAFF', actor.userId);
       await this.audit.record({
         userId: actor.userId, ip: actor.ip, userAgent: actor.userAgent,
         action: 'LIFECYCLE_CHANGED', entityType: 'StudentProfile', entityId: studentId,
         before: { stage: from }, after: { stage: to, reason },
       }, tx);
-      return { studentId, from, to };
+      return { studentId, from, to, transitionId };
+    }).then((r) => {
+      this.events.emit(LIFECYCLE_CHANGED, { studentId: r.studentId, from: r.from, to: r.to, transitionId: r.transitionId } satisfies LifecycleChanged);
+      return { studentId: r.studentId, from: r.from, to: r.to };
     });
   }
 
@@ -96,7 +104,7 @@ export class LifecycleStageService {
     return cur?.stage ?? null;
   }
 
-  private async write(tx: Prisma.TransactionClient, studentId: string, from: LifecycleStage | null, to: LifecycleStage, reason: string, source: 'SYSTEM' | 'STAFF', actorId: string | null) {
+  private async write(tx: Prisma.TransactionClient, studentId: string, from: LifecycleStage | null, to: LifecycleStage, reason: string, source: 'SYSTEM' | 'STAFF', actorId: string | null): Promise<string> {
     if (from === null) {
       await tx.studentLifecycle.create({ data: { studentId, stage: to } });
     } else {
@@ -104,6 +112,7 @@ export class LifecycleStageService {
       const moved = await tx.studentLifecycle.updateMany({ where: { studentId, stage: from }, data: { stage: to, since: new Date() } });
       if (moved.count === 0) throw conflict('CONFLICT', 'The student\'s stage changed while you were editing. Refresh and try again.');
     }
-    await tx.studentLifecycleTransition.create({ data: { studentId, fromStage: from, toStage: to, reason, source, actorId } });
+    const row = await tx.studentLifecycleTransition.create({ data: { studentId, fromStage: from, toStage: to, reason, source, actorId }, select: { id: true } });
+    return row.id;
   }
 }

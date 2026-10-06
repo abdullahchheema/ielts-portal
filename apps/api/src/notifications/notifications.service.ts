@@ -154,6 +154,7 @@ export const OPTIONAL_TYPES = [
   { type: 'DEADLINE_REMINDER', label: 'Assignment deadline reminders' },
   { type: 'EXPIRY_REMINDER', label: 'Course access expiring soon' },
   { type: 'SESSION_SCHEDULED', label: 'New class scheduled' },
+  { type: 'FEEDBACK_REQUEST', label: 'Feedback requests' },
 ] as const;
 const prefsSchema = z.object({
   preferences: z.array(z.object({ type: z.enum(OPTIONAL_TYPES.map((t) => t.type) as [string, ...string[]]), inApp: z.boolean(), email: z.boolean() })).max(20),

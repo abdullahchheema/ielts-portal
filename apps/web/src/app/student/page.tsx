@@ -7,6 +7,7 @@ import { Alert, Card, Empty, LinkButton, Loading, PageHeader, ProgressBar, Progr
 import { EnrollmentBadge, PaymentPendingNotice, primaryApplication, scheduleText, teacherText, useApplications } from '@/components/student';
 import { IeltsSummary, IeltsSummaryLike } from '@/components/IeltsSummary';
 import { Home, HomeHero, HomeInsights, TodaysPlan } from '@/components/StudentHome';
+import { FeedbackPrompt } from '@/components/FeedbackPrompt';
 import { api } from '@/lib/api';
 import { band, date } from '@/lib/format';
 
@@ -40,6 +41,7 @@ export default function DashboardPage() {
         subtitle="Here is what needs your attention, then where you stand on the course."
         actions={app && <EnrollmentBadge status={app.status} />}
       />
+      <FeedbackPrompt />
 
       {home.data && <HomeHero home={home.data} />}
 

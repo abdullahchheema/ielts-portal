@@ -12,6 +12,7 @@ import { GrammarModule } from './grammar/grammar.service';
 import { EngagementModule } from './engagement/engagement.service';
 import { RecordingsModule } from './recordings/recordings.service';
 import { StudentLifecycleModule } from './student-lifecycle/lifecycle.controller';
+import { FeedbackModule } from './feedback/feedback.controller';
 import { LeaderboardModule } from './leaderboards/leaderboard.service';
 import { TeacherWorkspaceModule } from './teacher-workspace/teacher-workspace';
 import { NotesModule } from './admin-ops/notes';
@@ -65,7 +66,7 @@ class HealthController {
 
 @Module({
   imports: [
-    AnalyticsModule, AiModule, JobsModule, QuestionBankModule, WritingModule, SpeakingModule, MockExamsModule, SimulatorModule, InsightsModule, StudyPlanModule, VocabularyModule, GrammarModule, EngagementModule, RecordingsModule, LeaderboardModule, TeacherWorkspaceModule, NotesModule, SearchModule, CommandCenterModule, SupportAssistantModule, TutorModule, PaymentRiskModule, ReconciliationModule, StudentLifecycleModule,
+    AnalyticsModule, AiModule, JobsModule, QuestionBankModule, WritingModule, SpeakingModule, MockExamsModule, SimulatorModule, InsightsModule, StudyPlanModule, VocabularyModule, GrammarModule, EngagementModule, RecordingsModule, LeaderboardModule, TeacherWorkspaceModule, NotesModule, SearchModule, CommandCenterModule, SupportAssistantModule, TutorModule, PaymentRiskModule, ReconciliationModule, StudentLifecycleModule, FeedbackModule,
     ConfigModule, PrismaModule, IntegrationsModule, AuditModule, EventEmitterModule.forRoot(), JwtModule.register({}),
     AuthModule, RolesModule, SettingsModule, NotificationsModule, CoursesModule, BatchesModule, CommerceModule, LearningModule, AssessmentsModule, GradingModule, LiveModule, SupportModule, ReportsModule, LifecycleModule, CertificatesModule, AdminModule, TeachersModule,
   ],

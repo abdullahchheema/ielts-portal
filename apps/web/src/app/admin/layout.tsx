@@ -1,6 +1,6 @@
 'use client';
 
-import { UserCheck, BarChart3, Database, FileCheck2, Gift, GraduationCap, Layers, Lock, Library, LayoutDashboard, ListChecks, MessagesSquare, Receipt, RotateCcw, ScrollText, Settings, Scale, Tag, UserRound, Wallet, ClipboardList, UsersRound } from 'lucide-react';
+import { UserCheck, BarChart3, Database, FileCheck2, Gift, GraduationCap, Layers, Lock, Library, LayoutDashboard, ListChecks, MessagesSquare, Receipt, RotateCcw, ScrollText, Settings, Scale, Star, Tag, UserRound, Wallet, ClipboardList, UsersRound } from 'lucide-react';
 import { ReactNode, useCallback, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Shell } from '@/components/Shell';
@@ -56,6 +56,7 @@ function AdminShell({ children }: { children: ReactNode }) {
         ] },
         { title: 'Support', items: [{ href: '/admin/tickets', label: 'Tickets', icon: MessagesSquare, show: c('ticket.manage') }] },
         { title: 'Student care', items: [
+          { href: '/admin/feedback', label: 'Feedback', icon: Star, show: c('feedback.view') },
           { href: '/admin/engagement', label: 'Engagement', icon: UsersRound, show: c('engagement.followup') },
           { href: '/admin/attendance-corrections', label: 'Attendance corrections', icon: ClipboardList, show: c('attendance.correct') },
         ] },

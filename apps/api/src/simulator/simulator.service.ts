@@ -1,5 +1,7 @@
 import { Body, Controller, Get, HttpCode, Injectable, Module, OnModuleInit, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import { Prisma } from '@ielts/db';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { SIMULATOR_COMPLETED, SimulatorCompleted } from './events';
 import { simulatorAdvanceSchema, simulatorStartSchema, SimulatorStartInput } from '@ielts/validation';
 import { AttemptsService } from '../assessments/attempts.service';
 import { AppError, conflict, forbidden, notFound } from '../common/app-error';
@@ -45,6 +47,7 @@ export class SimulatorService implements OnModuleInit {
     private readonly speaking: SpeakingService,
     private readonly bank: QuestionBankService,
     private readonly scheduler: SchedulerService,
+    private readonly events: EventEmitter2,
   ) {}
 
   onModuleInit() {
@@ -253,6 +256,7 @@ export class SimulatorService implements OnModuleInit {
     await claim({
       stage: 'DONE', status: 'COMPLETED', completedAt: new Date(), overallEstimate: overall === null ? null : new Prisma.Decimal(overall), missingSkills: allMissing,
     });
+    this.events.emit(SIMULATOR_COMPLETED, { studentId, examAttemptId: e.id } satisfies SimulatorCompleted);
     return this.get(studentId, e.id);
   }
 

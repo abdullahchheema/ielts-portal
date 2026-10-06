@@ -350,6 +350,8 @@ model StudentProfile {
   examAttempts         ExamAttempt[]
   lifecycle            StudentLifecycle?
   lifecycleTransitions StudentLifecycleTransition[]
+  feedbackRequests FeedbackRequest[]
+  feedbackResponses FeedbackResponse[]
 
   @@map("student_profiles")
 }
@@ -742,6 +744,8 @@ model Batch {
   recordings   ClassRecording[]
   leaderboards LeaderboardSnapshot[]
   healthSnapshot BatchHealthSnapshot?
+  feedbackRequests FeedbackRequest[]
+  feedbackResponses FeedbackResponse[]
 
   @@map("batches")
 }
@@ -2292,4 +2296,65 @@ model CertificateRevocation {
   revokedBy   User        @relation("CertificateRevoker", fields: [revokedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@map("certificate_revocations")
+}
+
+// Feedback and NPS. Responses are append-only (forbid_mutation trigger, SQL only). An anonymous response has no
+// student_id and no request_id, so it cannot be traced to the person who sent it.
+model FeedbackSurvey {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  triggerKind String   @unique(map: "feedback_surveys_trigger_unique") @map("trigger")
+  title       String
+  questions   Json     @default("[]")
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
+
+  requests  FeedbackRequest[]
+  responses FeedbackResponse[]
+
+  @@map("feedback_surveys")
+}
+
+model FeedbackRequest {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  surveyId    String    @map("survey_id") @db.Uuid
+  studentId   String    @map("student_id") @db.Uuid
+  batchId     String?   @map("batch_id") @db.Uuid
+  triggerRef  String    @map("trigger_ref")
+  status      String    @default("PENDING")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  respondedAt DateTime? @map("responded_at")
+
+  survey   FeedbackSurvey   @relation(fields: [surveyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  student  StudentProfile   @relation(fields: [studentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  batch    Batch?           @relation(fields: [batchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  response FeedbackResponse?
+
+  @@unique([surveyId, studentId, triggerRef], map: "feedback_requests_unique")
+  @@index([studentId, status], map: "feedback_requests_student_idx")
+  @@map("feedback_requests")
+}
+
+model FeedbackResponse {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  surveyId         String   @map("survey_id") @db.Uuid
+  batchId          String?  @map("batch_id") @db.Uuid
+  triggerKind      String   @map("trigger")
+  requestId        String?  @unique @map("request_id") @db.Uuid
+  studentId        String?  @map("student_id") @db.Uuid
+  anonymous        Boolean
+  score            Int
+  commentOverall   String?  @map("comment_overall")
+  commentTeacher   String?  @map("comment_teacher")
+  commentCourse    String?  @map("comment_course")
+  commentTechnical String?  @map("comment_technical")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  survey  FeedbackSurvey  @relation(fields: [surveyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  batch   Batch?          @relation(fields: [batchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  request FeedbackRequest? @relation(fields: [requestId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  student StudentProfile? @relation(fields: [studentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([createdAt], map: "feedback_responses_created_idx")
+  @@map("feedback_responses")
 }
