@@ -93,3 +93,11 @@ describe('feedback themes', () => {
     expect(body.text).not.toMatch(/@/);
   });
 });
+
+describe('tutor explanations', () => {
+  it('an attempt the student does not own is not found, and a bad body is refused', async () => {
+    const st = await createStudent(app, prisma);
+    await as(st.session)(http(app).post(`/me/tutor/attempts/${crypto.randomUUID()}/explain`)).send({ questionVersionId: crypto.randomUUID() }).expect(404);
+    await as(st.session)(http(app).post(`/me/tutor/attempts/${crypto.randomUUID()}/explain`)).send({}).expect(422);
+  });
+});
