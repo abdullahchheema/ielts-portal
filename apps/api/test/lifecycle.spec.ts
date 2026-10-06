@@ -186,7 +186,7 @@ describe('certificates', () => {
     expect(v).toMatchObject({ valid: true, studentName: 'Stu Dent' });
     expect(JSON.stringify(v)).not.toContain('@'); // no email or ids leak
     expect((await http(app).get(`/certificates/${code.toLowerCase()}/verify`).expect(200)).body.valid).toBe(true);
-    expect((await http(app).get('/certificates/IELTS-NOPE-NOPE-NOPE/verify').expect(200)).body).toEqual({ valid: false });
+    expect((await http(app).get('/certificates/IELTS-NOPE-NOPE-NOPE/verify').expect(200)).body).toEqual({ valid: false, status: 'NOT_FOUND' });
 
     const pdf = await http(app).get(`/certificates/${code}/pdf`).buffer(true).parse((res, cb) => { const chunks: Buffer[] = []; res.on('data', (d: Buffer) => chunks.push(d)); res.on('end', () => cb(null, Buffer.concat(chunks))); }).expect(200);
     expect(pdf.headers['content-type']).toContain('application/pdf');

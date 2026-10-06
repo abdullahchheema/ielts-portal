@@ -55,7 +55,7 @@ export function useLogout() {
 }
 
 /** Client-side route guard. The API is the real gate; this only decides what to render and where to send people. */
-export function RequireAuth({ children, area }: { children: ReactNode; area: 'student' | 'teacher' | 'admin' }) {
+export function RequireAuth({ children, area }: { children: ReactNode; area: 'student' | 'teacher' | 'admin' | 'alumni' }) {
   const { data: me, isLoading } = useMe();
   const router = useRouter();
   const path = usePathname();

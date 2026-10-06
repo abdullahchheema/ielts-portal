@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ContentType, Enrollment, Prisma, ProgressStatus } from '@ielts/db';
+import { LIFECYCLE_SIGNAL } from '../student-lifecycle/lifecycle.service';
 import { z } from 'zod';
 import { studentProfileSchema } from '@ielts/validation';
 import { AppError, notFound } from '../common/app-error';
@@ -34,7 +36,7 @@ type ItemState = 'LOCKED' | 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
 
 @Injectable()
 export class LearningService {
-  constructor(private readonly prisma: PrismaService, private readonly storage: StorageService) {}
+  constructor(private readonly prisma: PrismaService, private readonly storage: StorageService, private readonly events: EventEmitter2) {}
 
   // ───────── access ─────────
   /** Enrollment must be ACTIVE/COMPLETED and inside its access window. Throws a specific error otherwise. */
@@ -319,6 +321,7 @@ export class LearningService {
       const closed = await this.prisma.enrollment.updateMany({ where: { id: enrollmentId, status: 'ACTIVE' }, data: { status: 'COMPLETED', completedAt: new Date() } });
       if (closed.count) {
         await this.prisma.studentTimelineEvent.create({ data: { studentId, type: 'COURSE_COMPLETED', summary: 'Completed all required content', meta: { enrollmentId } } });
+        this.events.emit(LIFECYCLE_SIGNAL, { studentId, to: 'COMPLETED', reason: 'Completed all required content' });
       }
     }
     return percent;

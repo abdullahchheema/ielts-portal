@@ -106,14 +106,23 @@ export class RecordingsService {
     return rows.map(({ views, ...r }) => ({ ...r, progress: views[0] ? { positionSec: views[0].positionSec, completed: !!views[0].completedAt } : null }));
   }
 
+  /** Batch recordings need an active enrolment in that batch. Alumni recordings need the alumni stage. Everyone else is refused as not found. */
+  private async assertCanView(studentId: string, rec: { batchId: string; availability: string }) {
+    if (rec.availability === 'ALL_STUDENTS') return;
+    if (rec.availability === 'ALUMNI') {
+      const alumni = await this.prisma.studentLifecycle.count({ where: { studentId, stage: 'ALUMNI' } });
+      if (!alumni) throw notFound('Recording');
+      return;
+    }
+    const ok = await this.prisma.enrollment.count({ where: { studentId, batchId: rec.batchId, status: 'ACTIVE', deletedAt: null } });
+    if (!ok) throw notFound('Recording');
+  }
+
   /** Playback. The student must be allowed to see the recording; the link is signed or external and is never stored for reuse. */
   async play(studentId: string, recordingId: string) {
     const rec = await this.prisma.classRecording.findFirst({ where: { id: recordingId, status: 'READY' }, select: { id: true, batchId: true, availability: true, storageKey: true, externalUrl: true } });
     if (!rec) throw notFound('Recording');
-    if (rec.availability !== 'ALL_STUDENTS') {
-      const ok = await this.prisma.enrollment.count({ where: { studentId, batchId: rec.batchId, status: 'ACTIVE', deletedAt: null } });
-      if (!ok) throw notFound('Recording');
-    }
+    await this.assertCanView(studentId, rec);
     if (rec.storageKey) return { url: await this.storage.signedUrl(rec.storageKey, SIGNED_TTL_SEC), expiresInSec: SIGNED_TTL_SEC };
     if (rec.externalUrl) return { url: rec.externalUrl, expiresInSec: null };
     throw notFound('Recording');
@@ -123,10 +132,7 @@ export class RecordingsService {
   async progress(studentId: string, recordingId: string, positionSec: number, completed: boolean) {
     const rec = await this.prisma.classRecording.findFirst({ where: { id: recordingId, status: 'READY' }, select: { id: true, batchId: true, availability: true, durationSec: true } });
     if (!rec) throw notFound('Recording');
-    if (rec.availability !== 'ALL_STUDENTS') {
-      const ok = await this.prisma.enrollment.count({ where: { studentId, batchId: rec.batchId, status: 'ACTIVE', deletedAt: null } });
-      if (!ok) throw notFound('Recording');
-    }
+    await this.assertCanView(studentId, rec);
     const nearEnd = rec.durationSec ? positionSec >= rec.durationSec * 0.9 : false;
     const done = completed || nearEnd;
     const existing = await this.prisma.recordingView.findUnique({ where: { recordingId_studentId: { recordingId, studentId } }, select: { positionSec: true, completedAt: true } });

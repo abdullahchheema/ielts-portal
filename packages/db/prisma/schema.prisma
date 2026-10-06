@@ -279,6 +279,7 @@ model User {
   followUpAssigned      FollowUpTask[]         @relation("FollowUpAssignee")
   followUpCreated       FollowUpTask[]         @relation("FollowUpCreator")
   recordingsUploaded    ClassRecording[]       @relation("RecordingUploader")
+  lifecycleTransitionsActed StudentLifecycleTransition[] @relation("LifecycleActor")
 
   @@map("users")
 }
@@ -347,8 +348,40 @@ model StudentProfile {
   speakingAttempts     SpeakingAttempt[]
   speakingResponses    SpeakingResponse[]
   examAttempts         ExamAttempt[]
+  lifecycle            StudentLifecycle?
+  lifecycleTransitions StudentLifecycleTransition[]
 
   @@map("student_profiles")
+}
+
+// Current lifecycle stage per student. Stage changes are recorded in student_lifecycle_transitions (append-only).
+// The stage CHECK constraint and the forbid_mutation trigger exist only in SQL (migration 20261014000000).
+model StudentLifecycle {
+  studentId String   @id @map("student_id") @db.Uuid
+  stage     String
+  since     DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("student_lifecycle")
+}
+
+model StudentLifecycleTransition {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentId   String   @map("student_id") @db.Uuid
+  fromStage   String?  @map("from_stage")
+  toStage     String   @map("to_stage")
+  reason      String
+  source      String
+  actorId     String?  @map("actor_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  actor   User?          @relation("LifecycleActor", fields: [actorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([studentId, createdAt], map: "student_lifecycle_transitions_student_idx")
+  @@map("student_lifecycle_transitions")
 }
 
 model MentorProfile {

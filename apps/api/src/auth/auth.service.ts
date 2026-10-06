@@ -14,6 +14,8 @@ import { isAdminRole } from '../common/roles';
 import { MfaService } from './mfa.service';
 import type { GoogleProfile } from './google';
 import { ACCESS_TTL_SEC, ADMIN_REFRESH_TTL_SEC, REFRESH_TTL_SEC, randomToken, sha256 } from './tokens';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { LIFECYCLE_SIGNAL } from '../student-lifecycle/lifecycle.service';
 
 export interface Meta { ip?: string; userAgent?: string }
 export interface Session { accessToken: string; refreshToken: string; csrfToken: string; refreshTtlSec: number }
@@ -27,6 +29,7 @@ export class AuthService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly events: EventEmitter2,
     private readonly jwt: JwtService,
     private readonly mail: MailService,
     private readonly limiter: RateLimiter,
@@ -52,6 +55,7 @@ export class AuthService {
           student: { create: { firstName: input.firstName, lastName: input.lastName } },
           roles: { create: { roleId: studentRole.id } },
         },
+        include: { student: { select: { id: true } } },
       })
       .catch((e) => {
         if (e?.code === 'P2002') throw new AppError('EMAIL_ALREADY_REGISTERED', 409, 'An account with this email already exists.');
@@ -60,6 +64,7 @@ export class AuthService {
 
     await this.sendVerification(user.id, user.email, input.next);
     await this.audit.record({ userId: user.id, action: 'USER_REGISTERED', entityType: 'User', entityId: user.id, ...meta });
+    if (user.student) this.events.emit(LIFECYCLE_SIGNAL, { studentId: user.student.id, to: 'REGISTERED', reason: 'Account registered' });
     return { id: user.id, email: user.email };
   }
 

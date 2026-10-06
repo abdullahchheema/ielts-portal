@@ -1,6 +1,7 @@
 import { ANALYTICS_DEFAULTS, ANALYTICS_SETTING_SCHEMAS } from '../analytics/thresholds';
 import { REFERRAL_DEFAULTS, REFERRAL_SETTING_SCHEMAS } from '../referrals/settings';
 import { INSIGHT_DEFAULTS, INSIGHT_SETTING_SCHEMAS } from '../insights/settings';
+import { LIFECYCLE_DEFAULTS, LIFECYCLE_SETTING_SCHEMAS } from '../student-lifecycle/settings';
 import { Controller, Get, Injectable, Put, Body, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { Prisma } from '@ielts/db';
@@ -32,6 +33,7 @@ export const SETTING_SCHEMAS = {
   ...ANALYTICS_SETTING_SCHEMAS,
   ...REFERRAL_SETTING_SCHEMAS,
   ...INSIGHT_SETTING_SCHEMAS,
+  ...LIFECYCLE_SETTING_SCHEMAS,
 } as const;
 
 export type SettingKey = keyof typeof SETTING_SCHEMAS;
@@ -47,6 +49,7 @@ const DEFAULTS: Record<SettingKey, unknown> = {
   ...ANALYTICS_DEFAULTS,
   ...REFERRAL_DEFAULTS,
   ...INSIGHT_DEFAULTS,
+  ...LIFECYCLE_DEFAULTS,
 };
 
 @Injectable()
@@ -96,6 +99,7 @@ const patchSchema = z
     'insights.weakness.thresholds': INSIGHT_SETTING_SCHEMAS['insights.weakness.thresholds'].optional(),
     'insights.readiness.weights': INSIGHT_SETTING_SCHEMAS['insights.readiness.weights'].optional(),
     'study_plan.minutes_per_day': INSIGHT_SETTING_SCHEMAS['study_plan.minutes_per_day'].optional(),
+    'alumni.access': LIFECYCLE_SETTING_SCHEMAS['alumni.access'].optional(),
   })
   .strict()
   .refine((o) => Object.keys(o).length > 0, 'Provide at least one setting.');

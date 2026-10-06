@@ -4,7 +4,9 @@ import { randomBytes } from 'node:crypto';
 import * as QRCode from 'qrcode';
 import { PDFDocument, PDFFont, StandardFonts, rgb } from 'pdf-lib';
 import { z } from 'zod';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AuditService } from '../audit/audit.service';
+import { LIFECYCLE_SIGNAL } from '../student-lifecycle/lifecycle.service';
 import { AppError, forbidden, notFound, conflict } from '../common/app-error';
 import { AuthUser, CurrentUser, Public, RequirePermission, clientMeta } from '../common/decorators';
 import { ZodPipe } from '../common/zod.pipe';
@@ -33,7 +35,7 @@ export type VerifyResult =
 
 @Injectable()
 export class CertificatesService {
-  constructor(private readonly prisma: PrismaService, @Inject(APP_CONFIG) private readonly config: AppConfig, private readonly audit: AuditService) {}
+  constructor(private readonly prisma: PrismaService, @Inject(APP_CONFIG) private readonly config: AppConfig, private readonly audit: AuditService, private readonly events: EventEmitter2) {}
 
   /** A sequential number per year, for printed and quoted references. Unique in the database; retried on collision. */
   private async nextNumber(year: number): Promise<string> {
@@ -62,6 +64,8 @@ export class CertificatesService {
           },
         });
         await this.prisma.studentTimelineEvent.create({ data: { studentId, type: 'CERTIFICATE_ISSUED', summary: `Certificate issued for ${e.course.title}`, meta: { certificateId: cert.id } } });
+        // A student with a certificate is an alumnus. The lifecycle rules refuse this unless the course is complete.
+        this.events.emit(LIFECYCLE_SIGNAL, { studentId, to: 'ALUMNI', reason: 'Certificate issued' });
         return cert;
       } catch (err) {
         if ((err as { code?: string }).code !== 'P2002') throw err;

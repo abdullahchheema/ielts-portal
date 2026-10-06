@@ -1,12 +1,15 @@
 'use client';
 
-import { BarChart3, BookMarked, BookOpen, CalendarDays, ClipboardList, Gift, Headphones, LayoutDashboard, LifeBuoy, Mic, PenLine, Receipt, Sparkles, Target, TrendingUp, UserCircle, Users } from 'lucide-react';
+import { BarChart3, BookMarked, BookOpen, CalendarDays, ClipboardList, Gift, GraduationCap, Headphones, LayoutDashboard, LifeBuoy, Mic, PenLine, Receipt, Sparkles, Target, TrendingUp, UserCircle, Users } from 'lucide-react';
 import { ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Shell } from '@/components/Shell';
+import { api } from '@/lib/api';
 import { RequireAuth, useMe } from '@/lib/auth';
 
 function StudentShell({ children }: { children: ReactNode }) {
   const { data: me } = useMe();
+  const lifecycle = useQuery({ queryKey: ['my-lifecycle'], queryFn: () => api<{ alumniAccess: boolean }>('/me/lifecycle'), enabled: !!me, retry: false });
   if (!me) return null;
   return (
     <Shell
@@ -44,6 +47,7 @@ function StudentShell({ children }: { children: ReactNode }) {
           { href: '/student/leaderboard', label: 'Leaderboard', icon: Target },
           { href: '/student/support', label: 'Support', icon: LifeBuoy },
           { href: '/student/profile', label: 'Profile', icon: UserCircle },
+          ...(lifecycle.data?.alumniAccess ? [{ href: '/alumni', label: 'Alumni portal', icon: GraduationCap }] : []),
         ] },
       ]}
     >

@@ -7,6 +7,7 @@ import { Alert, Badge, Card, Empty, PageHeader, Section, SkeletonCards, Skeleton
 import { EstimatedBand } from '@/components/EstimatedBand';
 import { IeltsSummary, IeltsSummaryLike } from '@/components/IeltsSummary';
 import { RiskBadge, type RiskLevelValue } from '@/components/RiskBadge';
+import { LifecyclePanel } from '@/components/LifecyclePanel';
 import { api } from '@/lib/api';
 import { useUrlState } from '@/lib/url-state';
 import { date, label, money } from '@/lib/format';
@@ -65,6 +66,7 @@ export default function StudentDetailPage() {
       <div className="mb-6 overflow-x-auto">
         <Tabs aria-label="Student sections" variant="underline" value={tab} onChange={(k) => setTab({ tab: k })} items={TABS.map(([k, l]) => ({ key: k, label: l }))} />
       </div>
+      <LifecyclePanel studentId={s.id} />
 
       {tab === 'overview' && (
         analytics.isLoading ? <SkeletonCards count={2} /> : analytics.isError || !band ? <Alert>Could not load this student’s analytics.</Alert> : (

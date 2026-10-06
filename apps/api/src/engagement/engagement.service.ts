@@ -11,6 +11,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { alertLevel, attendancePercent, DEFAULT_ENGAGEMENT, EngagementStatus, engagementStatus, MarkedSession } from './engagement-rules';
 import { dueReminders, REMINDER_OFFSETS_MINUTES } from './reminders';
 import { APP_CONFIG, AppConfig } from '../config/config.module';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { LIFECYCLE_SIGNAL } from '../student-lifecycle/lifecycle.service';
+import { stageFromEngagement } from '../student-lifecycle/lifecycle-rules';
 
 const DAY = 86_400_000;
 const uuid = new ParseUUIDPipe();
@@ -28,6 +31,7 @@ export class EngagementService implements OnModuleInit {
     private readonly audit: AuditService,
     private readonly scheduler: SchedulerService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
+    private readonly events: EventEmitter2,
   ) {}
 
   onModuleInit() {
@@ -96,6 +100,11 @@ export class EngagementService implements OnModuleInit {
       });
       if (changed) await tx.engagementStatusHistory.create({ data: { studentId, fromStatus: prev, toStatus: status, reasons } });
     });
+
+    // The lifecycle stage follows engagement. The lifecycle rules decide whether the move is allowed (an alumni stays alumni).
+    if (changed) {
+      this.events.emit(LIFECYCLE_SIGNAL, { studentId, to: stageFromEngagement(status), reason: `Engagement changed to ${status.toLowerCase()}` });
+    }
 
     // Staff are alerted on transitions into a concerning state, and only then.
     if (changed && (status === 'AT_RISK' || status === 'INACTIVE')) {

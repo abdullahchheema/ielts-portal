@@ -24,6 +24,7 @@ export const MAX_PROOF_BYTES = 4 * 1024 * 1024;
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
 export { ENROLLMENT_ACTIVATED } from './events';
 import { ENROLLMENT_ACTIVATED, type EnrollmentActivatedEvent } from './events';
+import { LIFECYCLE_SIGNAL } from '../student-lifecycle/lifecycle.service';
 export type { EnrollmentActivatedEvent };
 
 /** What a student sees for an enrollment's state. The database enum is reused; only the wording is academic. */
@@ -226,6 +227,7 @@ export class ApplicationsService {
     }
 
     // Risk checks run after the commit and never block the submission; a person decides on any flag.
+    this.events.emit(LIFECYCLE_SIGNAL, { studentId: current.studentId, to: 'APPLICATION_SUBMITTED', reason: 'Application submitted with payment proof' });
     await this.risk.scanProof(created.proofId).catch(() => undefined);
     await this.notify.notifyPermission('payment.verify', 'APPLICATION_SUBMITTED', 'New enrollment application', `Order ${created.reference} is waiting for payment verification.`, {
       entityType: 'ENROLLMENT', entityId: created.enrollmentId, link: `/admin/applications?open=${created.enrollmentId}`,
