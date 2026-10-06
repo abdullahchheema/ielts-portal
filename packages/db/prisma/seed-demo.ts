@@ -318,6 +318,41 @@ async function main() {
     });
   }
 
+  // ── Coupons, vocabulary, a teacher grammar note, and a welcome credit ─────────────
+  // Everything here uses IEL-DEMO references and demo students, so reset removes it with the rest.
+  await prisma.coupon.upsert({
+    where: { code: 'IELDEMO10' }, update: {},
+    create: { code: 'IELDEMO10', name: 'Welcome offer', description: 'Ten percent off a demo course.', discountType: 'PERCENTAGE', value: 10, active: true, status: 'ACTIVE' },
+  });
+  await prisma.coupon.upsert({
+    where: { code: 'IELDEMO500' }, update: {},
+    create: { code: 'IELDEMO500', name: 'Friend offer', description: 'Five hundred off, once per student.', discountType: 'FIXED', value: 500, active: true, status: 'ACTIVE', perUserLimit: 1 },
+  });
+  const vocab = [
+    ['meticulous', 'showing great attention to detail', 'adjective', 'Common in Writing Task 2 for describing careful work.'],
+    ['sustainable', 'able to be maintained without harm to the environment', 'adjective', 'Frequent in Reading passages about environment.'],
+    ['mitigate', 'to make something less severe or harmful', 'verb', 'Often used with "risks" or "effects".'],
+    ['considerable', 'large in amount or degree', 'adjective', 'A safe way to describe a noticeable change.'],
+    ['ambiguous', 'open to more than one interpretation', 'adjective', 'Useful when a question has two readings.'],
+  ] as const;
+  const vocabRows: { id: string }[] = [];
+  for (const [word, definition, partOfSpeech, example] of vocab) {
+    const existing = await prisma.vocabularyItem.findFirst({ where: { word: { equals: word, mode: 'insensitive' } } });
+    vocabRows.push(existing ?? await prisma.vocabularyItem.create({
+      data: { word, definition, partOfSpeech, example, topic: 'Academic', difficulty: 3, status: 'APPROVED' },
+    }));
+  }
+  await prisma.studentVocabulary.createMany({
+    data: vocabRows.slice(0, 2).map((i) => ({ studentId: s1.id, itemId: i.id, status: 'SAVED', nextReviewAt: daysAgo(0) })),
+    skipDuplicates: true,
+  });
+  await prisma.grammarObservation.create({
+    data: { studentId: s1.id, categoryCode: 'ARTICLES', source: 'TEACHER', excerpt: 'go to school', correction: 'go to the school' },
+  });
+  await prisma.accountCreditLedger.create({
+    data: { studentId: s1.id, type: 'ADJUSTMENT', amount: 500, reason: 'Welcome credit (demo)' },
+  });
+
   console.log('Demo data loaded.');
 }
 
