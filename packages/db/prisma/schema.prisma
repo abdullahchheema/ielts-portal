@@ -12,6 +12,7 @@
 //
 // Partial/expression indexes that exist only in SQL — do not let a migration drop these:
 //   vocabulary_items_word_unique (lower(word)), grammar_observations_one_per_excerpt (partial),
+//   payment_proofs_file_sha256_idx (partial), statement_lines_ref_idx (expression),
 //   enrollments_one_live_per_batch, seat_reservations_one_open_per_student_batch,
 //   payment_proofs_approved_txn_unique, assessment_attempts_one_in_progress,
 //   submissions_one_open, notifications_user_dedupe_key, courses_single_live
@@ -267,6 +268,10 @@ model User {
   internalNotes        InternalNote[]         @relation("NoteAuthor")
   knowledgeEdited      KnowledgeArticle[]     @relation("KnowledgeEditor")
   tutorConversations   AiConversation[]      @relation("TutorOwner")
+  riskFlagsReviewed    PaymentRiskFlag[]     @relation("RiskReviewer")
+  statementsUploaded   StatementImport[]     @relation("StatementUploader")
+  reconciliationsResolved PaymentReconciliation[] @relation("ReconciliationResolver")
+  certificatesRevoked  CertificateRevocation[] @relation("CertificateRevoker")
   vocabularyItemsCreated VocabularyItem[]     @relation("VocabularyCreator")
   attendanceEventsActed AttendanceEvent[]     @relation("AttendanceActor")
   correctionsRequested  AttendanceCorrection[] @relation("CorrectionRequester")
@@ -852,6 +857,7 @@ model Payment {
   proofs  PaymentProof[]
   events  PaymentEvent[]
   refunds Refund[]
+  riskFlags PaymentRiskFlag[]
 
   @@index([orderId])
   @@index([status, createdAt])
@@ -873,6 +879,9 @@ model PaymentProof {
   flags            String[]
   rejectionReason  String?     @map("rejection_reason")
   allowResubmit    Boolean     @default(true) @map("allow_resubmit")
+  fileSha256       String?     @map("file_sha256")
+  riskFlags        PaymentRiskFlag[]
+  reconciliation   PaymentReconciliation?
   reviewedBy       String?     @map("reviewed_by") @db.Uuid
   reviewedAt       DateTime?   @map("reviewed_at")
   createdAt        DateTime    @default(now()) @map("created_at")
@@ -1359,6 +1368,9 @@ model Certificate {
   studentName  String   @map("student_name")
   courseTitle  String   @map("course_title")
   issuedAt     DateTime @default(now()) @map("issued_at")
+  certificateNumber String? @unique(map: "certificates_number_unique") @map("certificate_number")
+  batchName    String?  @map("batch_name")
+  revocation   CertificateRevocation?
 
   enrollment Enrollment     @relation(fields: [enrollmentId], references: [id])
   student    StudentProfile @relation(fields: [studentId], references: [id])
@@ -2165,4 +2177,86 @@ model AiMessage {
 
   @@index([conversationId, createdAt], map: "ai_messages_conversation_idx")
   @@map("ai_messages")
+}
+
+// ───────── Finance and security ─────────
+model PaymentRiskFlag {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  paymentId  String    @map("payment_id") @db.Uuid
+  proofId    String    @map("proof_id") @db.Uuid
+  rule       String
+  level      String
+  reason     String
+  status     String    @default("OPEN")
+  reviewedById String? @map("reviewed_by") @db.Uuid
+  reviewedAt DateTime? @map("reviewed_at")
+  reviewNote String?   @map("review_note")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  payment    Payment      @relation(fields: [paymentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  proof      PaymentProof @relation(fields: [proofId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reviewedBy User?        @relation("RiskReviewer", fields: [reviewedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([proofId, rule], map: "payment_risk_flags_unique")
+  @@map("payment_risk_flags")
+}
+
+model StatementImport {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  method       String
+  rowCount     Int      @map("row_count")
+  uploadedById String   @map("uploaded_by") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  uploadedBy User            @relation("StatementUploader", fields: [uploadedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lines      StatementLine[]
+
+  @@map("statement_imports")
+}
+
+model StatementLine {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  importId    String   @map("import_id") @db.Uuid
+  method      String
+  reference   String
+  amount      Decimal  @db.Decimal(12, 2)
+  txnDate     DateTime @map("txn_date") @db.Date
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  statementImport StatementImport       @relation(fields: [importId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reconciliations PaymentReconciliation[]
+
+  @@map("statement_lines")
+}
+
+model PaymentReconciliation {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  proofId         String    @unique @map("proof_id") @db.Uuid
+  status          String
+  reasons         String[]  @default([])
+  statementLineId String?   @map("statement_line_id") @db.Uuid
+  resolution      String?
+  resolutionNote  String?   @map("resolution_note")
+  resolvedById    String?   @map("resolved_by") @db.Uuid
+  resolvedAt      DateTime? @map("resolved_at")
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  proof         PaymentProof   @relation(fields: [proofId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  statementLine StatementLine? @relation(fields: [statementLineId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  resolvedBy    User?          @relation("ReconciliationResolver", fields: [resolvedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("payment_reconciliations")
+}
+
+model CertificateRevocation {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  certificateId String   @unique @map("certificate_id") @db.Uuid
+  reason        String
+  revokedById   String   @map("revoked_by") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  certificate Certificate @relation(fields: [certificateId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  revokedBy   User        @relation("CertificateRevoker", fields: [revokedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("certificate_revocations")
 }

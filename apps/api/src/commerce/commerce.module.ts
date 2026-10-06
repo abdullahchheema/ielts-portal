@@ -4,12 +4,13 @@ import { AdminCommerceController, ApplicationsController, PublicController } fro
 import { ApplicationsService } from './applications.service';
 import { CouponsController, CouponsService, StudentCouponsController } from './coupons.service';
 import { ReferralModule } from '../referrals/referral.module';
+import { PaymentRiskModule } from '../payment-risk/payment-risk.service';
 import { EnrollmentsService } from './enrollments.service';
 import { AdminRefundsController, StudentRefundsController } from './refunds.controller';
 import { RefundsService } from './refunds.service';
 
 @Module({
-  imports: [AuthModule, ReferralModule],
+  imports: [AuthModule, ReferralModule, PaymentRiskModule],
   controllers: [PublicController, ApplicationsController, AdminCommerceController, CouponsController, StudentCouponsController, StudentRefundsController, AdminRefundsController],
   providers: [ApplicationsService, CouponsService, EnrollmentsService, RefundsService],
   exports: [ApplicationsService, EnrollmentsService],

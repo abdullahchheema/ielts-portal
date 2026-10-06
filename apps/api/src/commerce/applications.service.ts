@@ -16,6 +16,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PaymentMethodSetting, SettingsService } from '../settings/settings.service';
 import { CouponsService } from './coupons.service';
 import { ReferralsService } from '../referrals/referrals.service';
+import { PaymentRiskService } from '../payment-risk/payment-risk.service';
+import { sha256Hex } from '../integrations/storage.service';
 import { money, newOrderReference, releaseCouponForOrder } from './commerce.helpers';
 
 export const MAX_PROOF_BYTES = 4 * 1024 * 1024;
@@ -61,6 +63,7 @@ export class ApplicationsService {
     private readonly storage: StorageService,
     private readonly settings: SettingsService,
     private readonly coupons: CouponsService,
+    private readonly risk: PaymentRiskService,
     private readonly referrals: ReferralsService,
     private readonly audit: AuditService,
     private readonly notify: NotificationsService,
@@ -157,7 +160,9 @@ export class ApplicationsService {
     const fileKey = `proofs/applications/${randomUUID()}.${sniffed.ext}`;
     await this.storage.put(fileKey, file!.buffer, sniffed.mime);
 
-    let created: { enrollmentId: string; reference: string };
+    let created: { enrollmentId: string; reference: string; proofId: string };
+    // A hash of the exact receipt, so the same file used for two payments can be detected later.
+    const fileSha256 = file ? sha256Hex(file.buffer) : null;
     try {
       created = await this.prisma.$transaction(async (tx) => {
         const { userId, studentId } = current;
@@ -202,7 +207,7 @@ export class ApplicationsService {
         const proof = await tx.paymentProof.create({
           data: {
             paymentId: payment.id, paymentMethod: pay.paymentMethod, senderName: pay.senderName ?? '', bankTxnReference: pay.transactionReference,
-            claimedAmount: pay.claimedAmount, transferDate: new Date(pay.transferDate), fileKey, fileMime: sniffed.mime, flags,
+            claimedAmount: pay.claimedAmount, transferDate: new Date(pay.transferDate), fileKey, fileMime: sniffed.mime, flags, fileSha256,
           },
         });
         const enrollment = await tx.enrollment.create({
@@ -211,7 +216,7 @@ export class ApplicationsService {
         await tx.paymentEvent.create({ data: { paymentId: payment.id, type: 'APPLICATION_SUBMITTED', actorId: userId, payload: { proofId: proof.id, method: pay.paymentMethod, flags } } });
         await tx.studentTimelineEvent.create({ data: { studentId, type: 'APPLICATION_SUBMITTED', summary: `Applied to ${batch.name} — payment awaiting verification`, meta: { enrollmentId: enrollment.id } } });
         await this.audit.record({ userId, action: 'APPLICATION_SUBMITTED', entityType: 'Enrollment', entityId: enrollment.id, after: { batchId: batch.id, orderReference: order.reference }, ip: meta.ip, userAgent: meta.userAgent }, tx);
-        return { enrollmentId: enrollment.id, reference: order.reference };
+        return { enrollmentId: enrollment.id, reference: order.reference, proofId: proof.id };
       }, { maxWait: 10_000, timeout: 20_000 });
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
@@ -220,6 +225,8 @@ export class ApplicationsService {
       throw e;
     }
 
+    // Risk checks run after the commit and never block the submission; a person decides on any flag.
+    await this.risk.scanProof(created.proofId).catch(() => undefined);
     await this.notify.notifyPermission('payment.verify', 'APPLICATION_SUBMITTED', 'New enrollment application', `Order ${created.reference} is waiting for payment verification.`, {
       entityType: 'ENROLLMENT', entityId: created.enrollmentId, link: `/admin/applications?open=${created.enrollmentId}`,
     });
