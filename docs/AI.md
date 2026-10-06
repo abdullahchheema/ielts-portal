@@ -11,6 +11,9 @@ AI in this platform is **advisory**. It explains, estimates and drafts. It never
 | Speaking evaluation | `speaking.evaluate` | An estimated band and comments on an answer | Nothing. Append-only (`speaking_evaluations`). |
 | AI tutor | `tutor.answer` | An answer to a student's question, with sources | Nothing. Conversations are private to the student who started them. |
 | Support assistant | `support.assist` | A suggested reply to a support ticket, with the knowledge it used | Nothing. Staff send the reply themselves. |
+| Question explanation | `tutor.explain` | An explanation of a reviewed question, after the attempt is submitted | Nothing. Nothing is stored. |
+| Study-plan summary | `study_plan.summary` | Two sentences rephrasing the plan summary from its facts | Nothing. A rule-based summary is kept when the AI is unavailable. |
+| Feedback themes | `feedback.themes` | A plain-language summary of comment themes, for staff | Nothing. Staff see it on the feedback dashboard. |
 
 Every estimate is labelled "AI Estimated". The interface states that AI estimates are guidance and are not an official IELTS result.
 
@@ -62,7 +65,7 @@ Every call writes one `ai_requests` row: feature, user, model, status, latency, 
 
 To switch AI off without a deploy, set `AI_PROVIDER=none` and restart. Every AI panel then shows the unavailable message and the rest of the platform keeps working.
 
-## Not built
+## Refusals and fallbacks
 
-- The study plan summary, the NPS theme summary and the mid-course survey do not call AI. They use deterministic rules. An AI summary can be added behind the same `AiService.json` call.
+- Summaries that contain an identifier (an id, or an email for themes) are refused, and the rule-based text is shown instead.
 - Retrieval for the tutor uses keyword search over approved content. It is not embeddings.

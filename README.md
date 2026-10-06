@@ -108,12 +108,11 @@ See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 Known gaps, roughly in order of value:
 
-- Referral credit can be earned and recorded, but it is not yet applied at checkout.
-- The mid-course feedback survey is defined but its trigger is not wired.
-- Grammar observations from teacher comments are not yet captured in the grading view.
-- Study plans have no AI-written summary; they use deterministic rules only.
-- Live classes use external meeting links. A pluggable live-class provider is not wired.
-- Scope checks for teachers are applied in each service rather than through one shared module.
-- Browser end-to-end tests (Playwright) are not set up.
+- Attempts and speaking responses do not yet complete study-plan tasks; only writing and vocabulary reviews do.
+- The NPS theme summary is generated on request and is not cached.
+- Grading still checks teacher scope in its own service; the other teacher checks now use the shared scope service for batches.
+- Refund-return of checkout credit is written but has no integration test yet.
+- The Playwright suite is set up and lists its tests, but it has not been run against a seeded stack in this environment.
+- The demo seed adds coupons, vocabulary, a grammar note and a welcome credit. Question bank sets, composed mocks, recordings, AI evaluations, risk flags, a statement import and a revoked certificate are not in it yet.
 
 Also not built: subscriptions · mobile app · SMS/WhatsApp channels · non-Latin names on certificates · drag-and-drop reordering in the course builder.
