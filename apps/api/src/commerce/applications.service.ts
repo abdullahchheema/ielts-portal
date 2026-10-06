@@ -25,6 +25,7 @@ const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'applicat
 export { ENROLLMENT_ACTIVATED } from './events';
 import { ENROLLMENT_ACTIVATED, type EnrollmentActivatedEvent } from './events';
 import { LIFECYCLE_SIGNAL } from '../student-lifecycle/lifecycle.service';
+import { creditToApply } from '../referrals/credit-rules';
 export type { EnrollmentActivatedEvent };
 
 /** What a student sees for an enrollment's state. The database enum is reused; only the wording is academic. */
@@ -196,8 +197,19 @@ export class ApplicationsService {
         if (pay.couponCode) {
           ({ discount } = await this.coupons.reserveForCheckout(tx, { code: pay.couponCode, studentId, userId, courseId: main.course.id, batchId: batch.id, price, orderId: order.id }));
         }
-        const total = price.sub(discount);
-        if (!discount.isZero()) await tx.order.update({ where: { id: order.id }, data: { discount, total } });
+        // Account credit comes off after the coupon. It is spent in this transaction and never makes the order free.
+        const afterDiscount = price.sub(discount);
+        let credit = money(0);
+        if (pay.useCredit) {
+          const agg = await tx.accountCreditLedger.aggregate({ where: { studentId }, _sum: { amount: true } });
+          const applied = creditToApply(Number(agg._sum.amount ?? 0), Number(afterDiscount), true);
+          if (applied > 0) {
+            credit = money(applied);
+            await tx.accountCreditLedger.create({ data: { studentId, type: 'REDEMPTION', amount: credit.neg(), reason: `Applied to order ${order.reference}`, createdById: userId } });
+          }
+        }
+        const total = afterDiscount.sub(credit);
+        if (!discount.isZero() || !credit.isZero()) await tx.order.update({ where: { id: order.id }, data: { discount, creditApplied: credit, total } });
         const item = await tx.orderItem.create({ data: { orderId: order.id, courseId: main.course.id, batchId: batch.id, originalPrice: price, discount, finalPrice: total } });
 
         const payment = await tx.payment.create({ data: { orderId: order.id, provider: 'BANK_TRANSFER', amount: total, currency: main.course.currency, reference: order.reference, status: 'PENDING' } });

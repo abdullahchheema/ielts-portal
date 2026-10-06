@@ -18,6 +18,8 @@ export const applicationPaymentSchema = z.object({
   transferDate: z.string().date('Enter the payment date'),
   senderName: optionalText(120),
   couponCode: z.preprocess(blank, z.string().trim().toUpperCase().min(2).max(40).optional()),
+  /** Spend account credit on this order. Never makes the order free: at least one unit stays payable. */
+  useCredit: z.preprocess((v) => v === true || v === 'true' || v === 'on', z.boolean().default(false)),
 });
 
 /** Background and contact details collected on the enrollment form, once the applicant has a verified account. */

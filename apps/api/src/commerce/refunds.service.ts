@@ -96,6 +96,10 @@ export class RefundsService {
 
       if (full) {
         await tx.order.update({ where: { id: order.id }, data: { status: 'REFUNDED' } });
+        // Credit spent on a refunded order goes back to the student's balance.
+        if (Number(order.creditApplied) > 0) {
+          await tx.accountCreditLedger.create({ data: { studentId: order.studentId, type: 'ADJUSTMENT', amount: order.creditApplied, reason: `Credit returned: order ${order.reference} refunded`, createdById: actor.userId } });
+        }
         const enrollments = await tx.enrollment.updateMany({ where: { orderItemId: { in: order.items.map((i) => i.id) }, status: { in: ['ACTIVE', 'PAUSED', 'COMPLETED'] } }, data: { status: 'REFUNDED' } });
         await tx.studentTimelineEvent.create({ data: { studentId: order.studentId, type: 'REFUNDED', summary: `Order ${order.reference} refunded${enrollments.count ? ' — enrollment ended' : ''}`, meta: { refundId } } });
       }

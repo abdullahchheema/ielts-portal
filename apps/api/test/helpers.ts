@@ -91,13 +91,14 @@ export async function createOpenBatch(app: NestExpressApplication, admin: Sessio
 /** Submits an enrollment application (multipart) exactly like the web form does. */
 export function apply(
   app: NestExpressApplication, session: Session | null, batchId: string,
-  o: { amount?: number; txn?: string; method?: string; file?: Buffer; filename?: string; contentType?: string; coupon?: string; applicant?: Record<string, string> } = {},
+  o: { amount?: number; txn?: string; method?: string; file?: Buffer; filename?: string; contentType?: string; coupon?: string; credit?: boolean; applicant?: Record<string, string> } = {},
 ) {
   let req = http(app).post('/applications');
   if (session) req = as(session)(req);
   req = req.field('batchId', batchId).field('paymentMethod', o.method ?? 'BANK_TRANSFER')
     .field('transactionReference', o.txn ?? `TXN${uniq()}${uniq()}`).field('claimedAmount', String(o.amount ?? 10000)).field('transferDate', '2026-09-28');
   if (o.coupon) req = req.field('couponCode', o.coupon);
+  if (o.credit) req = req.field('useCredit', 'true');
   const profile = { phone: '0300-1234567', city: 'Lahore', country: 'Pakistan', testType: 'ACADEMIC', targetBand: '7', examDate: '2027-06-01', ieltsHistory: 'NEVER', ...o.applicant };
   for (const [k, v] of Object.entries(profile)) req = req.field(k, v);
   return req.attach('file', o.file ?? PNG, { filename: o.filename ?? 'proof.png', contentType: o.contentType ?? 'image/png' });
