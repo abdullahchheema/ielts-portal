@@ -1215,7 +1215,8 @@ model Notification {
   link       String?
   createdAt  DateTime            @default(now()) @map("created_at")
 
-  user User @relation(fields: [userId], references: [id])
+  user       User                @relation(fields: [userId], references: [id])
+  deliveries NotificationDelivery[]
 
   @@index([userId, readAt])
   @@map("notifications")
@@ -1321,4 +1322,69 @@ model StudentTimelineEvent {
 
   @@index([studentId, createdAt])
   @@map("student_timeline_events")
+}
+
+// ───────── Platform foundations ─────────
+model AiRequest {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  feature      String
+  userId       String?  @map("user_id") @db.Uuid
+  provider     String
+  model        String
+  status       String
+  inputHash    String?  @map("input_hash")
+  latencyMs    Int?     @map("latency_ms")
+  tokensIn     Int?     @map("tokens_in")
+  tokensOut    Int?     @map("tokens_out")
+  costEstimate Decimal? @map("cost_estimate") @db.Decimal(10, 4)
+  errorCode    String?  @map("error_code")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([userId, createdAt], map: "ai_requests_user_created_idx")
+  @@index([feature, createdAt], map: "ai_requests_feature_created_idx")
+  @@map("ai_requests")
+}
+
+model Job {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jobKey      String    @unique(map: "jobs_job_key_unique") @map("job_key")
+  type        String
+  payload     Json?
+  status      String    @default("QUEUED")
+  attempts    Int       @default(0)
+  runAfter    DateTime  @default(now()) @map("run_after")
+  lockedUntil DateTime? @map("locked_until")
+  lastError   String?   @map("last_error")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  @@index([status, runAfter], map: "jobs_claim_idx")
+  @@map("jobs")
+}
+
+model ScheduledTaskRun {
+  taskName    String    @id @map("task_name")
+  lastRunAt   DateTime? @map("last_run_at")
+  nextRunAt   DateTime? @map("next_run_at")
+  lockedUntil DateTime? @map("locked_until")
+  lastStatus  String?   @map("last_status")
+  lastError   String?   @map("last_error")
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  @@map("scheduled_task_runs")
+}
+
+model NotificationDelivery {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  notificationId String   @map("notification_id") @db.Uuid
+  channel        String
+  status         String
+  providerId     String?  @map("provider_id")
+  error          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([notificationId], map: "notification_deliveries_notification_idx")
+  @@map("notification_deliveries")
 }

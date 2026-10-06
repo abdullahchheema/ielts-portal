@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Inject, Injectable, Logger, Module, OnModuleDestroy, OnModuleInit, Param, ParseUUIDPipe, Post, Req } from '@nestjs/common';
+import { Body, Controller, HttpCode, Inject, Injectable, Logger, Module, OnModuleInit, Param, ParseUUIDPipe, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { EnrollmentActionInput, TransferInput, enrollmentActionSchema, transferSchema } from '@ielts/validation';
 import { AuditService } from '../audit/audit.service';
@@ -9,28 +9,27 @@ import { APP_CONFIG, AppConfig } from '../config/config.module';
 import { Actor } from '../courses/courses.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { SchedulerService } from '../jobs/scheduler.service';
 
 const DAY = 86_400_000;
 const SWEEP_EVERY_MS = 5 * 60_000;
 
 @Injectable()
-export class LifecycleService implements OnModuleInit, OnModuleDestroy {
+export class LifecycleService implements OnModuleInit {
   private readonly logger = new Logger(LifecycleService.name);
-  private timer?: NodeJS.Timeout;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly notify: NotificationsService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
+    private readonly scheduler: SchedulerService,
   ) {}
 
+  /** Runs on the shared scheduler. The sweep is idempotent, so a missed or duplicated tick is harmless. */
   onModuleInit() {
-    if (this.config.DISABLE_SWEEPER === 'true' || this.config.NODE_ENV === 'test') return;
-    this.timer = setInterval(() => this.sweep().catch((e) => this.logger.error(`lifecycle sweep failed: ${e.message}`)), SWEEP_EVERY_MS);
-    this.timer.unref();
+    this.scheduler.register('lifecycle.sweep', SWEEP_EVERY_MS, () => this.sweep());
   }
-  onModuleDestroy() { if (this.timer) clearInterval(this.timer); }
 
   /** Safe to run on any number of instances: every state change is conditional and every reminder is de-duplicated. */
   async sweep(now = new Date()) {

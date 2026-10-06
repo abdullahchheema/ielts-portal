@@ -29,6 +29,19 @@ const schema = z.object({
   JWT_REFRESH_SECRET: z.string().min(32),
   APP_URL: z.string().url().default('http://localhost:3000'),
   API_URL: z.string().url().default('http://localhost:4000'),
+  // AI is optional. With no provider or key the LMS keeps working and AI panels show "temporarily unavailable".
+  AI_PROVIDER: z.enum(['mock', 'openai', 'none']).optional(),
+  AI_API_KEY: optional,
+  AI_MODEL: z.string().default('gpt-4o-mini'),
+  AI_TRANSCRIPTION_PROVIDER: z.enum(['mock', 'openai', 'none']).optional(),
+  AI_TRANSCRIPTION_MODEL: z.string().default('whisper-1'),
+  AI_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120_000).default(30_000),
+  // AI calls per student per feature per day.
+  AI_DAILY_LIMIT: z.coerce.number().int().min(0).max(10_000).default(20),
+  // Class reminders are on unless explicitly disabled.
+  CLASS_REMINDER_ENABLED: z.enum(['true', 'false']).default('true'),
+  // Optional shared secret for the external 5-minute cron ping (/api/internal/cron).
+  CRON_SECRET: optional,
 }).transform((c) => ({ ...c, TWO_FACTOR_ENABLED: c.TWO_FACTOR_ENABLED ?? (c.NODE_ENV === 'production' ? ('true' as const) : ('false' as const)) }));
 
 export type AppConfig = z.infer<typeof schema>;

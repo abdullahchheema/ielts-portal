@@ -63,6 +63,9 @@ export const ErrorCodes = {
   UPLOAD_FAILED: 'UPLOAD_FAILED',
   FILE_UNAVAILABLE: 'FILE_UNAVAILABLE',
   EXPORT_TOO_LARGE: 'EXPORT_TOO_LARGE',
+  // ai
+  AI_UNAVAILABLE: 'AI_UNAVAILABLE',
+  AI_LIMIT_REACHED: 'AI_LIMIT_REACHED',
 } as const;
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];

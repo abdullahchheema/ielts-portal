@@ -1,5 +1,5 @@
 import { BandService } from '../analytics/band.service';
-import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Prisma } from '@ielts/db';
 import type { SaveAnswersInput } from '@ielts/validation';
 import { AppError, notFound } from '../common/app-error';
@@ -7,6 +7,7 @@ import { APP_CONFIG, AppConfig } from '../config/config.module';
 import { LearningService } from '../learning/learning.service';
 import { StorageService } from '../integrations/storage.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { SchedulerService } from '../jobs/scheduler.service';
 import { BandRow, GradableQuestion, QuestionType, bandFromRaw, gradeAttempt, sanitizeAnswer } from './grading';
 
 type Tx = Prisma.TransactionClient;
@@ -27,9 +28,8 @@ interface Finished {
 }
 
 @Injectable()
-export class AttemptsService implements OnModuleInit, OnModuleDestroy {
+export class AttemptsService implements OnModuleInit {
   private readonly logger = new Logger(AttemptsService.name);
-  private timer?: NodeJS.Timeout;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -37,14 +37,12 @@ export class AttemptsService implements OnModuleInit, OnModuleDestroy {
     private readonly bands: BandService,
     private readonly storage: StorageService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
+    private readonly scheduler: SchedulerService,
   ) {}
 
   onModuleInit() {
-    if (this.config.DISABLE_SWEEPER === 'true' || this.config.NODE_ENV === 'test') return;
-    this.timer = setInterval(() => this.sweepExpired().catch((e) => this.logger.error(`attempt sweep failed: ${e.message}`)), 60_000);
-    this.timer.unref();
+    this.scheduler.register('attempts.sweep', 60_000, () => this.sweepExpired());
   }
-  onModuleDestroy() { if (this.timer) clearInterval(this.timer); }
 
   // ───────── loading ─────────
   private async questions(versionId: string): Promise<{ sections: { id: string; title: string; content: unknown }[]; questions: FlatQuestion[] }> {

@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Badge, Button, Card } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
+import { extensionFor, useRecorder } from '@/lib/use-recorder';
 import { band, date, label } from '@/lib/format';
 
 export interface AssessmentSummary {
@@ -154,34 +155,14 @@ function WritingPanel({ a, onChanged }: { a: AssignmentSummary; onChanged: () =>
 
 function SpeakingPanel({ a, onChanged }: { a: AssignmentSummary; onChanged: () => void }) {
   const confirm = useConfirm();
-  const [blob, setBlob] = useState<Blob | null>(null);
-  const [url, setUrl] = useState<string | null>(null);
-  const [recording, setRecording] = useState(false);
-  const [seconds, setSeconds] = useState(0);
+  const rec = useRecorder();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const rec = useRef<MediaRecorder | null>(null);
-  const chunks = useRef<Blob[]>([]);
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const waiting = a.current?.status === 'SUBMITTED';
-
-  useEffect(() => () => { if (timer.current) clearInterval(timer.current); if (url) URL.revokeObjectURL(url); }, [url]);
-
-  function keep(b: Blob) { setBlob(b); setUrl((old) => { if (old) URL.revokeObjectURL(old); return URL.createObjectURL(b); }); }
-
-  async function start() {
-    setError(null);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream);
-      chunks.current = [];
-      mr.ondataavailable = (e) => e.data.size && chunks.current.push(e.data);
-      mr.onstop = () => { stream.getTracks().forEach((t) => t.stop()); keep(new Blob(chunks.current, { type: mr.mimeType || 'audio/webm' })); };
-      mr.start(); rec.current = mr; setRecording(true); setSeconds(0);
-      timer.current = setInterval(() => setSeconds((s) => s + 1), 1000);
-    } catch { setError('We could not access your microphone. Allow microphone access, or upload a recording instead.'); }
-  }
-  function stop() { rec.current?.stop(); setRecording(false); if (timer.current) clearInterval(timer.current); }
+  const recording = rec.state.kind === 'recording';
+  const blob = rec.state.kind === 'ready' ? rec.state.blob : null;
+  const url = rec.state.kind === 'ready' ? rec.state.url : null;
+  const shownError = error ?? (rec.state.kind === 'error' ? rec.state.message : null);
 
   async function submit() {
     if (!blob) return;
@@ -189,7 +170,7 @@ function SpeakingPanel({ a, onChanged }: { a: AssignmentSummary; onChanged: () =
     setBusy(true); setError(null);
     try {
       const fd = new FormData();
-      fd.append('file', blob, `answer.${blob.type.includes('mp4') ? 'm4a' : blob.type.includes('ogg') ? 'ogg' : blob.type.includes('mpeg') ? 'mp3' : blob.type.includes('wav') ? 'wav' : 'webm'}`);
+      fd.append('file', blob, `answer.${extensionFor(blob.type)}`);
       await api(`/assignments/${a.id}/submit-audio`, { method: 'POST', form: fd });
       onChanged();
     } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
@@ -203,13 +184,13 @@ function SpeakingPanel({ a, onChanged }: { a: AssignmentSummary; onChanged: () =
       {waiting ? <Alert kind="info">Submitted — waiting for your mentor’s feedback.</Alert> : (
         <>
           <div className="flex flex-wrap items-center gap-3">
-            {!recording ? <Button variant="secondary" onClick={start}>● Record</Button> : <Button variant="danger" onClick={stop}>■ Stop ({Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')})</Button>}
+            {!recording ? <Button variant="secondary" onClick={() => { setError(null); rec.start(); }}>● Record</Button> : <Button variant="danger" onClick={rec.stop}>■ Stop ({Math.floor(rec.elapsed / 60)}:{String(rec.elapsed % 60).padStart(2, '0')})</Button>}
             <label className="cursor-pointer text-sm text-primary underline">or upload a file
-              <input type="file" className="sr-only" accept="audio/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) keep(f); }} />
+              <input type="file" className="sr-only" accept="audio/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) rec.chooseFile(f); }} />
             </label>
           </div>
           {url && <audio controls src={url} className="w-full" />}
-          {error && <Alert>{error}</Alert>}
+          {shownError && <Alert>{shownError}</Alert>}
           <Button onClick={() => confirm({ message: 'Submit this recording for grading?', confirmLabel: 'Submit' }).then((ok) => { if (ok) { submit(); } })} busy={busy} disabled={!blob || recording}>Submit recording</Button>
         </>
       )}

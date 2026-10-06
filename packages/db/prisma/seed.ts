@@ -16,6 +16,9 @@ const PERMISSIONS = [
   'report.finance.view', 'report.academic.view',
   'audit.view', 'settings.edit', 'dashboard.view', 'assessment.manage',
   'admin.manage',
+  'attendance.correct', 'knowledge.manage', 'ai.support.use', 'payment.reconcile',
+  'referral.manage', 'feedback.view', 'lifecycle.manage', 'engagement.followup',
+  'question.manage', 'class.manage',
 ] as const;
 
 const ROLES: Record<string, { description: string; permissions: readonly string[] | 'ALL' }> = {
@@ -24,20 +27,21 @@ const ROLES: Record<string, { description: string; permissions: readonly string[
     description: 'Courses, curriculum, batches, mentors, academic reports',
     permissions: ['course.view', 'course.create', 'course.edit', 'course.publish', 'content.manage',
       'batch.view', 'batch.create', 'batch.edit', 'mentor.assign', 'teaching.view', 'teacher.manage', 'student.view',
-      'enrollment.view', 'enrollment.create', 'report.academic.view', 'dashboard.view', 'assessment.manage'],
+      'enrollment.view', 'enrollment.create', 'report.academic.view', 'dashboard.view', 'assessment.manage',
+      'attendance.correct', 'knowledge.manage', 'ai.support.use', 'feedback.view', 'lifecycle.manage', 'engagement.followup', 'question.manage', 'class.manage'],
   },
   CONTENT_MANAGER: {
     description: 'Lessons, files and practice material',
-    permissions: ['course.view', 'course.edit', 'content.manage', 'dashboard.view', 'assessment.manage'],
+    permissions: ['course.view', 'course.edit', 'content.manage', 'dashboard.view', 'assessment.manage', 'knowledge.manage', 'question.manage'],
   },
   FINANCE_ADMIN: {
     description: 'Payments, refunds, coupons, revenue',
     permissions: ['payment.view', 'payment.verify', 'payment.refund', 'coupon.manage',
-      'enrollment.view', 'report.finance.view', 'dashboard.view'],
+      'enrollment.view', 'report.finance.view', 'dashboard.view', 'ai.support.use', 'payment.reconcile', 'referral.manage'],
   },
   SUPPORT_AGENT: {
     description: 'Tickets and limited enrolment lookup',
-    permissions: ['ticket.manage', 'student.view', 'enrollment.view', 'dashboard.view'],
+    permissions: ['ticket.manage', 'student.view', 'enrollment.view', 'dashboard.view', 'ai.support.use', 'engagement.followup'],
   },
   MARKETING: {
     description: 'Coupons and conversion reporting',
@@ -45,7 +49,7 @@ const ROLES: Record<string, { description: string; permissions: readonly string[
   },
   MENTOR: {
     description: 'Assigned batches, grading and feedback',
-    permissions: ['teaching.view', 'submission.view', 'submission.grade'],
+    permissions: ['teaching.view', 'submission.view', 'submission.grade', 'class.manage'],
   },
   STUDENT: { description: 'Learner', permissions: [] },
 };

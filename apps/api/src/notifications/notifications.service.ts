@@ -76,26 +76,49 @@ export class NotificationsService {
         sendEmail = sendEmail && !off('EMAIL');
       }
       if (!showInApp && !sendEmail) return false;
+      let row: { id: string };
       try {
         // The row doubles as the de-duplication anchor; when in-app is switched off it is stored as an EMAIL-channel record so the bell hides it.
-        await db.notification.create({
+        row = await db.notification.create({
           data: {
             userId, type, title, body, channel: showInApp ? 'IN_APP' : 'EMAIL', dedupeKey: opts.dedupeKey,
             entityType: opts.entityType, entityId: opts.entityId, link: opts.link,
           },
+          select: { id: true },
         });
       } catch (e) {
         if ((e as { code?: string }).code === 'P2002') return false; // already sent
         throw e;
       }
-      if (sendEmail) {
-        const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
-        if (user) await this.mail.send(user.email, title, `<p>${escapeHtml(body ?? title)}</p>`);
+      const deliveries: { channel: 'IN_APP' | 'EMAIL'; status: 'SENT' | 'FAILED' | 'SKIPPED'; providerId?: string; error?: string }[] = [
+        { channel: 'IN_APP', status: showInApp ? 'SENT' : 'SKIPPED' },
+      ];
+      if (opts.email) {
+        if (!sendEmail) deliveries.push({ channel: 'EMAIL', status: 'SKIPPED' });
+        else {
+          const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+          if (user) {
+            const r = await this.mail.send(user.email, title, `<p>${escapeHtml(body ?? title)}</p>`);
+            deliveries.push({ channel: 'EMAIL', status: r.ok ? 'SENT' : 'FAILED', providerId: r.providerId, error: r.error });
+          }
+        }
       }
+      await this.recordDeliveries(db, row.id, deliveries);
       return true;
     } catch (e) {
       this.logger.warn(`notifyUser(${type}) failed: ${(e as Error).message}`);
       return false;
+    }
+  }
+
+  /** Delivery history is best-effort too: a failed write is logged, never surfaced to the business operation. */
+  private async recordDeliveries(db: Db, notificationId: string, rows: { channel: 'IN_APP' | 'EMAIL'; status: 'SENT' | 'FAILED' | 'SKIPPED'; providerId?: string; error?: string }[]) {
+    try {
+      await db.notificationDelivery.createMany({
+        data: rows.map((r) => ({ notificationId, channel: r.channel, status: r.status, providerId: r.providerId ?? null, error: r.error ?? null })),
+      });
+    } catch (e) {
+      this.logger.warn(`notification delivery record failed: ${(e as Error).message}`);
     }
   }
 

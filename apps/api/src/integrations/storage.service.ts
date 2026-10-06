@@ -1,8 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { createHmac, timingSafeEqual } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { mkdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, resolve, sep } from 'node:path';
 import { AppError } from '../common/app-error';
@@ -66,6 +66,56 @@ export class StorageService {
     return `/api/files/local?key=${encodeURIComponent(key)}&exp=${exp}&sig=${sig}`;
   }
 
+  /**
+   * Presigned PUT for direct browser uploads (keeps large media off the 4.5 MB serverless body limit).
+   * Returns null in local-fallback mode: the caller then uses the multipart endpoint instead.
+   * The caller must verify the object afterwards with head() and readHead(); the signature alone is not proof of type or size.
+   */
+  async presignPut(key: string, contentType: string, ttlSec = 900): Promise<{ url: string; headers: Record<string, string> } | null> {
+    this.assertKey(key);
+    if (!this.s3) return null;
+    const url = await getSignedUrl(this.s3, new PutObjectCommand({ Bucket: this.bucket, Key: key, ContentType: contentType }), { expiresIn: ttlSec });
+    return { url, headers: { 'Content-Type': contentType } };
+  }
+
+  /** Size and content type of a stored object, or null when it does not exist. */
+  async head(key: string): Promise<{ size: number; contentType: string | null } | null> {
+    this.assertKey(key);
+    try {
+      if (this.s3) {
+        const r = await this.s3.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }));
+        return { size: Number(r.ContentLength ?? 0), contentType: r.ContentType ?? null };
+      }
+      const st = await stat(this.localPath(key));
+      return { size: st.size, contentType: null };
+    } catch {
+      return null;
+    }
+  }
+
+  /** The first `bytes` bytes of an object, for magic-number sniffing after a direct upload. */
+  async readHead(key: string, bytes = 64): Promise<Buffer> {
+    this.assertKey(key);
+    if (this.s3) {
+      const r = await this.s3.send(new GetObjectCommand({ Bucket: this.bucket, Key: key, Range: `bytes=0-${bytes - 1}` }));
+      const chunks: Buffer[] = [];
+      for await (const c of r.Body as AsyncIterable<Uint8Array>) chunks.push(Buffer.from(c));
+      return Buffer.concat(chunks).subarray(0, bytes);
+    }
+    return (await readFile(this.localPath(key))).subarray(0, bytes);
+  }
+
+  /** Removes an object. Used only to discard rejected uploads, never for records that must be kept. */
+  async remove(key: string): Promise<void> {
+    this.assertKey(key);
+    try {
+      if (this.s3) await this.s3.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
+      else await unlink(this.localPath(key));
+    } catch (e) {
+      this.logger.warn(`remove ${key} failed: ${(e as Error).message}`);
+    }
+  }
+
   // ── local-fallback support (used by FilesController) ──
   private sign(key: string, exp: number) {
     return createHmac('sha256', this.config.JWT_ACCESS_SECRET).update(`${key}:${exp}`).digest('hex');
@@ -91,6 +141,20 @@ export class StorageService {
 
 // ── content sniffing: never trust the client-declared MIME type or filename ──
 export type SniffedType = { mime: string; ext: string };
+
+/** SHA-256 of a buffer, hex. Used for duplicate-file detection; never for security decisions. */
+export const sha256Hex = (buf: Buffer) => createHash('sha256').update(buf).digest('hex');
+
+/** Video containers for class recordings and video uploads. Audio containers are sniffed by sniffFileType. */
+export function sniffVideoType(buf: Buffer): SniffedType | null {
+  if (buf.length >= 12 && buf.subarray(4, 8).toString('ascii') === 'ftyp') {
+    const brand = buf.subarray(8, 12).toString('ascii');
+    if (brand === 'M4A ' || brand === 'M4B ') return null; // audio-only MP4, not a video
+    return { mime: 'video/mp4', ext: 'mp4' };
+  }
+  if (buf.length >= 4 && buf[0] === 0x1a && buf[1] === 0x45 && buf[2] === 0xdf && buf[3] === 0xa3) return { mime: 'video/webm', ext: 'webm' };
+  return null;
+}
 
 export function sniffFileType(buf: Buffer): SniffedType | null {
   if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return { mime: 'image/jpeg', ext: 'jpg' };

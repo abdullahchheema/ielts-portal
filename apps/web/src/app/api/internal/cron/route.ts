@@ -8,16 +8,18 @@ export const maxDuration = 60;
 
 const same = (a: string, b: string) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
-/** Called by Vercel Cron (see vercel.json) with `Authorization: Bearer $CRON_SECRET`: expiry, reminders, timed-test auto-submit. */
+/**
+ * Drives the API's task scheduler. Vercel's daily cron calls this as a fallback; an external 5-minute
+ * ping (see .github/workflows/cron.yml) makes the time-based tasks run on time. Each task is lease-guarded,
+ * so repeated or overlapping calls never run the same task twice.
+ */
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET ?? '';
   const given = (req.headers.get('authorization') ?? '').replace(/^Bearer /, '');
   if (!secret || !same(given, secret)) return new NextResponse('Unauthorized', { status: 401 });
 
   const { app } = await embeddedBackend();
-  const { LifecycleService } = await import('@ielts/api/dist/lifecycle/lifecycle.service');
-  const { AttemptsService } = await import('@ielts/api/dist/assessments/attempts.service');
-  const lifecycle = await app.get<{ sweep(): Promise<unknown> }>(LifecycleService, { strict: false });
-  const attempts = await app.get<{ sweepExpired(): Promise<number> }>(AttemptsService, { strict: false });
-  return NextResponse.json({ ok: true, lifecycle: await lifecycle.sweep(), autoSubmitted: await attempts.sweepExpired() });
+  const { SchedulerService } = await import('@ielts/api/dist/jobs/scheduler.service');
+  const scheduler = await app.get<{ tick(budgetMs?: number): Promise<Record<string, unknown>> }>(SchedulerService, { strict: false });
+  return NextResponse.json({ ok: true, tasks: await scheduler.tick(45_000) });
 }

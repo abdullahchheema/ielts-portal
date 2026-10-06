@@ -4,9 +4,8 @@ declare module '@ielts/api/dist/app' {
     app: { listen(port: number, host: string): Promise<unknown>; getUrl(): Promise<string> };
   }>;
 }
-declare module '@ielts/api/dist/lifecycle/lifecycle.service' {
-  export const LifecycleService: new (...args: never[]) => unknown;
-}
-declare module '@ielts/api/dist/assessments/attempts.service' {
-  export const AttemptsService: new (...args: never[]) => unknown;
+declare module '@ielts/api/dist/jobs/scheduler.service' {
+  export const SchedulerService: new (...args: never[]) => {
+    tick(budgetMs?: number): Promise<Record<string, unknown>>;
+  };
 }

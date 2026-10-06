@@ -1,0 +1,30 @@
+name: scheduled-tasks
+
+# Pings the deployed app's task scheduler every 5 minutes. Requires two repository secrets:
+#   CRON_URL     the full URL, e.g. https://your-app.example.com/api/internal/cron
+#   CRON_SECRET  the same value the app has in its CRON_SECRET variable
+# GitHub may delay scheduled runs by a few minutes; every task is idempotent, so a late run is harmless.
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: scheduled-tasks
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Run due tasks
+        env:
+          CRON_URL: ${{ secrets.CRON_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          test -n "$CRON_URL" && test -n "$CRON_SECRET" || { echo "CRON_URL and CRON_SECRET must be set"; exit 1; }
+          curl --fail --silent --show-error --max-time 120 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$CRON_URL"
