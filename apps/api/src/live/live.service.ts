@@ -1,4 +1,8 @@
 import { overseesAllBatches } from '../common/scope';
+import { ScopeService } from '../common/scope.service';
+import { liveClassProvider, LiveClassProvider } from './live-provider';
+import { APP_CONFIG, AppConfig } from '../config/config.module';
+import { Inject } from '@nestjs/common';
 import { attendanceWarnings, DEFAULT_ATTENDANCE_RULES } from '../engagement/engagement-rules';
 import { Body, Controller, Delete, Get, HttpCode, Injectable, Module, Param, ParseUUIDPipe, Patch, Post, Put, Req } from '@nestjs/common';
 import type { Request } from 'express';
@@ -23,16 +27,21 @@ const bad = (field: string, msg: string) => new AppError('VALIDATION_ERROR', 422
 
 @Injectable()
 export class LiveService {
-  constructor(private readonly prisma: PrismaService, private readonly audit: AuditService, private readonly notify: NotificationsService) {}
+  private readonly provider: LiveClassProvider;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+    private readonly notify: NotificationsService,
+    private readonly scope: ScopeService,
+    @Inject(APP_CONFIG) config: AppConfig,
+  ) {
+    this.provider = liveClassProvider(config.LIVE_CLASS_PROVIDER);
+  }
 
   /** Mentors act only on batches they are assigned to; academic admins on any. */
   private async assertBatch(r: Reviewer, batchId: string) {
-    const batch = await this.prisma.batch.findFirst({ where: { id: batchId, deletedAt: null } });
-    if (!batch) throw notFound('Batch');
-    if (r.canOverseeAll) return batch;
-    const ok = r.mentorId ? await this.prisma.batchMentor.count({ where: { batchId, mentorId: r.mentorId } }) : 0;
-    if (!ok) throw forbidden('You are not assigned to this batch.');
-    return batch;
+    return this.scope.assertBatch({ mentorId: r.mentorId, canOverseeAll: r.canOverseeAll }, batchId);
   }
 
   private checkTimes(startsAt: string | Date, endsAt: string | Date) {
@@ -204,7 +213,7 @@ export class LiveService {
     });
     const shape = (s: (typeof rows)[number]) => ({
       id: s.id, topic: s.topic, startsAt: s.startsAt, endsAt: s.endsAt, provider: s.provider, batch: s.batch.name, course: s.batch.course.title,
-      joinUrl: s.meetingUrl && now >= s.startsAt.getTime() - JOIN_EARLY_MS && now <= s.endsAt.getTime() ? s.meetingUrl : null,
+      joinUrl: this.provider.joinUrl(s, now),
       recordingUrl: s.endsAt.getTime() < now ? s.recordingUrl : null, attendance: s.attendance[0]?.status ?? null,
     });
     return { upcoming: rows.filter((s) => s.endsAt.getTime() >= now).map(shape), past: rows.filter((s) => s.endsAt.getTime() < now).reverse().map(shape) };

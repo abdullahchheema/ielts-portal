@@ -40,6 +40,8 @@ const schema = z.object({
   AI_DAILY_LIMIT: z.coerce.number().int().min(0).max(10_000).default(20),
   // Class reminders are on unless explicitly disabled.
   CLASS_REMINDER_ENABLED: z.enum(['true', 'false']).default('true'),
+  /** Where live classes are joined. Only the external meeting link is built in. */
+  LIVE_CLASS_PROVIDER: z.enum(['external']).default('external'),
   // Optional shared secret for the external 5-minute cron ping (/api/internal/cron).
   CRON_SECRET: optional,
 }).transform((c) => ({ ...c, TWO_FACTOR_ENABLED: c.TWO_FACTOR_ENABLED ?? (c.NODE_ENV === 'production' ? ('true' as const) : ('false' as const)) }));

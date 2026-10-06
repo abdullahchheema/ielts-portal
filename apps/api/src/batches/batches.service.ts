@@ -1,3 +1,4 @@
+import { ScopeService } from '../common/scope.service';
 import { DEFAULT_GRADING_TARGET_HOURS } from '../analytics/thresholds';
 import { SettingsService } from '../settings/settings.service';
 import { BandService } from '../analytics/band.service';
@@ -36,6 +37,7 @@ const bad = (field: string, msg: string) => new AppError('VALIDATION_ERROR', 422
 export class BatchesService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly scope: ScopeService,
     private readonly settings: SettingsService,
     private readonly bands: BandService,
     private readonly audit: AuditService,
@@ -324,9 +326,7 @@ export class BatchesService {
   // ───────── teacher portal (scoped to assigned batches) ─────────
   /** Teachers only reach batches they are assigned to; academic admins may oversee any. */
   private async assertBatchAccess(batchId: string, user: { mentorId?: string; permissions: Set<string> }) {
-    if (overseesAllBatches(user.permissions)) return;
-    const assigned = user.mentorId ? await this.prisma.batchMentor.count({ where: { batchId, mentorId: user.mentorId, batch: { deletedAt: null } } }) : 0;
-    if (!assigned) throw forbidden('You are not assigned to this batch.');
+    await this.scope.assertBatch({ mentorId: user.mentorId ?? null, permissions: user.permissions }, batchId);
   }
 
   async mentorBatches(mentorId: string) {
