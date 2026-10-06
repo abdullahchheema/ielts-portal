@@ -1,4 +1,6 @@
 import { Body, Controller, Get, HttpCode, Injectable, Module, Param, ParseUUIDPipe, Post, Query, Req } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { STUDY_EVIDENCE, StudyEvidence } from '../study-plan/evidence';
 import type { Request } from 'express';
 import { z } from 'zod';
 import { AuditService } from '../audit/audit.service';
@@ -32,7 +34,7 @@ const suggestionQuery = z.object({ text: z.string().max(20_000).default('') });
  */
 @Injectable()
 export class VocabularyService {
-  constructor(private readonly prisma: PrismaService, private readonly audit: AuditService) {}
+  constructor(private readonly prisma: PrismaService, private readonly audit: AuditService, private readonly events: EventEmitter2) {}
 
   // ───────── curation (staff) ─────────
   async listItems(q: { status?: string; take?: number }) {
@@ -101,6 +103,7 @@ export class VocabularyService {
       });
       if (claimed.count === 0) throw new AppError('CONFLICT', 409, 'This word was just reviewed. Refresh and try again.');
       await tx.vocabularyReview.create({ data: { studentVocabularyId: cardId, correct } });
+      this.events.emit(STUDY_EVIDENCE, { studentId, refType: 'VOCABULARY_REVIEW', refId: cardId } satisfies StudyEvidence);
       return { status: next.status, nextReviewAt: next.nextReviewAt, intervalDays: next.intervalDays };
     });
   }

@@ -1,4 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { STUDY_EVIDENCE, StudyEvidence } from '../study-plan/evidence';
 import { Prisma } from '@ielts/db';
 import { CreateWritingInput, SaveWritingInput, MAX_ESSAY_CHARS } from '@ielts/validation';
 import { AiService } from '../ai/ai.service';
@@ -21,7 +23,7 @@ const EDITABLE = 'DRAFT';
 
 @Injectable()
 export class WritingService implements OnModuleInit {
-  constructor(private readonly prisma: PrismaService, private readonly ai: AiService, private readonly jobs: JobsService, private readonly grammar: GrammarService) {}
+  constructor(private readonly prisma: PrismaService, private readonly ai: AiService, private readonly jobs: JobsService, private readonly grammar: GrammarService, private readonly events: EventEmitter2) {}
 
   onModuleInit() {
     this.jobs.handle('writing.evaluate', async (payload) => {
@@ -81,12 +83,13 @@ export class WritingService implements OnModuleInit {
 
   /** Locks the essay and queues an AI evaluation. The student sees the result when it is ready. */
   async submit(studentId: string, id: string) {
-    const r = await this.prisma.writingResponse.findFirst({ where: { id, studentId }, select: { id: true, status: true, revision: true, body: true } });
+    const r = await this.prisma.writingResponse.findFirst({ where: { id, studentId }, select: { id: true, status: true, revision: true, body: true, questionId: true } });
     if (!r) throw notFound('Writing');
     if (r.status === 'EVALUATED' || r.status === 'SUBMITTED') return { status: r.status };
     if (wordCount(r.body) < 20) throw new AppError('VALIDATION_ERROR', 422, 'Write at least a short paragraph before submitting.');
     const claimed = await this.prisma.writingResponse.updateMany({ where: { id, studentId, status: EDITABLE }, data: { status: 'SUBMITTED', submittedAt: new Date() } });
     if (claimed.count === 0) return { status: 'SUBMITTED' };
+    if (r.questionId) this.events.emit(STUDY_EVIDENCE, { studentId, refType: 'WRITING_TASK', refId: r.questionId } satisfies StudyEvidence);
     const jobId = await this.jobs.enqueue('writing.evaluate', `writing:${id}:${r.revision}`, { responseId: id, revision: r.revision });
     if (jobId) await this.jobs.runById(jobId).catch(() => false);
     return { status: 'SUBMITTED' };

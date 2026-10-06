@@ -44,6 +44,9 @@ export class AdminFeedbackController {
 
   @RequirePermission('feedback.view') @Get()
   summary(@Query(new ZodPipe(summaryQuery)) q: z.infer<typeof summaryQuery>) { return this.feedback.summary(q.days); }
+
+  @RequirePermission('feedback.view') @Get('themes')
+  themes(@Query(new ZodPipe(summaryQuery)) q: z.infer<typeof summaryQuery>) { return this.feedback.aiThemes(q.days); }
 }
 
 @Module({

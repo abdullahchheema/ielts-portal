@@ -1,4 +1,8 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
+import { z } from 'zod';
+import { AiService } from '../ai/ai.service';
+import { STUDY_EVIDENCE, StudyEvidence } from './evidence';
 import { Prisma } from '@ielts/db';
 import { createHash } from 'node:crypto';
 import { AppError, notFound } from '../common/app-error';
@@ -29,6 +33,7 @@ export class StudyPlanService implements OnModuleInit {
     private readonly insights: InsightsService,
     private readonly settings: SettingsService,
     private readonly scheduler: SchedulerService,
+    private readonly ai: AiService,
   ) {}
 
   onModuleInit() {
@@ -83,11 +88,12 @@ export class StudyPlanService implements OnModuleInit {
     const minutesPlanned = planned.reduce((s, d) => s + d.minutes, 0);
     const status = planStatus({ gapBands, daysLeft, minutesPlanned, minutesPerDay });
     const weakNames = weak.bySkill.filter((g) => g.level === 'HIGH_RISK' || g.level === 'NEEDS_PRACTICE').map((g) => g.key.toLowerCase());
-    const summary = [
+    const ruleSummary = [
       profile.targetBand === null ? 'No target band is set yet.' : `Target band ${Number(profile.targetBand)}.`,
       daysLeft === null ? 'No exam date is set, so the plan covers two weeks.' : `${daysLeft} day${daysLeft === 1 ? '' : 's'} to your exam.`,
       weakNames.length ? `Focus first on ${weakNames.join(' and ')}.` : 'No skill is currently flagged as weak.',
     ].join(' ');
+    const summary = await this.polish(ruleSummary, studentId, { targetBand: profile.targetBand === null ? null : Number(profile.targetBand), daysToExam: daysLeft, weakSkills: weakNames });
 
     return this.prisma.$transaction(async (tx) => {
       await tx.studyPlan.updateMany({ where: { studentId, status: 'ACTIVE' }, data: { status: 'SUPERSEDED', supersededAt: new Date() } });
@@ -211,6 +217,37 @@ export class StudyPlanService implements OnModuleInit {
   }
 
   /** Marks one of the student's own tasks done. Other students' tasks are simply not found. */
+  /**
+   * The AI may only rephrase the rule-based summary from the facts given. Output that contains an identifier is
+   * refused, and any failure keeps the rule-based text, so the plan never depends on the AI.
+   */
+  private async polish(summary: string, studentId: string, facts: unknown): Promise<string> {
+    const schema = z.object({
+      summary: z.string().min(20).max(500).refine((s) => !/[0-9a-f]{8}-[0-9a-f]{4}/i.test(s), 'No identifiers in the summary'),
+    });
+    try {
+      const out = await this.ai.json({
+        feature: 'study_plan.summary', userId: studentId,
+        system: this.ai.systemPrompt('study_plan.summary', 'Rewrite the study plan summary as two short, encouraging sentences for the student. Use only the facts given. Do not add numbers, names or identifiers that are not in the facts.'),
+        user: this.ai.wrapForPrompt('FACTS', JSON.stringify(facts)), schema, mock: () => ({ summary }),
+      });
+      return out.data.summary;
+    } catch {
+      return summary;
+    }
+  }
+
+  /** Completes the matching pending task of the active plan, when the student does the item it points to. */
+  @OnEvent(STUDY_EVIDENCE, { async: true })
+  async onEvidence(ev: StudyEvidence) {
+    const plan = await this.prisma.studyPlan.findFirst({ where: { studentId: ev.studentId, status: 'ACTIVE' }, select: { id: true } });
+    if (!plan) return;
+    await this.prisma.studyPlanTask.updateMany({
+      where: { planId: plan.id, studentId: ev.studentId, refType: ev.refType, refId: ev.refId, status: 'PENDING' },
+      data: { status: 'DONE', completedAt: new Date() },
+    });
+  }
+
   async complete(studentId: string, taskId: string) {
     const r = await this.prisma.studyPlanTask.updateMany({ where: { id: taskId, studentId, status: 'PENDING' }, data: { status: 'DONE', completedAt: new Date() } });
     if (r.count === 0) {
