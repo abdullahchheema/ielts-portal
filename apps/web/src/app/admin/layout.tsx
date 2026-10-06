@@ -46,6 +46,7 @@ function AdminShell({ children }: { children: ReactNode }) {
           { href: '/admin/analytics', label: 'Analytics', icon: BarChart3, show: c('report.academic.view') && c('student.view') },
           { href: '/admin/analytics/content', label: 'Course & questions', icon: Library, show: c('report.academic.view') && c('course.view') },
           { href: '/admin/reports', label: 'Reports', icon: BarChart3, show: c('report.finance.view') || c('report.academic.view') },
+          { href: '/admin/cohorts', label: 'Cohorts', icon: Layers, show: c('report.academic.view') },
         ] },
         { title: 'System', items: [
           { href: '/admin/staff', label: 'Staff & roles', icon: UsersRound, show: c('admin.manage') },

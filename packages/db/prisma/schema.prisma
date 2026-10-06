@@ -354,6 +354,7 @@ model MentorProfile {
   application TeacherApplication? @relation(fields: [applicationId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   batches     BatchMentor[]
   sessions    LiveSession[]
+  gradingDrafts GradingDraft[]
 
   @@map("mentor_profiles")
 }
@@ -696,6 +697,7 @@ model Batch {
   orderItems   OrderItem[]
   recordings   ClassRecording[]
   leaderboards LeaderboardSnapshot[]
+  healthSnapshot BatchHealthSnapshot?
 
   @@map("batches")
 }
@@ -1201,6 +1203,7 @@ model Submission {
   rubricScores RubricScore[]
   writingEvaluations WritingEvaluation[]
   speakingEvaluations SpeakingEvaluation[]
+  gradingDrafts GradingDraft[]
 
   // Names pinned to the indexes already created in SQL (20260930000100_grading) so Prisma keeps them.
   @@index([status, submittedAt], map: "submissions_status_submitted_at_idx")
@@ -2057,4 +2060,33 @@ model LeaderboardSnapshot {
 
   @@unique([batchId, periodType, periodKey], map: "leaderboard_snapshots_unique")
   @@map("leaderboard_snapshots")
+}
+
+// ───────── Teacher workspace ─────────
+model GradingDraft {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  submissionId String   @map("submission_id") @db.Uuid
+  mentorId     String   @map("mentor_id") @db.Uuid
+  scores       Json     @default("[]")
+  comment      String?
+  revision     Int      @default(1)
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
+
+  submission Submission     @relation(fields: [submissionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  mentor     MentorProfile  @relation(fields: [mentorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([submissionId, mentorId], map: "grading_drafts_unique")
+  @@map("grading_drafts")
+}
+
+model BatchHealthSnapshot {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  batchId    String   @unique(map: "batch_health_snapshots_unique") @map("batch_id") @db.Uuid
+  payload    Json
+  inputsHash String   @map("inputs_hash")
+  computedAt DateTime @default(now()) @map("computed_at")
+
+  batch Batch @relation(fields: [batchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("batch_health_snapshots")
 }

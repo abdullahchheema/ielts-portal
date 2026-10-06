@@ -259,6 +259,8 @@ export class GradingService {
     await this.notify.notifyUser(info.studentUserId, 'SUBMISSION_GRADED', 'Your work has been graded', `“${info.title}”: Band ${info.band.toFixed(1)}. Open it to read your mentor’s feedback.`, {
       email: true, entityType: 'SUBMISSION', entityId: id, link: `/student/submissions/${id}`,
     });
+    // The draft is only a working copy. The final grade is the record, so the draft goes now.
+    await this.prisma.gradingDraft.deleteMany({ where: { submissionId: id } }).catch(() => undefined);
     return this.detail(r, id);
   }
 }

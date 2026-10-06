@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Alert, Card, Empty, LinkButton, PageHeader, Section, SkeletonTable, StatCard } from '@/components/ui';
 import { api } from '@/lib/api';
 import { date } from '@/lib/format';
+import { TeacherWorkload } from '@/components/TeacherWorkload';
 
 interface Dash { gradingTargetHours: number; grading: { waiting: number; oldestWaitingHours: number | null; overTarget: number; medianTurnaroundHours: number | null }; unmarkedSessions: number; batches: number; activeBatches: number; students: number; toGrade: number; upcomingSessions: { id: string; topic: string; startsAt: string; batch: { id: string; name: string } }[] }
 
@@ -18,6 +19,8 @@ export default function TeacherDashboard() {
     <>
       <PageHeader title="Teacher dashboard" subtitle="Only the batches assigned to you appear here." />
       {data.batches === 0 && <div className="mb-8"><Alert kind="info">You have not been assigned to a batch yet. When the academy assigns you one, its students and classes show up here.</Alert></div>}
+
+      <TeacherWorkload />
 
       <Section title="At a glance">
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
