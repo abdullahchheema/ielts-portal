@@ -311,6 +311,10 @@ model StudentProfile {
   referralReceived     Referral?             @relation("ReferredStudent")
   creditLedger         AccountCreditLedger[]
   generatedAssessments Assessment[]          @relation("PersonalAssessment")
+  writingResponses     WritingResponse[]
+  speakingAttempts     SpeakingAttempt[]
+  speakingResponses    SpeakingResponse[]
+  examAttempts         ExamAttempt[]
 
   @@map("student_profiles")
 }
@@ -945,6 +949,8 @@ model Assessment {
   courseVersion CourseVersion?        @relation(fields: [courseVersionId], references: [id])
   versions      AssessmentVersion[]
   attempts      AssessmentAttempt[]
+  simListeningExams ExamAttempt[] @relation("SimListening")
+  simReadingExams   ExamAttempt[] @relation("SimReading")
 
   @@map("assessments")
 }
@@ -991,6 +997,8 @@ model Question {
   questionSet    QuestionSet?       @relation(fields: [questionSetId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   sourceQuestion Question?          @relation("SourceQuestion", fields: [sourceQuestionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   copies         Question[]         @relation("SourceQuestion")
+  writingResponses WritingResponse[]
+  speakingResponses SpeakingResponse[]
   versions QuestionVersion[]
 
   @@index([questionSetId], map: "questions_set_idx")
@@ -1049,6 +1057,8 @@ model AssessmentAttempt {
   enrollment   Enrollment?       @relation(fields: [enrollmentId], references: [id])
   answers      AttemptAnswer[]
   rubricScores RubricScore[]
+  simListeningExams ExamAttempt[] @relation("SimListeningAttempt")
+  simReadingExams   ExamAttempt[] @relation("SimReadingAttempt")
 
   @@unique([assessmentId, studentId, attemptNumber])
   @@index([studentId, status])
@@ -1166,6 +1176,8 @@ model Submission {
   enrollment   Enrollment?          @relation(fields: [enrollmentId], references: [id])
   feedback     SubmissionFeedback[]
   rubricScores RubricScore[]
+  writingEvaluations WritingEvaluation[]
+  speakingEvaluations SpeakingEvaluation[]
 
   // Names pinned to the indexes already created in SQL (20260930000100_grading) so Prisma keeps them.
   @@index([status, submittedAt], map: "submissions_status_submitted_at_idx")
@@ -1522,4 +1534,165 @@ model AccountCreditLedger {
 
   @@index([studentId], map: "account_credit_student_idx")
   @@map("account_credit_ledger")
+}
+
+// ───────── Writing practice ─────────
+model WritingResponse {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentId   String    @map("student_id") @db.Uuid
+  questionId  String?   @map("question_id") @db.Uuid
+  taskType    String    @map("task_type")
+  promptText  String    @map("prompt_text")
+  body        String    @default("")
+  wordCount   Int       @default(0) @map("word_count")
+  status      String    @default("DRAFT")
+  revision    Int       @default(1)
+  submittedAt DateTime? @map("submitted_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  student     StudentProfile       @relation(fields: [studentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  question    Question?            @relation(fields: [questionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  revisions   WritingRevision[]
+  evaluations WritingEvaluation[]
+  examAttempts ExamAttempt[]
+
+  @@index([studentId, createdAt], map: "writing_responses_student_created_idx")
+  @@map("writing_responses")
+}
+
+model WritingRevision {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  responseId String   @map("response_id") @db.Uuid
+  revision   Int
+  body       String
+  wordCount  Int      @map("word_count")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  response WritingResponse @relation(fields: [responseId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([responseId, revision], map: "writing_revisions_unique")
+  @@map("writing_revisions")
+}
+
+model WritingEvaluation {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  responseId    String?   @map("response_id") @db.Uuid
+  submissionId  String?   @map("submission_id") @db.Uuid
+  revision      Int
+  provider      String
+  model         String
+  promptVersion String    @map("prompt_version")
+  estimatedBand Decimal?  @map("estimated_band") @db.Decimal(3, 1)
+  criteria      Json
+  feedback      Json
+  stats         Json
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  response   WritingResponse? @relation(fields: [responseId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  submission Submission?      @relation(fields: [submissionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([responseId, createdAt], map: "writing_evaluations_response_idx")
+  @@index([submissionId, createdAt], map: "writing_evaluations_submission_idx")
+  @@map("writing_evaluations")
+}
+
+// ───────── Speaking practice ─────────
+model SpeakingAttempt {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentId String   @map("student_id") @db.Uuid
+  mode      String
+  status    String   @default("IN_PROGRESS")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  student   StudentProfile      @relation(fields: [studentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  responses SpeakingResponse[]
+  examAttempts ExamAttempt[]
+
+  @@index([studentId, createdAt], map: "speaking_attempts_student_idx")
+  @@map("speaking_attempts")
+}
+
+model SpeakingResponse {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attemptId         String    @map("attempt_id") @db.Uuid
+  studentId         String    @map("student_id") @db.Uuid
+  questionId        String?   @map("question_id") @db.Uuid
+  part              String
+  promptText        String    @map("prompt_text")
+  storageKey        String?   @unique @map("storage_key")
+  mime              String?
+  sizeBytes         BigInt?   @map("size_bytes")
+  durationSec       Decimal?  @map("duration_sec") @db.Decimal(8, 2)
+  sha256            String?
+  status            String    @default("UPLOADING")
+  transcriptStatus  String    @default("PENDING") @map("transcript_status")
+  transcript        String?
+  metrics           Json?
+  lastError         String?   @map("last_error")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  attempt     SpeakingAttempt     @relation(fields: [attemptId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  student     StudentProfile      @relation(fields: [studentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  question    Question?           @relation(fields: [questionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  evaluations SpeakingEvaluation[]
+
+  @@index([attemptId], map: "speaking_responses_attempt_idx")
+  @@index([studentId, createdAt], map: "speaking_responses_student_idx")
+  @@map("speaking_responses")
+}
+
+model SpeakingEvaluation {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  responseId    String?  @map("response_id") @db.Uuid
+  submissionId  String?  @map("submission_id") @db.Uuid
+  provider      String
+  model         String
+  promptVersion String   @map("prompt_version")
+  estimatedBand Decimal? @map("estimated_band") @db.Decimal(3, 1)
+  criteria      Json
+  feedback      Json
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  response   SpeakingResponse? @relation(fields: [responseId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  submission Submission?       @relation(fields: [submissionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([responseId, createdAt], map: "speaking_evaluations_response_idx")
+  @@map("speaking_evaluations")
+}
+
+// ───────── Full simulator ─────────
+model ExamAttempt {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentId              String    @map("student_id") @db.Uuid
+  status                 String    @default("IN_PROGRESS")
+  stage                  String    @default("LISTENING")
+  includeSpeaking        Boolean   @default(true) @map("include_speaking")
+  listeningAssessmentId  String?   @map("listening_assessment_id") @db.Uuid
+  readingAssessmentId    String?   @map("reading_assessment_id") @db.Uuid
+  listeningAttemptId     String?   @map("listening_attempt_id") @db.Uuid
+  readingAttemptId       String?   @map("reading_attempt_id") @db.Uuid
+  writingResponseId      String?   @map("writing_response_id") @db.Uuid
+  speakingAttemptId      String?   @map("speaking_attempt_id") @db.Uuid
+  stageDeadlineAt        DateTime? @map("stage_deadline_at")
+  stageRevision          Int       @default(0) @map("stage_revision")
+  overallEstimate        Decimal?  @map("overall_estimate") @db.Decimal(3, 1)
+  missingSkills          String[]  @default([]) @map("missing_skills")
+  startedAt              DateTime  @default(now()) @map("started_at")
+  completedAt            DateTime? @map("completed_at")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  student          StudentProfile    @relation(fields: [studentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  listeningAssessment Assessment?    @relation("SimListening", fields: [listeningAssessmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  readingAssessment   Assessment?    @relation("SimReading", fields: [readingAssessmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  listeningAttempt AssessmentAttempt? @relation("SimListeningAttempt", fields: [listeningAttemptId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  readingAttempt   AssessmentAttempt? @relation("SimReadingAttempt", fields: [readingAttemptId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  writingResponse  WritingResponse? @relation(fields: [writingResponseId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  speakingAttempt  SpeakingAttempt? @relation(fields: [speakingAttemptId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([studentId, createdAt], map: "exam_attempts_student_created_idx")
+  @@map("exam_attempts")
 }

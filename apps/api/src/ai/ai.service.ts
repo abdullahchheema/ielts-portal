@@ -64,6 +64,15 @@ export class AiService {
     return this.prompts.system(feature, instructions);
   }
 
+  /** Wraps learner text as quoted data, so it cannot be read as instructions. */
+  wrapForPrompt(label: string, text: string, maxChars?: number): string {
+    return this.prompts.wrap(label, text, maxChars);
+  }
+
+  promptVersion(feature: string): string {
+    return this.prompts.version(feature);
+  }
+
   /**
    * Runs a JSON-producing feature. Throws AI_UNAVAILABLE on any failure; the caller keeps the
    * student's submission, so an AI outage never loses work.

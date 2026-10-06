@@ -105,6 +105,18 @@ export class StorageService {
     return (await readFile(this.localPath(key))).subarray(0, bytes);
   }
 
+  /** Whole object, for processing that needs the full file (transcription). Caller enforces the size limit first. */
+  async getBuffer(key: string): Promise<Buffer> {
+    this.assertKey(key);
+    if (this.s3) {
+      const r = await this.s3.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
+      const chunks: Buffer[] = [];
+      for await (const c of r.Body as AsyncIterable<Uint8Array>) chunks.push(Buffer.from(c));
+      return Buffer.concat(chunks);
+    }
+    return readFile(this.localPath(key));
+  }
+
   /** Removes an object. Used only to discard rejected uploads, never for records that must be kept. */
   async remove(key: string): Promise<void> {
     this.assertKey(key);

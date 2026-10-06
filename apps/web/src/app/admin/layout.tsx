@@ -29,6 +29,7 @@ function AdminShell({ children }: { children: ReactNode }) {
           { href: '/admin/assessments', label: 'Assessments', icon: ListChecks, show: c('assessment.manage') },
           { href: '/admin/question-bank', label: 'Question bank', icon: Database, show: c('question.manage') },
           { href: '/admin/bands', label: 'Band conversion', icon: Scale, show: c('assessment.manage') },
+          { href: '/admin/mock-exams', label: 'Mock tests', icon: ClipboardList, show: c('assessment.manage') },
         ] },
         { title: 'Finance', items: [
           { href: '/admin/orders', label: 'Payments & orders', icon: Wallet, show: c('payment.view') },

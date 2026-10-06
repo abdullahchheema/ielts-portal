@@ -60,6 +60,21 @@ export class JobsService implements OnModuleInit {
     return { ran: claimed.length, succeeded, failed };
   }
 
+  /**
+   * Runs one queued job straight away, so a student sees the result without waiting for the next scheduler tick.
+   * Uses the same claim as runDue, so it cannot race the scheduler into running the job twice.
+   */
+  async runById(id: string): Promise<boolean> {
+    const now = new Date();
+    const claimed = await this.prisma.$queryRaw<{ id: string; type: string; payload: unknown; attempts: number }[]>`
+      UPDATE "jobs" SET "status" = 'RUNNING', "locked_until" = ${new Date(now.getTime() + LEASE_MS)},
+             "attempts" = "attempts" + 1, "updated_at" = now()
+       WHERE "id" = ${id}::uuid AND "status" = 'QUEUED' AND "run_after" <= ${now}
+      RETURNING "id", "type", "payload", "attempts"`;
+    if (claimed.length === 0) return false;
+    return this.execute(claimed[0]);
+  }
+
   private async execute(job: { id: string; type: string; payload: unknown; attempts: number }): Promise<boolean> {
     const handler = this.handlers.get(job.type);
     try {

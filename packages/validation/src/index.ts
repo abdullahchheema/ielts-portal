@@ -87,6 +87,7 @@ export * from './teacher';
 export * from './lists';
 export * from './question-bank';
 export * from './referrals';
+export * from './ai-practice';
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;

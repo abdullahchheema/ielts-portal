@@ -253,6 +253,40 @@ export class QuestionBankService {
 
   // ───────── student practice ─────────
   /**
+   * Builds the sections and questions of a paper from bank questions. One section per source passage, and
+   * every question is a copy that remembers its source. Shared by practice sessions and mock composition.
+   */
+  async buildPaper(tx: Prisma.TransactionClient, assessmentId: string, questionIds: string[], publish: boolean) {
+    const sources = await tx.question.findMany({
+      where: { id: { in: questionIds } },
+      include: { questionSet: true, versions: { orderBy: { version: 'desc' }, take: 1, include: { options: { orderBy: { sequence: 'asc' } } } } },
+    });
+    const byId = new Map(sources.map((s) => [s.id, s]));
+    const ordered = questionIds.map((id) => byId.get(id)).filter((s): s is NonNullable<typeof s> => !!s && !!s.questionSet && !!s.versions[0]);
+    const bySet = new Map<string, typeof ordered>();
+    for (const q of ordered) bySet.set(q.questionSetId!, [...(bySet.get(q.questionSetId!) ?? []), q]);
+
+    const version = await tx.assessmentVersion.create({ data: { assessmentId, version: 1, publishedAt: publish ? new Date() : null } });
+    let sectionSeq = 0;
+    for (const qs of bySet.values()) {
+      const set = qs[0].questionSet!;
+      const stimulus = (set.stimulus ?? {}) as Prisma.InputJsonValue;
+      const section = await tx.assessmentSection.create({ data: { assessmentVersionId: version.id, title: set.title, sequence: sectionSeq++, content: stimulus } });
+      let seq = 0;
+      for (const src of qs) {
+        const v = src.versions[0];
+        const grader = src.ieltsType ? graderType(src.ieltsType as IeltsItemType) : src.questionType;
+        const q = await tx.question.create({ data: { sectionId: section.id, questionType: grader, sequence: seq++, sourceQuestionId: src.id, ieltsType: src.ieltsType } });
+        await writeVersion(tx, q.id, 1, {
+          prompt: v.prompt as Prisma.InputJsonValue, marks: Number(v.marks), answerKey: v.answerKey as Prisma.InputJsonValue | null,
+          options: v.options.map((o) => ({ label: o.label, isCorrect: o.isCorrect })), grader,
+        });
+      }
+    }
+    return { versionId: version.id, questionCount: ordered.length, minutes: ordered.reduce((sum, q) => sum + (q.questionSet?.timeEstimateMin ?? 2), 0) };
+  }
+
+  /**
    * Builds a personal practice assessment from published, student-facing questions, then the student starts it
    * with the normal attempt flow (autosave, timing and grading are unchanged).
    */
@@ -267,41 +301,16 @@ export class QuestionBankService {
     const ids = selectCandidates(cands, { count: input.count, seed: `${studentId}|${day}|${input.skill}`, topic: input.topic, exclude });
     if (ids.length === 0) throw notFound('Practice questions for this selection');
 
-    const sources = await this.prisma.question.findMany({
-      where: { id: { in: ids } },
-      include: { questionSet: true, versions: { orderBy: { version: 'desc' }, take: 1, include: { options: { orderBy: { sequence: 'asc' } } } } },
-    });
-    const byId = new Map(sources.map((s) => [s.id, s]));
-    const ordered = ids.map((id) => byId.get(id)).filter((s): s is NonNullable<typeof s> => !!s && !!s.questionSet && !!s.versions[0]);
-    const bySet = new Map<string, typeof ordered>();
-    for (const q of ordered) bySet.set(q.questionSetId!, [...(bySet.get(q.questionSetId!) ?? []), q]);
-    const minutes = ordered.reduce((sum, q) => sum + (q.questionSet?.timeEstimateMin ?? 2), 0);
-
     return this.prisma.$transaction(async (tx) => {
       const a = await tx.assessment.create({
         data: {
           type: 'PRACTICE', title: `Practice · ${input.skill.toLowerCase()} · ${day}`, skill: input.skill, passPercent: 0, showAnswers: true,
-          origin: 'ADAPTIVE', generatedForStudentId: studentId, libraryVisible: false, timeLimitMin: Math.min(180, Math.max(5, minutes)),
+          origin: 'ADAPTIVE', generatedForStudentId: studentId, libraryVisible: false, timeLimitMin: 5,
         },
       });
-      const version = await tx.assessmentVersion.create({ data: { assessmentId: a.id, version: 1, publishedAt: new Date() } });
-      let sectionSeq = 0;
-      for (const qs of bySet.values()) {
-        const set = qs[0].questionSet!;
-        const stimulus = (set.stimulus ?? {}) as Prisma.InputJsonValue;
-        const section = await tx.assessmentSection.create({ data: { assessmentVersionId: version.id, title: set.title, sequence: sectionSeq++, content: stimulus } });
-        let seq = 0;
-        for (const src of qs) {
-          const v = src.versions[0];
-          const grader = src.ieltsType ? graderType(src.ieltsType as IeltsItemType) : src.questionType;
-          const q = await tx.question.create({ data: { sectionId: section.id, questionType: grader, sequence: seq++, sourceQuestionId: src.id, ieltsType: src.ieltsType } });
-          await writeVersion(tx, q.id, 1, {
-            prompt: v.prompt as Prisma.InputJsonValue, marks: Number(v.marks), answerKey: v.answerKey as Prisma.InputJsonValue | null,
-            options: v.options.map((o) => ({ label: o.label, isCorrect: o.isCorrect })), grader,
-          });
-        }
-      }
-      return { assessmentId: a.id, questionCount: ordered.length };
+      const paper = await this.buildPaper(tx, a.id, ids, true);
+      await tx.assessment.update({ where: { id: a.id }, data: { timeLimitMin: Math.min(180, Math.max(5, paper.minutes)) } });
+      return { assessmentId: a.id, questionCount: paper.questionCount };
     });
   }
 

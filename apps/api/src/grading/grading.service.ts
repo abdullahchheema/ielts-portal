@@ -12,6 +12,7 @@ import { StorageService, sniffFileType } from '../integrations/storage.service';
 import { LearningService } from '../learning/learning.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { WritingService } from '../writing/writing.service';
 
 const AUDIO_MIMES = ['audio/mpeg', 'audio/webm', 'audio/ogg', 'audio/mp4', 'audio/wav'];
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
@@ -28,6 +29,7 @@ export class GradingService {
     private readonly storage: StorageService,
     private readonly learning: LearningService,
     private readonly notify: NotificationsService,
+    private readonly writing: WritingService,
   ) {}
 
   // ───────── admin: configure an assignment on a content item ─────────
@@ -94,7 +96,11 @@ export class GradingService {
         : await tx.submission.create({ data: { assignmentId, studentId, ...data } });
       return { submission, created: true };
     });
-    if (result.created) await this.afterSubmit(studentId, assignment, enrollment.id, enrollment.batchId, result.submission.id);
+    if (result.created) {
+      await this.afterSubmit(studentId, assignment, enrollment.id, enrollment.batchId, result.submission.id);
+      // AI analysis is supporting evidence for the mentor. It is queued after the commit and never changes the grade.
+      if (assignment.skill === 'WRITING') await this.writing.queueSubmissionAnalysis(result.submission.id, result.submission.revision).catch(() => undefined);
+    }
     return this.presentOwn(result.submission.id, studentId);
   }
 

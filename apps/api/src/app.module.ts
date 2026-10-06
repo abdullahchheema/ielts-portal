@@ -1,6 +1,10 @@
 import { AiModule } from './ai/ai.module';
 import { JobsModule } from './jobs/jobs.module';
 import { QuestionBankModule } from './question-bank/question-bank.module';
+import { WritingModule } from './writing/writing.module';
+import { SpeakingModule } from './speaking/speaking.module';
+import { MockExamsModule } from './mock-exams/mock-exams.service';
+import { SimulatorModule } from './simulator/simulator.service';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { Controller, Get, Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
@@ -45,7 +49,7 @@ class HealthController {
 
 @Module({
   imports: [
-    AnalyticsModule, AiModule, JobsModule, QuestionBankModule,
+    AnalyticsModule, AiModule, JobsModule, QuestionBankModule, WritingModule, SpeakingModule, MockExamsModule, SimulatorModule,
     ConfigModule, PrismaModule, IntegrationsModule, AuditModule, EventEmitterModule.forRoot(), JwtModule.register({}),
     AuthModule, RolesModule, SettingsModule, NotificationsModule, CoursesModule, BatchesModule, CommerceModule, LearningModule, AssessmentsModule, GradingModule, LiveModule, SupportModule, ReportsModule, LifecycleModule, CertificatesModule, AdminModule, TeachersModule,
   ],
