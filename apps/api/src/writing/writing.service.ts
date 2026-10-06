@@ -4,6 +4,7 @@ import { CreateWritingInput, SaveWritingInput, MAX_ESSAY_CHARS } from '@ielts/va
 import { AiService } from '../ai/ai.service';
 import { AppError, conflict, notFound } from '../common/app-error';
 import { JobsService } from '../jobs/jobs.service';
+import { GrammarService } from '../grammar/grammar.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { MIN_WORDS, textStats, wordCount } from './text-stats';
 import { mockWritingEvaluation, writingEvaluationSchema, WritingEvaluation } from './writing.schemas';
@@ -20,7 +21,7 @@ const EDITABLE = 'DRAFT';
 
 @Injectable()
 export class WritingService implements OnModuleInit {
-  constructor(private readonly prisma: PrismaService, private readonly ai: AiService, private readonly jobs: JobsService) {}
+  constructor(private readonly prisma: PrismaService, private readonly ai: AiService, private readonly jobs: JobsService, private readonly grammar: GrammarService) {}
 
   onModuleInit() {
     this.jobs.handle('writing.evaluate', async (payload) => {
@@ -110,6 +111,49 @@ export class WritingService implements OnModuleInit {
     };
   }
 
+  /** Every essay that has been evaluated, oldest first, so progress can be charted. */
+  async history(studentId: string) {
+    const rows = await this.prisma.writingResponse.findMany({
+      where: { studentId, status: 'EVALUATED' }, orderBy: { createdAt: 'asc' }, take: 200,
+      select: { id: true, taskType: true, wordCount: true, createdAt: true, evaluations: { orderBy: { createdAt: 'desc' }, take: 1, select: { estimatedBand: true, criteria: true, feedback: true, stats: true } } },
+    });
+    return rows.map((r) => {
+      const e = r.evaluations[0];
+      return { id: r.id, taskType: r.taskType, wordCount: r.wordCount, createdAt: r.createdAt, aiBand: e?.estimatedBand ?? null, grammarIssues: ((e?.feedback as { grammarIssues?: unknown[] } | undefined)?.grammarIssues ?? []).length };
+    });
+  }
+
+  /**
+   * Side-by-side comparison of two essays using their stored evaluations. Past essays are never re-analysed, so the
+   * comparison shows exactly what was true at the time each one was evaluated.
+   */
+  async compare(studentId: string, aId: string, bId: string) {
+    const [a, b] = await Promise.all([this.summaryFor(studentId, aId), this.summaryFor(studentId, bId)]);
+    return { a, b, note: 'Both estimates are AI estimates from when each essay was evaluated. They are not official IELTS results.' };
+  }
+
+  private async summaryFor(studentId: string, id: string) {
+    const r = await this.prisma.writingResponse.findFirst({
+      where: { id, studentId, status: 'EVALUATED' }, select: { id: true, taskType: true, wordCount: true, createdAt: true, evaluations: { orderBy: { createdAt: 'desc' }, take: 1, select: { estimatedBand: true, criteria: true, feedback: true, stats: true } } },
+    });
+    if (!r || !r.evaluations[0]) throw notFound('Essay');
+    const e = r.evaluations[0];
+    const fb = e.feedback as { grammarIssues?: unknown[]; vocabularyIssues?: unknown[]; coherenceIssues?: unknown[]; taskIssues?: unknown[] };
+    const st = e.stats as { repeatedWords?: unknown[]; weakPhrases?: unknown[]; typeTokenRatio?: number; paragraphs?: number };
+    return {
+      id: r.id, taskType: r.taskType, createdAt: r.createdAt, wordCount: r.wordCount,
+      aiBand: e.estimatedBand, criteria: e.criteria,
+      grammarIssues: fb.grammarIssues?.length ?? 0,
+      vocabularyIssues: fb.vocabularyIssues?.length ?? 0,
+      coherenceIssues: fb.coherenceIssues?.length ?? 0,
+      taskIssues: fb.taskIssues?.length ?? 0,
+      repeatedWords: st.repeatedWords?.length ?? 0,
+      weakPhrases: st.weakPhrases?.length ?? 0,
+      vocabularyRange: st.typeTokenRatio ?? null,
+      paragraphs: st.paragraphs ?? null,
+    };
+  }
+
   async list(studentId: string) {
     const rows = await this.prisma.writingResponse.findMany({
       where: { studentId, status: { not: 'DRAFT' } }, orderBy: { createdAt: 'desc' }, take: 100,
@@ -124,10 +168,13 @@ export class WritingService implements OnModuleInit {
     const r = await this.prisma.writingResponse.findUnique({ where: { id: responseId }, select: { studentId: true, taskType: true, promptText: true, body: true, revision: true, status: true } });
     if (!r || r.revision !== revision || r.status !== 'SUBMITTED') return;
     const { data, model, provider } = await this.estimate(r.studentId, r.taskType, r.promptText, r.body);
-    await this.prisma.$transaction(async (tx) => {
-      await tx.writingEvaluation.create({ data: this.evaluationRow({ responseId, revision, provider, model, data, body: r.body }) });
+    const studentId = r.studentId;
+    const evaluationId = await this.prisma.$transaction(async (tx) => {
+      const ev = await tx.writingEvaluation.create({ data: this.evaluationRow({ responseId, revision, provider, model, data, body: r.body }) });
       await tx.writingResponse.update({ where: { id: responseId }, data: { status: 'EVALUATED' } });
+      return ev.id;
     });
+    await this.grammar.recordFromEvaluation(studentId, evaluationId, data.feedback.grammarIssues);
   }
 
   /**
@@ -139,7 +186,8 @@ export class WritingService implements OnModuleInit {
     if (!s || !s.body) return;
     const taskPrompt = s.assignment.instructions ?? s.assignment.contentItem.title;
     const { data, model, provider } = await this.estimate(s.studentId, 'TASK2', taskPrompt, s.body);
-    await this.prisma.writingEvaluation.create({ data: this.evaluationRow({ submissionId, revision: s.revision, provider, model, data, body: s.body }) });
+    const ev = await this.prisma.writingEvaluation.create({ data: this.evaluationRow({ submissionId, revision: s.revision, provider, model, data, body: s.body }) });
+    await this.grammar.recordFromEvaluation(s.studentId, ev.id, data.feedback.grammarIssues, 'AI_WRITING');
   }
 
   /** Enqueues the teacher-assignment analysis after a submission. Never blocks or changes the submission. */

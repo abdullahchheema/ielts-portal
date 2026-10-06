@@ -11,6 +11,7 @@
 // migration SQL, then `npm run migrate` (prisma migrate deploy).
 //
 // Partial/expression indexes that exist only in SQL — do not let a migration drop these:
+//   vocabulary_items_word_unique (lower(word)), grammar_observations_one_per_excerpt (partial),
 //   enrollments_one_live_per_batch, seat_reservations_one_open_per_student_batch,
 //   payment_proofs_approved_txn_unique, assessment_attempts_one_in_progress,
 //   submissions_one_open, notifications_user_dedupe_key, courses_single_live
@@ -260,6 +261,7 @@ model User {
   referralAttribution  Referral?              @relation("ReferredUser")
   referralsDecided     Referral[]             @relation("ReferralDecider")
   creditEntriesCreated AccountCreditLedger[]  @relation("CreditCreator")
+  vocabularyItemsCreated VocabularyItem[]     @relation("VocabularyCreator")
 
   @@map("users")
 }
@@ -311,6 +313,11 @@ model StudentProfile {
   referralReceived     Referral?             @relation("ReferredStudent")
   creditLedger         AccountCreditLedger[]
   generatedAssessments Assessment[]          @relation("PersonalAssessment")
+  snapshots            StudentSnapshot[]
+  studyPlans           StudyPlan[]
+  studyPlanTasks       StudyPlanTask[]
+  studentVocabulary    StudentVocabulary[]
+  grammarObservations  GrammarObservation[]
   writingResponses     WritingResponse[]
   speakingAttempts     SpeakingAttempt[]
   speakingResponses    SpeakingResponse[]
@@ -1591,6 +1598,7 @@ model WritingEvaluation {
 
   response   WritingResponse? @relation(fields: [responseId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   submission Submission?      @relation(fields: [submissionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  grammarObservations GrammarObservation[]
 
   @@index([responseId, createdAt], map: "writing_evaluations_response_idx")
   @@index([submissionId, createdAt], map: "writing_evaluations_submission_idx")
@@ -1695,4 +1703,177 @@ model ExamAttempt {
 
   @@index([studentId, createdAt], map: "exam_attempts_student_created_idx")
   @@map("exam_attempts")
+}
+
+// ───────── Student insights ─────────
+model StudentSnapshot {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentId  String   @map("student_id") @db.Uuid
+  kind       String
+  periodKey  String   @default("current") @map("period_key")
+  payload    Json
+  inputsHash String   @map("inputs_hash")
+  computedAt DateTime @default(now()) @map("computed_at")
+
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([studentId, kind, periodKey], map: "student_snapshots_unique")
+  @@map("student_snapshots")
+}
+
+model StudyPlan {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentId      String    @map("student_id") @db.Uuid
+  status         String    @default("ACTIVE")
+  planStatus     String    @map("plan_status")
+  summary        String
+  inputsHash     String    @map("inputs_hash")
+  minutesPerDay  Int       @map("minutes_per_day")
+  generatedAt    DateTime  @default(now()) @map("generated_at")
+  supersededAt   DateTime? @map("superseded_at")
+
+  student StudentProfile   @relation(fields: [studentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  weeks   StudyPlanWeek[]
+  days    StudyPlanDay[]
+  tasks   StudyPlanTask[]
+
+  @@map("study_plans")
+}
+
+model StudyPlanWeek {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  planId    String   @map("plan_id") @db.Uuid
+  weekIndex Int      @map("week_index")
+  startsOn  DateTime @map("starts_on") @db.Date
+
+  plan StudyPlan       @relation(fields: [planId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  days StudyPlanDay[]
+
+  @@unique([planId, weekIndex], map: "study_plan_weeks_unique")
+  @@map("study_plan_weeks")
+}
+
+model StudyPlanDay {
+  id      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  planId  String   @map("plan_id") @db.Uuid
+  weekId  String   @map("week_id") @db.Uuid
+  dayDate DateTime @map("day_date") @db.Date
+  minutes Int
+
+  plan  StudyPlan     @relation(fields: [planId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  week  StudyPlanWeek @relation(fields: [weekId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tasks StudyPlanTask[]
+
+  @@unique([planId, dayDate], map: "study_plan_days_unique")
+  @@map("study_plan_days")
+}
+
+model StudyPlanTask {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  planId      String    @map("plan_id") @db.Uuid
+  dayId       String    @map("day_id") @db.Uuid
+  studentId   String    @map("student_id") @db.Uuid
+  skill       String
+  kind        String
+  refType     String    @map("ref_type")
+  refId       String    @map("ref_id")
+  title       String
+  minutes     Int
+  sort        Int       @default(0)
+  status      String    @default("PENDING")
+  rationale   String
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  plan    StudyPlan        @relation(fields: [planId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  day     StudyPlanDay     @relation(fields: [dayId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  student StudentProfile   @relation(fields: [studentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([studentId, dayId], map: "study_plan_tasks_student_day_idx")
+  @@map("study_plan_tasks")
+}
+
+// ───────── Vocabulary ─────────
+model VocabularyItem {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  word           String
+  definition     String
+  partOfSpeech   String?  @map("part_of_speech")
+  synonyms       String[] @default([])
+  antonyms       String[] @default([])
+  ieltsRelevance String?  @map("ielts_relevance")
+  example        String?
+  topic          String?
+  difficulty     Int      @default(3)
+  status         String   @default("DRAFT")
+  createdById    String?  @map("created_by") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  createdBy User?              @relation("VocabularyCreator", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  learners  StudentVocabulary[]
+
+  @@map("vocabulary_items")
+}
+
+model StudentVocabulary {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentId      String    @map("student_id") @db.Uuid
+  itemId         String    @map("item_id") @db.Uuid
+  status         String    @default("SAVED")
+  ease           Decimal   @default(2.5) @db.Decimal(4, 2)
+  intervalDays   Int       @default(0) @map("interval_days")
+  nextReviewAt   DateTime? @map("next_review_at")
+  reviewCount    Int       @default(0) @map("review_count")
+  correctCount   Int       @default(0) @map("correct_count")
+  lastReviewedAt DateTime? @map("last_reviewed_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  student StudentProfile     @relation(fields: [studentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  item    VocabularyItem     @relation(fields: [itemId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reviews VocabularyReview[]
+
+  @@unique([studentId, itemId], map: "student_vocabulary_unique")
+  @@index([studentId, nextReviewAt], map: "student_vocabulary_due_idx")
+  @@map("student_vocabulary")
+}
+
+model VocabularyReview {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentVocabularyId String   @map("student_vocabulary_id") @db.Uuid
+  correct             Boolean
+  reviewedAt          DateTime @default(now()) @map("reviewed_at")
+
+  card StudentVocabulary @relation(fields: [studentVocabularyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([studentVocabularyId, reviewedAt], map: "vocabulary_reviews_card_idx")
+  @@map("vocabulary_reviews")
+}
+
+// ───────── Grammar ─────────
+model GrammarCategory {
+  code  String @id
+  label String
+  sort  Int    @default(0)
+
+  observations GrammarObservation[]
+
+  @@map("grammar_categories")
+}
+
+model GrammarObservation {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentId           String   @map("student_id") @db.Uuid
+  categoryCode        String   @map("category_code")
+  source              String
+  writingEvaluationId String?  @map("writing_evaluation_id") @db.Uuid
+  excerpt             String
+  correction          String?
+  observedAt          DateTime @default(now()) @map("observed_at")
+
+  student    StudentProfile   @relation(fields: [studentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  category   GrammarCategory  @relation(fields: [categoryCode], references: [code], onDelete: NoAction, onUpdate: NoAction)
+  evaluation WritingEvaluation? @relation(fields: [writingEvaluationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([studentId, observedAt], map: "grammar_observations_student_idx")
+  @@map("grammar_observations")
 }

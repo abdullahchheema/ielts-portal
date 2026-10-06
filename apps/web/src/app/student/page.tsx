@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Alert, Card, Empty, LinkButton, Loading, PageHeader, ProgressBar, ProgressRing, Section } from '@/components/ui';
 import { EnrollmentBadge, PaymentPendingNotice, primaryApplication, scheduleText, teacherText, useApplications } from '@/components/student';
 import { IeltsSummary, IeltsSummaryLike } from '@/components/IeltsSummary';
+import { Home, HomeHero, HomeInsights, TodaysPlan } from '@/components/StudentHome';
 import { api } from '@/lib/api';
 import { band, date } from '@/lib/format';
 
@@ -24,6 +25,7 @@ export default function DashboardPage() {
   const enrolled = !!app && ['ACTIVE', 'COMPLETED'].includes(app.status);
   const sessions = useQuery({ queryKey: ['sessions'], queryFn: () => api<{ upcoming: { id: string; topic: string; startsAt: string; batch: string; joinUrl: string | null }[] }>('/me/sessions'), refetchInterval: 60_000, enabled: enrolled });
   const nextClass = sessions.data?.upcoming[0];
+  const home = useQuery({ queryKey: ['home'], queryFn: () => api<Home>('/me/home') });
 
   if (isLoading || apps.isLoading) return <Loading />;
   if (isError || !data) return <Alert>Could not load your dashboard.</Alert>;
@@ -38,6 +40,11 @@ export default function DashboardPage() {
         subtitle="Here is what needs your attention, then where you stand on the course."
         actions={app && <EnrollmentBadge status={app.status} />}
       />
+
+      {home.data && <HomeHero home={home.data} />}
+
+      {enrolled && <Section title="Today"><TodaysPlan /></Section>}
+
 
       {/* 1. What to do now */}
       <Section title="Up next">
@@ -69,6 +76,8 @@ export default function DashboardPage() {
           <Card><p className="text-sm text-fg-muted">No class is scheduled yet. Your teacher will announce the timetable.</p></Card>
         )}
       </Section>
+
+      {home.data && <Section title="Your progress"><HomeInsights home={home.data} /></Section>}
 
       {/* 2. Where you stand */}
       <Section title="Your IELTS goals">

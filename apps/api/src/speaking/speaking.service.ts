@@ -9,6 +9,7 @@ import { QuestionBankService } from '../question-bank/question-bank.service';
 import { sniffFileType, sha256Hex, StorageService } from '../integrations/storage.service';
 import { wordCount } from '../writing/text-stats';
 import { mockSpeakingEvaluation, speakingEvaluationSchema, SpeakingEvaluation } from './speaking.schemas';
+import { fluencyOf, profileOf } from './fluency';
 
 const SPEAKING_INSTRUCTIONS = [
   'You help IELTS learners with speaking practice. You are not an examiner and your numbers are estimates.',
@@ -225,12 +226,23 @@ export class SpeakingService implements OnModuleInit {
       },
     });
     if (!r) throw notFound('Speaking answer');
+    const transcript = r.transcriptStatus === 'DONE' ? r.transcript : null;
     return {
       ...r,
-      transcript: r.transcriptStatus === 'DONE' ? r.transcript : null,
+      transcript,
+      fluency: transcript ? fluencyOf(transcript, r.durationSec === null ? null : Number(r.durationSec)) : null,
       latestEvaluation: r.evaluations[0] ?? null,
       evaluations: undefined,
     };
+  }
+
+  /** Average fluency indicators across the student's recent answers that have a transcript. */
+  async fluencyProfile(studentId: string) {
+    const rows = await this.prisma.speakingResponse.findMany({
+      where: { studentId, transcriptStatus: 'DONE', transcript: { not: null } }, orderBy: { createdAt: 'desc' }, take: 30,
+      select: { transcript: true, durationSec: true },
+    });
+    return profileOf(rows.map((r) => fluencyOf(r.transcript ?? '', r.durationSec === null ? null : Number(r.durationSec))));
   }
 
   private async ownedResponse(studentId: string, id: string) {

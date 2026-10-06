@@ -1,5 +1,6 @@
 import { ANALYTICS_DEFAULTS, ANALYTICS_SETTING_SCHEMAS } from '../analytics/thresholds';
 import { REFERRAL_DEFAULTS, REFERRAL_SETTING_SCHEMAS } from '../referrals/settings';
+import { INSIGHT_DEFAULTS, INSIGHT_SETTING_SCHEMAS } from '../insights/settings';
 import { Controller, Get, Injectable, Put, Body, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { Prisma } from '@ielts/db';
@@ -30,6 +31,7 @@ export const SETTING_SCHEMAS = {
   'commerce.refund_window_days': z.number().int().min(0).max(365),
   ...ANALYTICS_SETTING_SCHEMAS,
   ...REFERRAL_SETTING_SCHEMAS,
+  ...INSIGHT_SETTING_SCHEMAS,
 } as const;
 
 export type SettingKey = keyof typeof SETTING_SCHEMAS;
@@ -44,6 +46,7 @@ const DEFAULTS: Record<SettingKey, unknown> = {
   'commerce.refund_window_days': 7,
   ...ANALYTICS_DEFAULTS,
   ...REFERRAL_DEFAULTS,
+  ...INSIGHT_DEFAULTS,
 };
 
 @Injectable()
@@ -90,6 +93,9 @@ const patchSchema = z
     'referrals.monthly_cap': REFERRAL_SETTING_SCHEMAS['referrals.monthly_cap'].optional(),
     'referrals.qualify_after_days': REFERRAL_SETTING_SCHEMAS['referrals.qualify_after_days'].optional(),
     'referrals.auto_reward': REFERRAL_SETTING_SCHEMAS['referrals.auto_reward'].optional(),
+    'insights.weakness.thresholds': INSIGHT_SETTING_SCHEMAS['insights.weakness.thresholds'].optional(),
+    'insights.readiness.weights': INSIGHT_SETTING_SCHEMAS['insights.readiness.weights'].optional(),
+    'study_plan.minutes_per_day': INSIGHT_SETTING_SCHEMAS['study_plan.minutes_per_day'].optional(),
   })
   .strict()
   .refine((o) => Object.keys(o).length > 0, 'Provide at least one setting.');

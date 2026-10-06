@@ -32,6 +32,11 @@ function StudentShell({ children }: { children: ReactNode }) {
         ] },
         { title: 'Me', items: [
           { href: '/student/progress', label: 'Progress', icon: TrendingUp },
+          { href: '/student/insights', label: 'Insights', icon: Target },
+          { href: '/student/study-plan', label: 'Study plan', icon: CalendarDays },
+          { href: '/student/vocabulary', label: 'Vocabulary', icon: BookOpen },
+          { href: '/student/grammar', label: 'Grammar tracker', icon: PenLine },
+          { href: '/student/writing-ai/history', label: 'Writing history', icon: TrendingUp },
           { href: '/student/diagnostic', label: 'Diagnostic Test', icon: Target },
           { href: '/student/application', label: 'Application & Payment', icon: Receipt },
           { href: '/student/referrals', label: 'Referrals', icon: Gift },

@@ -5,6 +5,10 @@ import { WritingModule } from './writing/writing.module';
 import { SpeakingModule } from './speaking/speaking.module';
 import { MockExamsModule } from './mock-exams/mock-exams.service';
 import { SimulatorModule } from './simulator/simulator.service';
+import { InsightsModule } from './insights/insights.module';
+import { StudyPlanModule } from './study-plan/study-plan.module';
+import { VocabularyModule } from './vocabulary/vocabulary.service';
+import { GrammarModule } from './grammar/grammar.service';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { Controller, Get, Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
@@ -49,7 +53,7 @@ class HealthController {
 
 @Module({
   imports: [
-    AnalyticsModule, AiModule, JobsModule, QuestionBankModule, WritingModule, SpeakingModule, MockExamsModule, SimulatorModule,
+    AnalyticsModule, AiModule, JobsModule, QuestionBankModule, WritingModule, SpeakingModule, MockExamsModule, SimulatorModule, InsightsModule, StudyPlanModule, VocabularyModule, GrammarModule,
     ConfigModule, PrismaModule, IntegrationsModule, AuditModule, EventEmitterModule.forRoot(), JwtModule.register({}),
     AuthModule, RolesModule, SettingsModule, NotificationsModule, CoursesModule, BatchesModule, CommerceModule, LearningModule, AssessmentsModule, GradingModule, LiveModule, SupportModule, ReportsModule, LifecycleModule, CertificatesModule, AdminModule, TeachersModule,
   ],

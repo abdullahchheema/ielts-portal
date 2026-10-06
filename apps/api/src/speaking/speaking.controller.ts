@@ -20,6 +20,9 @@ const questionsQuery = z.object({ part: z.enum(['PART1', 'PART2', 'PART3']) });
 export class SpeakingController {
   constructor(private readonly speaking: SpeakingService) {}
 
+  @Get('fluency-profile')
+  fluency(@CurrentUser() u: AuthUser) { return this.speaking.fluencyProfile(sid(u)); }
+
   @Get('questions')
   questions(@Query(new ZodPipe(questionsQuery)) q: z.infer<typeof questionsQuery>, @CurrentUser() u: AuthUser) {
     sid(u);

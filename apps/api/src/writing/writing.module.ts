@@ -1,9 +1,11 @@
 import { Module } from '@nestjs/common';
-import { WritingController } from './writing.controller';
+import { GrammarModule } from '../grammar/grammar.service';
+import { WritingController, WritingHistoryController } from './writing.controller';
 import { WritingService } from './writing.service';
 
 @Module({
-  controllers: [WritingController],
+  imports: [GrammarModule],
+  controllers: [WritingController, WritingHistoryController],
   providers: [WritingService],
   exports: [WritingService],
 })
