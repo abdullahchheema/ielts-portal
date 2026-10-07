@@ -1,3 +1,5 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { STUDY_EVIDENCE, StudyEvidence } from '../study-plan/evidence';
 import { BandService } from '../analytics/band.service';
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Prisma } from '@ielts/db';
@@ -38,6 +40,7 @@ export class AttemptsService implements OnModuleInit {
     private readonly storage: StorageService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly scheduler: SchedulerService,
+    private readonly events: EventEmitter2,
   ) {}
 
   onModuleInit() {
@@ -235,6 +238,13 @@ export class AttemptsService implements OnModuleInit {
 
   // ───────── submit ─────────
   /** Idempotent: submitting twice (double-click, retry) returns the same result and grades once. */
+  /** A finished attempt counts toward the study-plan task for each question set its answers came from. */
+  private async emitPlanEvidence(studentId: string, attemptId: string) {
+    const rows = await this.prisma.attemptAnswer.findMany({ where: { attemptId }, select: { questionVersion: { select: { question: { select: { questionSetId: true } } } } } });
+    const sets = new Set(rows.map((r) => r.questionVersion.question.questionSetId).filter((x): x is string => !!x));
+    for (const refId of sets) this.events.emit(STUDY_EVIDENCE, { studentId, refType: 'QUESTION_SET', refId } satisfies StudyEvidence);
+  }
+
   async submit(user: { studentId: string }, attemptId: string) {
     let done = null as Finished | null;
     await this.prisma.$transaction(async (tx) => {
@@ -243,7 +253,10 @@ export class AttemptsService implements OnModuleInit {
       if (!attempt) throw notFound('Attempt');
       if (attempt.status === 'IN_PROGRESS') done = await this.finish(tx, attemptId);
     });
-    if (done) await this.afterFinish(done);
+    if (done) {
+      await this.afterFinish(done);
+      await this.emitPlanEvidence(user.studentId, attemptId);
+    }
     return this.result(user, attemptId);
   }
 

@@ -19,7 +19,7 @@ test('an unknown certificate code says it was not found', async ({ page }) => {
 test('a student reaches their dashboard', async ({ page }) => {
   await logIn(page, 'student1@example.com');
   await page.waitForURL(/\/student/);
-  await expect(page.getByText(/Hello/)).toBeVisible();
+  await expect(page.getByText(/Hello/)).toBeVisible({ timeout: 30_000 }); // first visit compiles the dashboard in dev
 });
 
 test('an admin sees the command centre, and a metric links to a filtered list', async ({ page }) => {

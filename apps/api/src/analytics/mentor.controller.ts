@@ -1,3 +1,4 @@
+import { ScopeService } from '../common/scope.service';
 import { Controller, Get, Param, ParseUUIDPipe } from '@nestjs/common';
 import { AuthUser, CurrentUser, RequirePermission } from '../common/decorators';
 import { forbidden, notFound } from '../common/app-error';
@@ -12,18 +13,13 @@ import { Student360Service } from './student-360.service';
 /** A teacher's view of one batch: each student's risk, with the reasons, and the estimated band. */
 @Controller('mentor/batches')
 export class MentorBatchAnalyticsController {
-  constructor(private readonly analytics: AdminAnalyticsService, private readonly prisma: PrismaService, private readonly ctx: UserContextService) {}
+  constructor(private readonly analytics: AdminAnalyticsService, private readonly prisma: PrismaService, private readonly ctx: UserContextService, private readonly scope: ScopeService) {}
 
   @RequirePermission('teaching.view')
   @Get(':id/analytics')
   async batch(@CurrentUser() u: AuthUser, @Param('id', new ParseUUIDPipe()) batchId: string) {
     const c = (await this.ctx.get(u.id))!;
-    if (!overseesAllBatches(c.permissions)) {
-      const assigned = u.mentorId
-        ? await this.prisma.batchMentor.count({ where: { batchId, mentorId: u.mentorId, batch: { deletedAt: null } } })
-        : 0;
-      if (!assigned) throw forbidden('You are not assigned to this batch.');
-    }
+    await this.scope.assertBatch({ mentorId: u.mentorId, canOverseeAll: overseesAllBatches(c.permissions) }, batchId);
     const { rows, truncated } = await this.analytics.cohort({ batchId });
     const attendance = rows.map((r) => r.attendancePercent).filter((p): p is number => p !== null);
     return {
@@ -51,6 +47,7 @@ export class MentorStudentAnalyticsController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ctx: UserContextService,
+    private readonly scope: ScopeService,
     private readonly bands: BandService,
     private readonly risk: RiskService,
     private readonly detail: Student360Service,
@@ -60,11 +57,10 @@ export class MentorStudentAnalyticsController {
   @Get(':id/analytics')
   async student(@CurrentUser() u: AuthUser, @Param('id', new ParseUUIDPipe()) studentId: string) {
     const c = (await this.ctx.get(u.id))!;
-    if (!overseesAllBatches(c.permissions)) {
-      // A student outside the teacher's batches gets the same answer as a missing one: no way to probe for others.
-      const visible = u.mentorId
-        ? await this.prisma.enrollment.count({ where: { studentId, deletedAt: null, batch: { mentors: { some: { mentorId: u.mentorId } } } } })
-        : 0;
+    // A student outside the teacher's batches gets the same answer as a missing one: no way to probe for others.
+    const visibleBatches = await this.scope.visibleBatchIds({ mentorId: u.mentorId, canOverseeAll: overseesAllBatches(c.permissions) });
+    if (visibleBatches) {
+      const visible = await this.prisma.enrollment.count({ where: { studentId, deletedAt: null, batchId: { in: visibleBatches } } });
       if (!visible) throw notFound('Student');
     }
     const profile = await this.prisma.studentProfile.findUnique({ where: { id: studentId }, select: { firstName: true, lastName: true, targetBand: true, ieltsExamDate: true } });

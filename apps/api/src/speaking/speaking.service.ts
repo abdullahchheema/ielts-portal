@@ -1,3 +1,5 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { STUDY_EVIDENCE, StudyEvidence } from '../study-plan/evidence';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Prisma } from '@ielts/db';
 import { AddSpeakingResponseInput, AUDIO_MIME_TYPES, CreateSpeakingAttemptInput, MAX_SPEAKING_BYTES, PresignSpeakingInput } from '@ielts/validation';
@@ -29,6 +31,7 @@ export class SpeakingService implements OnModuleInit {
     private readonly ai: AiService,
     private readonly jobs: JobsService,
     private readonly bank: QuestionBankService,
+    private readonly events: EventEmitter2,
   ) {}
 
   onModuleInit() {
@@ -133,6 +136,8 @@ export class SpeakingService implements OnModuleInit {
       data: { mime: sniffed.mime, sizeBytes: BigInt(meta.size), durationSec: durationSec === undefined ? null : new Prisma.Decimal(durationSec), status: 'UPLOADED' },
     });
     await this.queueTranscription(id);
+    const answered = await this.prisma.speakingResponse.findUnique({ where: { id }, select: { questionId: true } });
+    if (answered?.questionId) this.events.emit(STUDY_EVIDENCE, { studentId, refType: 'SPEAKING_PART', refId: answered.questionId } satisfies StudyEvidence);
     return { status: 'UPLOADED' };
   }
 

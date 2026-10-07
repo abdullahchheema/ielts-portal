@@ -11,6 +11,9 @@ import { AiService } from '../ai/ai.service';
 import { z } from 'zod';
 
 const MID_COURSE_PROGRESS = 50;
+/** The theme summary is written by the AI at most once an hour per window: it costs a call and changes slowly. */
+const THEME_TTL_MS = 60 * 60_000;
+const themeCache = new Map<number, { at: number; value: { text: string; source: 'AI' | 'RULES' } }>();
 const MID_COURSE_AFTER_DAYS = 14;
 
 const DAY = 86_400_000;
@@ -60,7 +63,15 @@ export class FeedbackService implements OnModuleInit {
    * Plain-language themes from the comments, written by the AI when it is available. Shown only to staff, and never
    * includes identifiers: any output that contains one is refused and the deterministic themes are returned.
    */
-  async aiThemes(days: number): Promise<{ text: string; source: 'AI' | 'RULES' }> {
+  async aiThemes(days: number): Promise<{ text: string; source: 'AI' | 'RULES'; cached: boolean }> {
+    const hit = themeCache.get(days);
+    if (hit && Date.now() - hit.at < THEME_TTL_MS) return { ...hit.value, cached: true };
+    const value = await this.computeThemes(days);
+    themeCache.set(days, { at: Date.now(), value });
+    return { ...value, cached: false };
+  }
+
+  private async computeThemes(days: number): Promise<{ text: string; source: 'AI' | 'RULES' }> {
     const since = new Date(Date.now() - days * DAY);
     const rows = await this.prisma.feedbackResponse.findMany({
       where: { createdAt: { gte: since } }, take: 300,

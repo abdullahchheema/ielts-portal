@@ -353,6 +353,41 @@ async function main() {
     data: { studentId: s1.id, type: 'ADJUSTMENT', amount: 500, reason: 'Welcome credit (demo)' },
   });
 
+  // ── A class recording, a revoked certificate, and a payment risk flag ─────────────
+  await prisma.classRecording.create({
+    data: {
+      sessionId: scenarioSessions[0].id, batchId: sept.id, externalUrl: 'https://example.com/demo/recording-class-1',
+      durationSec: 5400, mime: 'video/mp4', status: 'READY', availability: 'BATCH', uploadedById: ahmed.userId,
+    },
+  });
+
+  // Student 9 has finished the course. The certificate is issued and then revoked, so the public check shows it as revoked.
+  const finisher = ordered[0];
+  if (finisher) {
+    const enrollment = await prisma.enrollment.findFirstOrThrow({ where: { studentId: finisher.id, deletedAt: null } });
+    await prisma.enrollment.update({ where: { id: enrollment.id }, data: { status: 'COMPLETED', completedAt: daysAgo(3) } });
+    const profile = await prisma.studentProfile.findUniqueOrThrow({ where: { id: finisher.id }, select: { firstName: true, lastName: true } });
+    const cert = await prisma.certificate.create({
+      data: {
+        enrollmentId: enrollment.id, studentId: finisher.id, code: 'IELTS-DEMO-R3VK-0001', certificateNumber: 'IA-2026-900001',
+        studentName: `${profile.firstName} ${profile.lastName}`, courseTitle: course.title, batchName: sept.name,
+      },
+    });
+    await prisma.certificateRevocation.create({
+      data: { certificateId: cert.id, reason: 'Issued in error (demo)', revokedById: admin.id },
+    });
+  }
+
+  // A payment whose amount differs from the amount due: a person reviews the flag, nothing is rejected.
+  const proof = await prisma.paymentProof.findFirst({ orderBy: { createdAt: 'asc' } });
+  if (proof) {
+    await prisma.paymentRiskFlag.upsert({
+      where: { proofId_rule: { proofId: proof.id, rule: 'AMOUNT_MISMATCH' } },
+      update: {},
+      create: { paymentId: proof.paymentId, proofId: proof.id, rule: 'AMOUNT_MISMATCH', level: 'MEDIUM', reason: 'The amount paid differs from the amount due (demo).' },
+    });
+  }
+
   console.log('Demo data loaded.');
 }
 
