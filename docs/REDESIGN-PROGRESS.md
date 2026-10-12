@@ -55,7 +55,13 @@ All 86 routes are now 🔶 (repainted via tokens). None are ✅ yet — that req
 - [x] No structural composition defects found — the portal was already composed cleanly in the original build, and Phase A's token pass left it sound. The one hand-rolled list (`page.tsx`'s "Upcoming classes") is a single occurrence with its own padding, not a duplicate of anything else in this portal, so it was left as-is rather than forced into the Phase E `SimpleList` primitive for no real benefit
 - [x] Grading detail (`grading/[id]/page.tsx`) draft autosave, band-rounding (`ieltsRound`) and revision-conflict handling confirmed untouched
 - [x] No code changes required; `npm run lint`/`test`/`build` already clean from Phase E — nothing invalidated by this audit-only phase
-## Phase G — Admin portal (35 routes) — not started
+## Phase G — Admin portal (35 routes) — composition audit done, 2 files fixed
+- [x] Audited the admin portal's route files against the same composition criteria as Phases E/F: `PageHeader` present, real `Empty`/`Loading` states, `Table`/`Td` used for tabular data, no hand-rolled markup duplicating an existing shared primitive. `admin/analytics/page.tsx` was explicitly excluded — never read, never modified — because it has an ongoing owner edit in progress
+- [x] Two files had the exact duplicated-list pattern Phase E's `CardList` exists for: `feedback/page.tsx`'s "Recent responses" and `reconciliation/page.tsx`'s "Payment risk to review", both a `<ul className="space-y-3"><li><Card>...</Card></li></ul>` wrapper. Both now use `CardList` (reused, no new primitive needed); the `<li><Card>...</Card></li>` children were left unchanged
+- [x] Judgment calls to leave similar-but-not-duplicate patterns untouched: `orders/page.tsx`'s Payments list, `tickets/[id]/page.tsx`'s enrollments list, and `reconciliation/page.tsx`'s own nested flag list (different shape, action buttons) — each a single occurrence, not a duplicate of anything else in the portal, consistent with the anti-over-engineering rule from Phases E/F
+- [x] `StudentDetailDialog.tsx` checked and found clean
+- [x] No composition defects found in the remaining admin route files — they stay 🔶 (repainted only) pending a dedicated per-route pass, not because they were skipped
+- [x] `npm run lint -w @ielts/web`, `npm test -w @ielts/web` (16/16), `npm run build -w @ielts/web` all clean, independently re-run (not just the auditing agent's self-report) before commit
 ## Phase H — Motion + responsive pass — not started
 ## Phase I — Performance (surgical) — not started
 ## Phase J — Regression + final report — not started
