@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Alert, Card, Empty, Loading, PageHeader, Section, Select, StatCard, Table, Td } from '@/components/ui';
+import { Alert, Card, CardList, Empty, Loading, PageHeader, Section, Select, StatCard, Table, Td } from '@/components/ui';
 import { api } from '@/lib/api';
 import { date, label } from '@/lib/format';
 
@@ -106,7 +106,7 @@ export default function FeedbackPage() {
 
           <Section title="Recent responses">
             {s.recent.length === 0 ? <Empty title="No responses in this period" /> : (
-              <ul className="space-y-3">
+              <CardList>
                 {s.recent.map((r, i) => (
                   <li key={i}>
                     <Card className="space-y-1">
@@ -117,7 +117,7 @@ export default function FeedbackPage() {
                     </Card>
                   </li>
                 ))}
-              </ul>
+              </CardList>
             )}
           </Section>
         </>

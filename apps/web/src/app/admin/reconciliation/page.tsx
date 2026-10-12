@@ -2,7 +2,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Alert, Button, Card, Empty, Loading, PageHeader, Section, Select, StatCard, Table, Td, Textarea } from '@/components/ui';
+import { Alert, Button, Card, CardList, Empty, Loading, PageHeader, Section, Select, StatCard, Table, Td, Textarea } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 
@@ -125,7 +125,7 @@ export default function ReconciliationPage() {
       <Section title="Payment risk to review" description="Flags explain the concern. A person decides; nothing is rejected automatically.">
         {risk.isLoading && <Loading />}
         {risk.data && (risk.data.length === 0 ? <Empty title="No open flags" /> : (
-          <ul className="space-y-3">
+          <CardList>
             {risk.data.map((p) => (
               <li key={p.proofId}>
                 <Card className="space-y-2">
@@ -147,7 +147,7 @@ export default function ReconciliationPage() {
                 </Card>
               </li>
             ))}
-          </ul>
+          </CardList>
         ))}
       </Section>
     </>
