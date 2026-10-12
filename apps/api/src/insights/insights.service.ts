@@ -44,8 +44,8 @@ export class InsightsService {
 
   // ───────── weakness ─────────
   async weakness(studentId: string) {
-    const t = await this.thresholds();
-    return this.snapshot(studentId, 'weakness', `${await this.fingerprint(studentId)}|${JSON.stringify(t)}`, () => this.computeWeakness(studentId, t));
+    const [t, fp] = await Promise.all([this.thresholds(), this.fingerprint(studentId)]);
+    return this.snapshot(studentId, 'weakness', `${fp}|${JSON.stringify(t)}`, () => this.computeWeakness(studentId, t));
   }
 
   private async thresholds(): Promise<WeaknessThresholds> {
@@ -53,24 +53,31 @@ export class InsightsService {
   }
 
   private async computeWeakness(studentId: string, t: WeaknessThresholds) {
-    const rows = await this.prisma.attemptAnswer.findMany({
-      where: { attempt: { studentId, status: { in: ['AUTO_GRADED', 'GRADED'] } }, isCorrect: { not: null } },
-      select: {
-        isCorrect: true,
-        questionVersion: {
-          select: {
-            question: {
-              select: {
-                ieltsType: true,
-                section: { select: { sequence: true, version: { select: { assessment: { select: { skill: true } } } } } },
-                questionSet: { select: { skill: true, topic: true, difficulty: true } },
+    const [rows, writing, target] = await Promise.all([
+      this.prisma.attemptAnswer.findMany({
+        where: { attempt: { studentId, status: { in: ['AUTO_GRADED', 'GRADED'] } }, isCorrect: { not: null } },
+        select: {
+          isCorrect: true,
+          questionVersion: {
+            select: {
+              question: {
+                select: {
+                  ieltsType: true,
+                  section: { select: { sequence: true, version: { select: { assessment: { select: { skill: true } } } } } },
+                  questionSet: { select: { skill: true, topic: true, difficulty: true } },
+                },
               },
             },
           },
         },
-      },
-      take: 5000,
-    });
+        take: 5000,
+      }),
+      this.prisma.writingEvaluation.findMany({
+        where: { response: { studentId } }, orderBy: { createdAt: 'desc' }, take: 1,
+        select: { criteria: true },
+      }),
+      this.targetBand(studentId),
+    ]);
     const items: AnsweredItem[] = rows.map((r) => {
       const q = r.questionVersion.question;
       return {
@@ -82,28 +89,26 @@ export class InsightsService {
         isCorrect: r.isCorrect === true,
       };
     });
-    const writing = await this.prisma.writingEvaluation.findMany({
-      where: { response: { studentId } }, orderBy: { createdAt: 'desc' }, take: 1,
-      select: { criteria: true },
-    });
-    const target = await this.targetBand(studentId);
     const writingCriteria = writing[0] ? criterionWeakness((writing[0].criteria as { key: string; score: number | null }[]), target) : [];
     return { ...weaknessReport(items, t), writingCriteria, answered: items.length };
   }
 
   // ───────── readiness ─────────
   async readiness(studentId: string) {
-    const weights = await this.settings.get<typeof DEFAULT_READINESS_WEIGHTS>('insights.readiness.weights').catch(() => INSIGHT_DEFAULTS['insights.readiness.weights']);
-    return this.snapshot(studentId, 'readiness', `${await this.fingerprint(studentId)}|${JSON.stringify(weights)}`, async () => {
+    const [weights, fp] = await Promise.all([
+      this.settings.get<typeof DEFAULT_READINESS_WEIGHTS>('insights.readiness.weights').catch(() => INSIGHT_DEFAULTS['insights.readiness.weights']),
+      this.fingerprint(studentId),
+    ]);
+    return this.snapshot(studentId, 'readiness', `${fp}|${JSON.stringify(weights)}`, async () => {
       const signals = await this.readinessSignals(studentId);
       return readiness(signals, weights);
     });
   }
 
   async readinessSignals(studentId: string): Promise<ReadinessSignals> {
-    const profile = await this.prisma.studentProfile.findUniqueOrThrow({ where: { id: studentId }, select: { targetBand: true } });
     const since60 = new Date(Date.now() - 60 * DAY);
-    const [attempts, writing, mocks, enrollments, attendance, due, submitted] = await Promise.all([
+    const [profile, attempts, writing, mocks, enrollments, attendance, due, submitted] = await Promise.all([
+      this.prisma.studentProfile.findUniqueOrThrow({ where: { id: studentId }, select: { targetBand: true } }),
       this.prisma.assessmentAttempt.findMany({
         where: { studentId, status: { in: ['AUTO_GRADED', 'GRADED'] }, bandScore: { not: null } },
         orderBy: { submittedAt: 'desc' }, take: 12, select: { bandScore: true, submittedAt: true, assessment: { select: { skill: true, type: true } } },

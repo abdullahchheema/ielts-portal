@@ -50,8 +50,10 @@ export class TeacherWorkspaceService {
 
   /** Grading queue, oldest first, with a priority flag for anything past the target turnaround. */
   async queue(r: Reviewer, skill: 'WRITING' | 'SPEAKING' | undefined, take: number) {
-    const scope = await batchScope(this.prisma, r);
-    const targetHours = await this.settings.get<number>('analytics.grading.target_hours').catch(() => 48);
+    const [scope, targetHours] = await Promise.all([
+      batchScope(this.prisma, r),
+      this.settings.get<number>('analytics.grading.target_hours').catch(() => 48),
+    ]);
     const rows = await this.prisma.submission.findMany({
       where: {
         status: 'SUBMITTED',
@@ -128,11 +130,13 @@ export class TeacherWorkspaceService {
 
   // ───────── batch health ─────────
   async batchHealth(batchId: string, r: Reviewer, now = new Date()) {
-    const scope = await batchScope(this.prisma, r);
+    const [scope, batch, cached] = await Promise.all([
+      batchScope(this.prisma, r),
+      this.prisma.batch.findFirst({ where: { id: batchId, deletedAt: null }, select: { id: true, name: true } }),
+      this.prisma.batchHealthSnapshot.findUnique({ where: { batchId } }),
+    ]);
     if (scope !== 'ALL' && !scope.includes(batchId)) throw notFound('Batch');
-    const batch = await this.prisma.batch.findFirst({ where: { id: batchId, deletedAt: null }, select: { id: true, name: true } });
     if (!batch) throw notFound('Batch');
-    const cached = await this.prisma.batchHealthSnapshot.findUnique({ where: { batchId } });
     if (cached && now.getTime() - cached.computedAt.getTime() < HEALTH_CACHE_MS) {
       return { batch: batch.name, ...(cached.payload as object), cached: true };
     }
@@ -180,10 +184,16 @@ export class TeacherWorkspaceService {
     };
   }
 
+  /** Runs `batchHealth` for every open batch, up to `CONCURRENCY` at a time rather than one request per batch in series. */
   async allBatchHealth(take: number) {
+    const CONCURRENCY = 10;
     const batches = await this.prisma.batch.findMany({ where: { deletedAt: null, status: { in: ['OPEN', 'IN_PROGRESS'] } }, select: { id: true }, take });
-    const out = [];
-    for (const b of batches) out.push(await this.batchHealth(b.id, { userId: '', canOverseeAll: true }));
+    const out = new Array<Awaited<ReturnType<TeacherWorkspaceService['batchHealth']>>>(batches.length);
+    for (let i = 0; i < batches.length; i += CONCURRENCY) {
+      const slice = batches.slice(i, i + CONCURRENCY);
+      const results = await Promise.all(slice.map((b) => this.batchHealth(b.id, { userId: '', canOverseeAll: true })));
+      results.forEach((r, j) => { out[i + j] = r; });
+    }
     return out;
   }
 

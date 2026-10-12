@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { loadConfig } from '@ielts/config';
@@ -13,6 +14,7 @@ export async function createApp(logger: false | ('log' | 'warn' | 'error')[] = [
   app.set('trust proxy', 1);
   app.use(requestId);
   app.use(helmet());
+  app.use(compression());
   app.use(cookieParser());
   app.enableCors({ origin: config.APP_URL, credentials: true });
   app.enableShutdownHooks();
