@@ -62,6 +62,14 @@ All 86 routes are now 🔶 (repainted via tokens). None are ✅ yet — that req
 - [x] `StudentDetailDialog.tsx` checked and found clean
 - [x] No composition defects found in the remaining admin route files — they stay 🔶 (repainted only) pending a dedicated per-route pass, not because they were skipped
 - [x] `npm run lint -w @ielts/web`, `npm test -w @ielts/web` (16/16), `npm run build -w @ielts/web` all clean, independently re-run (not just the auditing agent's self-report) before commit
-## Phase H — Motion + responsive pass — not started
+## Phase H — Motion + responsive pass — done
+- [x] Wired Phase A's motion tokens (`--dur-fast`/`--dur`/`--dur-slow`, `ease-out-soft`, `ease-spring`) into every hardcoded transition duration across `components/ui/*` and `Shell.tsx`, via the `duration-[var(--dur-fast)]` arbitrary-value mechanism (Tailwind v4 doesn't expose a named `duration` utility from the `:root` token layer)
+- [x] Confirmed zero `transition-all` usage anywhere in `apps/web/src`
+- [x] Added missing `ease-out-soft` to several transitions that had none (`table.tsx`, `tabs.tsx`, `display.tsx`, `field.tsx`, `menu.tsx`, Shell nav links/backdrop)
+- [x] Upgraded 3 existing transform-based animations to `ease-spring`: `Accordion` chevron rotation, `Switch` thumb slide, Shell's mobile nav drawer slide — no new animations invented
+- [x] Enlarged 5 icon-only controls under 44px to `size-11`: Shell mobile hamburger + drawer close, `NotificationBell` trigger, `DetailDialog` close, shared `Drawer` close. Desktop-only controls and labeled `Button` sizes left as-is (not touch-primary, or already meeting the 24×24px minimum)
+- [x] Responsive check at 360/390/768/1280/1440: **static Tailwind-class analysis only** (no browser automation tool available in this environment) — no horizontal overflow found; Shell's drawer/rail are correctly breakpoint-gated, the data table collapses to stacked cards below `lg` by existing design, bare `grid-cols-N` usages hold only text-wrapping content with no fixed-width children. Not visually confirmed in a live viewport — flagged honestly rather than claimed as verified
+- [x] `admin/analytics/page.tsx` (owner-edited) and the two timed-assessment routes (`attempts/[id]`, `simulator/[id]`) untouched
+- [x] `npm run lint -w @ielts/web`, `npm test -w @ielts/web` (16/16), `npm run build -w @ielts/web` all clean, independently re-run before commit
 ## Phase I — Performance (surgical) — not started
 ## Phase J — Regression + final report — not started
