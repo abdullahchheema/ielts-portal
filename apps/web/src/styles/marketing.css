@@ -1,0 +1,101 @@
+/**
+ * Marketing design system — scoped under `.mkt`, used only by the public pages (home, register, enroll,
+ * apply-teacher, verify, and the auth shell). Deliberately does NOT touch the app's semantic tokens
+ * (--primary, --canvas, etc. in globals.css): those drive every authenticated screen, and a full repaint
+ * would be a brand change nobody asked for on the student/teacher/admin portals.
+ *
+ * Token values below are reverse-engineered from a design audit of a reference marketing site (gold/blue/dark
+ * gradient CTAs, off-white canvas, 800-weight display headings, two-tier shadow scale, pill radii). Reproduced
+ * for visual language only — no copied markup, logos, imagery, or claims (pricing tiers, guarantees, testimonials)
+ * that don't correspond to how this academy actually operates.
+ */
+.mkt {
+  --mkt-canvas: #e8e8eb;
+  --mkt-surface: #ffffff;
+  --mkt-heading: #1c1c1e;
+  --mkt-body: #3a3a3c;
+  --mkt-subtle: #6b6b70;
+  --mkt-border: #dedee2;
+
+  --mkt-blue: #2e6cf6;
+  --mkt-blue-grad: linear-gradient(135deg, #4f8bff 0%, #1f54d6 100%);
+  --mkt-blue-shadow: rgba(31, 84, 214, 0.34);
+
+  --mkt-gold-grad: linear-gradient(135deg, #ffda74 0%, #f6b73f 48%, #e89518 100%);
+  --mkt-gold-border: #e7a93a;
+  --mkt-gold-text: #3d2a00;
+  --mkt-gold-shadow: rgba(214, 140, 20, 0.34);
+
+  --mkt-dark-grad: linear-gradient(135deg, #2b2b2e 0%, #161618 100%);
+  --mkt-dark-shadow: rgba(0, 0, 0, 0.22);
+
+  --mkt-card-shadow: 0 2px 4px rgba(15, 23, 42, 0.04), 0 12px 30px rgba(15, 23, 42, 0.08);
+
+  background: var(--mkt-canvas);
+  color: var(--mkt-heading);
+}
+
+.mkt-container { max-width: 1160px; margin-inline: auto; padding-inline: 24px; }
+.mkt-section { padding-block: 72px; }
+
+/* Headings: 800 weight, tight negative tracking — the reference's "confident SaaS hero" pattern. */
+.mkt h1, .mkt h2, .mkt h3 { font-family: var(--font-display); color: var(--mkt-heading); font-weight: 800; letter-spacing: -0.02em; }
+.mkt p { color: var(--mkt-body); }
+
+.mkt-eyebrow {
+  display: inline-block; font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--mkt-blue);
+}
+
+/* Buttons: every CTA is a gradient pill with a colored elevation shadow, never a flat fill. */
+.mkt-cta {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+  border-radius: 9999px; font-weight: 800; font-size: 0.95rem; line-height: 1; white-space: nowrap;
+  padding: 0.95rem 1.6rem; transition: transform 0.2s var(--ease-out-soft, ease), box-shadow 0.2s;
+  text-decoration: none; cursor: pointer; border: none;
+}
+.mkt-cta:hover { transform: translateY(-1px); }
+.mkt-cta:focus-visible { outline: 2px solid var(--mkt-blue); outline-offset: 3px; }
+.mkt-cta--gold {
+  background: var(--mkt-gold-grad); color: var(--mkt-gold-text); border: 1px solid var(--mkt-gold-border);
+  box-shadow: 0 8px 24px var(--mkt-gold-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.62), inset 0 -2px 4px rgba(150, 84, 0, 0.18);
+}
+.mkt-cta--blue { background: var(--mkt-blue-grad); color: #fff; box-shadow: 0 8px 24px var(--mkt-blue-shadow); }
+.mkt-cta--dark { background: var(--mkt-dark-grad); color: #fff; box-shadow: 0 8px 24px var(--mkt-dark-shadow); }
+.mkt-cta--outline {
+  background: var(--mkt-surface); color: var(--mkt-heading); border: 1px solid var(--mkt-border); box-shadow: none;
+}
+.mkt-cta--sm { padding: 0.6rem 1.15rem; font-size: 0.875rem; }
+
+/* Cards: a two-tier radius scale (large hero cards vs. smaller utility cards). */
+.mkt-card {
+  background: var(--mkt-surface); border: 1px solid var(--mkt-border); border-radius: 16px;
+}
+.mkt-card--hero { border-radius: 24px; box-shadow: var(--mkt-card-shadow); }
+
+.mkt-badge {
+  display: inline-flex; align-items: center; gap: 0.4rem; border-radius: 9999px; border: 1px solid var(--mkt-border);
+  background: var(--mkt-surface); padding: 0.45rem 0.9rem; font-size: 0.8125rem; font-weight: 600; color: var(--mkt-heading);
+}
+
+/* Sticky header: transparent at the top, swaps to the canvas color once scrolled — background shift only, no border/shadow. */
+.mkt-header { position: sticky; top: 0; z-index: 30; background: transparent; transition: background-color 0.2s; }
+.mkt-header.is-scrolled { background: var(--mkt-canvas); }
+
+/* FAQ accordion: single-open, chevron rotates, matches the reference's full-width white rounded rows. */
+.mkt-faq-row { border-radius: 16px; background: var(--mkt-surface); border: 1px solid var(--mkt-border); }
+.mkt-faq-row[data-open="true"] { background: var(--mkt-canvas); }
+.mkt-faq-chevron { transition: transform 0.2s; }
+.mkt-faq-row[data-open="true"] .mkt-faq-chevron { transform: rotate(180deg); }
+
+/* Feature tabs: pill buttons, active = dark fill, inactive = outlined. */
+.mkt-tab {
+  display: inline-flex; align-items: center; gap: 0.5rem; border-radius: 9999px; padding: 0.6rem 1.1rem;
+  font-size: 0.875rem; font-weight: 700; border: 1px solid var(--mkt-border); background: var(--mkt-surface); color: var(--mkt-heading);
+  transition: background-color 0.2s, color 0.2s;
+}
+.mkt-tab[data-active="true"] { background: var(--mkt-dark-grad); color: #fff; border-color: transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mkt-cta, .mkt-header, .mkt-faq-chevron, .mkt-tab { transition: none !important; }
+}
