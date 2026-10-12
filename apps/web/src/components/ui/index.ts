@@ -14,3 +14,6 @@ export * from './command';
 export * from './timeline';
 export * from './ai';
 export * from './score';
+export * from './stepper';
+export * from './interactive';
+export * from './menu';

@@ -1,8 +1,8 @@
 'use client';
 
-import { GraduationCap } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { BrandLogo } from '@/components/BrandLogo';
 import { Me, homeFor, useMe } from '@/lib/auth';
 
 const NAV_LINK = 'rounded-md px-3 py-2 text-sm font-medium text-[var(--mkt-body)] transition-colors hover:text-[var(--mkt-heading)]';
@@ -27,10 +27,7 @@ export function PublicHeader() {
     <header className={`mkt mkt-header ${scrolled ? 'is-scrolled' : ''}`} style={{ background: scrolled ? 'var(--mkt-canvas)' : 'transparent' }}>
       <div className="mkt-container flex h-16 items-center justify-between gap-4">
         <Link href="/" className="flex items-center gap-2.5 rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--mkt-blue)]">
-          <span aria-hidden className="grid size-8 place-items-center rounded-full text-white" style={{ background: 'var(--mkt-blue-grad)' }}>
-            <GraduationCap className="size-4.5" strokeWidth={1.75} />
-          </span>
-          <span className="font-display text-base font-extrabold text-[var(--mkt-heading)]">IELTS Academy</span>
+          <BrandLogo className="[&_span:last-child]:font-display [&_span:last-child]:text-[var(--mkt-heading)]" />
         </Link>
         <nav aria-label="Main" className="flex items-center gap-1">
           <Link href="/#course" className={`hidden sm:inline-block ${NAV_LINK}`}>The course</Link>

@@ -1,33 +1,65 @@
 @import "tailwindcss";
 @import "../styles/marketing.css";
 
-/* LAYER 1: brand ramp override (static paint).
-   Repoints Tailwind's indigo scale at the academic blue, so existing
-   indigo-* classes repaint without file edits. slate needs no override:
-   the target neutrals already are Tailwind slate. */
+/* ============================================================================
+   IELTS Academy design system.
+
+   Four layers, in order: (1) @theme static values that emit Tailwind utilities,
+   (2) :root semantic tokens, (3) @theme inline re-exposing them as utilities,
+   (4) base element styles.
+
+   The identity is deliberately its own: warm paper neutrals rather than cool
+   slate, a deep ink-indigo primary, and a jade accent reserved for progress and
+   achievement. Every colour in the app resolves through these tokens, so this
+   file is the single place the brand changes.
+   ========================================================================= */
+
+/* LAYER 1: static paint.
+   The indigo ramp is repointed at the brand ink so any stray `indigo-*` class
+   stays on-brand instead of reverting to Tailwind's default blue-violet. */
 @theme {
-  --color-indigo-50:  #EFF6FF;  --color-indigo-100: #DBEAFE;
-  --color-indigo-200: #BFDBFE;  --color-indigo-300: #93C5FD;
-  --color-indigo-400: #60A5FA;  --color-indigo-500: #3B82F6;
-  --color-indigo-600: #2563EB;
-  --color-indigo-700: #1D4ED8;  --color-indigo-800: #1E40AF;
-  --color-indigo-900: #1E3A8A;  --color-indigo-950: #172554;
+  --color-indigo-50:  #EDF0FA;  --color-indigo-100: #DDE3F5;
+  --color-indigo-200: #BFC9EB;  --color-indigo-300: #94A5DC;
+  --color-indigo-400: #6479C2;  --color-indigo-500: #3F57A8;
+  --color-indigo-600: #2A4494;
+  --color-indigo-700: #1F3474;  --color-indigo-800: #1A2B5E;
+  --color-indigo-900: #161F45;  --color-indigo-950: #0E1430;
 
-  --color-navy-800: #1E293B;  --color-navy-900: #0F172A;  --color-navy-950: #060B16;
+  /* Deliberate dark surfaces (auth promo panel, closing bands). */
+  --color-ink-700: #232736;  --color-ink-800: #1B1E2B;  --color-ink-900: #12141D;
 
-  /* Overriding existing keys upgrades every rounded-lg / shadow-sm in place. */
-  --radius-lg: 0.75rem;
-  --shadow-xs: 0 1px 2px 0 rgb(15 23 42 / .04);
-  --shadow-sm: 0 1px 2px 0 rgb(15 23 42 / .05), 0 1px 3px 0 rgb(15 23 42 / .06);
-  --shadow-md: 0 2px 4px -1px rgb(15 23 42 / .06), 0 4px 12px -2px rgb(15 23 42 / .08);
-  --shadow-lg: 0 4px 8px -2px rgb(15 23 42 / .06), 0 12px 28px -6px rgb(15 23 42 / .12);
-  --shadow-xl: 0 8px 16px -4px rgb(15 23 42 / .08), 0 24px 48px -12px rgb(15 23 42 / .18);
+  /* Shadows are warm-tinted to sit on paper neutrals, not slate-blue. */
+  --radius-lg: 0.875rem;
+  --shadow-xs: 0 1px 2px 0 rgb(43 38 31 / .05);
+  --shadow-sm: 0 1px 2px 0 rgb(43 38 31 / .06), 0 1px 3px 0 rgb(43 38 31 / .07);
+  --shadow-md: 0 2px 4px -1px rgb(43 38 31 / .07), 0 4px 12px -2px rgb(43 38 31 / .09);
+  --shadow-lg: 0 4px 8px -2px rgb(43 38 31 / .07), 0 12px 28px -6px rgb(43 38 31 / .13);
+  --shadow-xl: 0 8px 16px -4px rgb(43 38 31 / .09), 0 24px 48px -12px rgb(43 38 31 / .19);
 
-  --text-display: clamp(2.25rem, 1.5rem + 3vw, 3.5rem);
-  --text-display--line-height: 1.05;
-  --text-display--letter-spacing: -0.02em;
+  /* Type scale. Each size carries its own line-height and tracking so headings
+     never need per-page overrides. */
+  --text-display: clamp(2.5rem, 1.8rem + 3vw, 3.75rem);
+  --text-display--line-height: 1.04;
+  --text-display--letter-spacing: -0.03em;
+
+  --text-h1: 2rem;
+  --text-h1--line-height: 1.15;
+  --text-h1--letter-spacing: -0.022em;
+
+  --text-h2: 1.5rem;
+  --text-h2--line-height: 1.22;
+  --text-h2--letter-spacing: -0.016em;
+
+  --text-h3: 1.1875rem;
+  --text-h3--line-height: 1.3;
+  --text-h3--letter-spacing: -0.01em;
+
+  --text-overline: 0.75rem;
+  --text-overline--line-height: 1.1;
+  --text-overline--letter-spacing: 0.08em;
 
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
 }
 
 /* LAYER 2: semantic values.
@@ -35,24 +67,34 @@
    :root/:host only, and ::backdrop sits outside that inheritance chain on
    older Safari and Chrome. This is what makes the dialog scrim render. */
 :root, ::backdrop {
-  --canvas: #F8FAFC;  --surface: #FFFFFF;  --surface-muted: #F1F5F9;
-  --fg: #0F172A;      --fg-muted: #64748B; --fg-subtle: #94A3B8;
-  --border: #E2E8F0;  --border-strong: #CBD5E1;
+  --canvas: #F7F6F3;  --surface: #FFFFFF;  --surface-muted: #F1EFEA;
+  --fg: #1A1A1F;      --fg-muted: #5F5E66; --fg-subtle: #7A7881;
+  --border: #E5E1D9;  --border-strong: #CFC9BD;
 
-  --primary: #2563EB;  --primary-hover: #1D4ED8;
-  --primary-fg: #FFFFFF; --primary-soft: #EFF6FF;
+  --primary: #2A4494;  --primary-hover: #1F3474;
+  --primary-fg: #FFFFFF; --primary-soft: #EDF0FA;
 
-  --accent: #14B8A6;          /* fills, graphics, rails only */
-  --accent-strong: #0D9488;   /* accent text: teal-500 on white fails AA */
-  --accent-soft: #F0FDFA;
+  --accent: #12A594;          /* fills, graphics, rails */
+  --accent-strong: #0A7268;   /* accent text: the lighter jade fails AA on white */
+  --accent-soft: #E9F7F4;
 
-  --success: #16A34A; --success-soft: #F0FDF4;
-  --warning: #D97706; --warning-soft: #FFFBEB;
-  --danger:  #DC2626; --danger-soft:  #FEF2F2;
-  --info:    #0284C7; --info-soft:    #F0F9FF;
+  /* Deliberate dark surfaces. */
+  --ink: #12141D; --ink-soft: #232736; --ink-fg: #F7F6F3;
 
-  --ring: #2563EB;
-  --overlay: rgb(15 23 42 / .55);
+  --success: #1A7F4B; --success-soft: #E8F6EE;
+  --warning: #B45309; --warning-soft: #FDF3E7;
+  --danger:  #C0392B; --danger-soft:  #FCEDEB;
+  --info:    #0E7490; --info-soft:    #E7F4F8;
+
+  --ring: #2A4494;
+  --overlay: rgb(26 26 31 / .55);
+
+  /* Chart series. Distinguishable in order and without relying on hue alone. */
+  --chart-1: #2A4494; --chart-2: #12A594; --chart-3: #B45309;
+  --chart-4: #6B4FA8; --chart-5: #0E7490; --chart-6: #A3576B;
+
+  /* Motion. One scale, used by components and custom CSS alike. */
+  --dur-fast: 120ms; --dur: 180ms; --dur-slow: 280ms;
 }
 
 /* LAYER 3: expose as utilities. `inline` lets ::backdrop resolve per element. */
@@ -66,11 +108,16 @@
   --color-primary-fg: var(--primary-fg); --color-primary-soft: var(--primary-soft);
   --color-accent: var(--accent);   --color-accent-strong: var(--accent-strong);
   --color-accent-soft: var(--accent-soft);
+  --color-ink: var(--ink);         --color-ink-soft: var(--ink-soft);
+  --color-ink-fg: var(--ink-fg);
   --color-success: var(--success); --color-success-soft: var(--success-soft);
   --color-warning: var(--warning); --color-warning-soft: var(--warning-soft);
   --color-danger: var(--danger);   --color-danger-soft: var(--danger-soft);
   --color-info: var(--info);       --color-info-soft: var(--info-soft);
   --color-ring: var(--ring);       --color-overlay: var(--overlay);
+  --color-chart-1: var(--chart-1); --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3); --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5); --color-chart-6: var(--chart-6);
 
   /* Font bridge. The next/font class must sit on <html>; see layout.tsx. */
   --font-sans:    var(--font-body), ui-sans-serif, system-ui, sans-serif;
@@ -83,6 +130,8 @@
   dialog:modal { margin: auto; }
   :focus-visible { outline-color: var(--ring); }
   th, td { font-variant-numeric: tabular-nums; }
+  /* Headings carry the display face by default so pages stop re-declaring it. */
+  h1, h2, h3 { font-family: var(--font-display); }
 }
 
 @media (prefers-reduced-motion: reduce) {

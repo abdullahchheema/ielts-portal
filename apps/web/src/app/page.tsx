@@ -179,7 +179,7 @@ export default async function HomePage() {
           >
             <div className="min-w-0">
               <h2 className="text-2xl text-white sm:text-3xl">Ready to work toward your target band?</h2>
-              <p className="mt-2 max-w-xl text-slate-300">Choose a batch, register and start your first class.</p>
+              <p className="mt-2 max-w-xl text-ink-fg/70">Choose a batch, register and start your first class.</p>
             </div>
             <a href="/register" className="mkt-cta mkt-cta--gold shrink-0">Enroll now</a>
           </div>

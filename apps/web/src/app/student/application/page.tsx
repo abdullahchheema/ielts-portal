@@ -21,7 +21,7 @@ function Timeline({ app }: { app: Application }) {
         <li key={s} className="flex items-center gap-2">
           <span className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${app.status === 'REJECTED' && i === 1 ? 'bg-danger text-white' : i <= step ? 'bg-primary text-white' : 'bg-surface-muted text-fg-muted'}`}>{i < step || (i === step && app.status === 'ACTIVE') ? '✓' : i + 1}</span>
           <span className={i <= step ? 'font-medium text-fg' : 'text-fg-subtle'}>{s}</span>
-          {i < STEPS.length - 1 && <span aria-hidden className="mx-1 h-px w-6 bg-slate-300" />}
+          {i < STEPS.length - 1 && <span aria-hidden className="mx-1 h-px w-6 bg-border-strong" />}
         </li>
       ))}
     </ol>

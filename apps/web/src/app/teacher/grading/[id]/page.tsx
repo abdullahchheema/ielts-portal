@@ -127,7 +127,7 @@ export default function GradePage() {
               <Textarea aria-label={`Note on ${c.name}`} rows={2} placeholder="Optional note" value={notes[c.id] ?? ''} onChange={(e) => setNotes({ ...notes, [c.id]: e.target.value })} />
             </div>
           ))}
-          <div className="rounded-md bg-primary-soft px-3 py-2 text-sm" aria-live="polite">Overall band: <strong className="text-lg text-indigo-800">{preview === null ? '—' : preview.toFixed(1)}</strong></div>
+          <div className="rounded-md bg-primary-soft px-3 py-2 text-sm" aria-live="polite">Overall band: <strong className="text-lg text-primary-hover">{preview === null ? '—' : preview.toFixed(1)}</strong></div>
           <Field label="Overall comment for the student">{(p) => <Textarea {...p} rows={4} value={comment} onChange={(e) => setComment(e.target.value)} />}</Field>
           {savedAt && !s.feedback[0] && <p className="text-xs text-fg-subtle" aria-live="polite">Draft saved at {savedAt}</p>}
           <Button onClick={submit} busy={busy} disabled={preview === null} className="w-full">{s.status === 'GRADED' ? 'Save new grade' : 'Submit grade'}</Button>

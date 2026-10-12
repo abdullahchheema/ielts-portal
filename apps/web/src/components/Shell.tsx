@@ -1,6 +1,7 @@
 'use client';
 
-import { ChevronsLeft, ChevronsRight, GraduationCap, LogOut, Menu, X, type LucideIcon } from 'lucide-react';
+import { ChevronsLeft, ChevronsRight, LogOut, Menu, X, type LucideIcon } from 'lucide-react';
+import { BrandLogo } from '@/components/BrandLogo';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ReactNode, useEffect, useState } from 'react';
@@ -97,7 +98,7 @@ export function Shell({ title, groups, me, children, width = 'default' }: { titl
 
   const brand = (iconOnly: boolean) => (
     <div className={cx('flex items-center gap-3 px-5 pb-4 pt-5', iconOnly && 'lg:justify-center lg:px-0')}>
-      <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary text-primary-fg shadow-xs"><GraduationCap className="size-5" strokeWidth={1.75} /></span>
+      <BrandLogo variant="mark" />
       <div className={cx('min-w-0', iconOnly && 'lg:sr-only')}>
         <p className="font-display text-sm font-semibold leading-tight text-fg">IELTS Academy</p>
         <p className="truncate text-xs text-fg-muted">{title}</p>

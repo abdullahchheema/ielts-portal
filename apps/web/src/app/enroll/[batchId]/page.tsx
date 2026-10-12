@@ -32,7 +32,7 @@ function Steps({ step }: { step: number }) {
         <li key={l} className="flex items-center gap-2">
           <span className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${i < step ? 'bg-success text-white' : i === step ? 'bg-primary text-white' : 'bg-surface-muted text-fg-muted'}`}>{i < step ? '✓' : i + 1}</span>
           <span className={i === step ? 'font-semibold text-fg' : 'text-fg-muted'}>{l}</span>
-          {i < LABELS.length - 1 && <span aria-hidden className="mx-1 h-px w-5 bg-slate-300" />}
+          {i < LABELS.length - 1 && <span aria-hidden className="mx-1 h-px w-5 bg-border-strong" />}
         </li>
       ))}
     </ol>

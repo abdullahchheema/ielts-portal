@@ -51,7 +51,7 @@ function Tree({ sections, activeId, onSelect, depth = 0 }: { sections: Section[]
                 <button
                   onClick={() => onSelect(i)}
                   aria-current={activeId === i.id ? 'true' : undefined}
-                  className={`flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-sm ${activeId === i.id ? 'bg-primary-soft text-indigo-800' : i.state === 'LOCKED' ? 'text-fg-subtle hover:bg-canvas' : 'text-fg hover:bg-surface-muted'}`}
+                  className={`flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-sm ${activeId === i.id ? 'bg-primary-soft text-primary-hover' : i.state === 'LOCKED' ? 'text-fg-subtle hover:bg-canvas' : 'text-fg hover:bg-surface-muted'}`}
                 >
                   <span aria-hidden className={i.state === 'COMPLETED' ? 'text-success' : ''}>{ICON[i.state]}</span>
                   <span className="flex-1">{i.title}<span className="sr-only"> ({i.state.toLowerCase().replace('_', ' ')})</span></span>
