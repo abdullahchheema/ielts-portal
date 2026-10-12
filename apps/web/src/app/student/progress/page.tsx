@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { Alert, Badge, Loading, PageHeader } from '@/components/ui';
+import { Alert, Badge, Loading, PageHeader, SimpleList, SimpleListItem } from '@/components/ui';
 import { BandChart, BandPoint } from '@/components/BandChart';
 import { api } from '@/lib/api';
 import { band, date } from '@/lib/format';
@@ -31,14 +31,14 @@ export default function ProgressPage() {
       {subs.data && subs.data.length > 0 && (
         <>
           <h2 className="mb-3 mt-10 font-display text-lg font-semibold text-fg">Writing & speaking submissions</h2>
-          <ul className="divide-y divide-border overflow-hidden rounded-lg bg-surface shadow-xs ring-1 ring-border">
+          <SimpleList>
             {subs.data.map((s) => (
-              <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
-                <span><strong>{s.title}</strong> <span className="text-fg-muted tabular-nums">· {date(s.submittedAt)}</span></span>
-                <span className="flex items-center gap-3">{s.finalBand !== null && <strong>Band {band(s.finalBand)}</strong>}<Badge status={s.status} /><Link href={`/student/submissions/${s.id}`} className="font-medium text-primary underline underline-offset-2">Open</Link></span>
-              </li>
+              <SimpleListItem key={s.id}
+                left={<span><strong>{s.title}</strong> <span className="text-fg-muted tabular-nums">· {date(s.submittedAt)}</span></span>}
+                right={<>{s.finalBand !== null && <strong>Band {band(s.finalBand)}</strong>}<Badge status={s.status} /><Link href={`/student/submissions/${s.id}`} className="font-medium text-primary underline underline-offset-2">Open</Link></>}
+              />
             ))}
-          </ul>
+          </SimpleList>
         </>
       )}
     </>

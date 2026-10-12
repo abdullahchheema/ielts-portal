@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { AIInsightCard, AiUnavailable, Alert, Button, Card, Empty, Field, Loading, PageHeader, ScoreBreakdown, Select } from '@/components/ui';
+import { AIInsightCard, AiUnavailable, Alert, Button, Card, Empty, Field, FeedbackList, Loading, PageHeader, ScoreBreakdown, Select } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { extensionFor, useRecorder } from '@/lib/use-recorder';
@@ -139,12 +139,12 @@ export default function SpeakingPracticePage() {
               <AIInsightCard title="Speaking feedback" estimate={answer.latestEvaluation.estimatedBand}>
                 <div className="space-y-4">
                   <ScoreBreakdown items={answer.latestEvaluation.criteria.map((c) => ({ label: CRITERIA[c.key] ?? c.key, score: c.score }))} />
-                  <List title="Strengths" items={answer.latestEvaluation.feedback.strengths} />
-                  <List title="To work on" items={answer.latestEvaluation.feedback.weaknesses} />
+                  <FeedbackList title="Strengths" items={answer.latestEvaluation.feedback.strengths} />
+                  <FeedbackList title="To work on" items={answer.latestEvaluation.feedback.weaknesses} />
                   {answer.latestEvaluation.feedback.corrections.length > 0 && (
                     <ul className="space-y-2 text-sm">{answer.latestEvaluation.feedback.corrections.map((c, i) => <li key={i}><span className="text-fg-muted">{c.original}</span><span className="block text-success">{c.corrected}</span></li>)}</ul>
                   )}
-                  <List title="Practise next" items={answer.latestEvaluation.feedback.recommendedPractice} />
+                  <FeedbackList title="Practise next" items={answer.latestEvaluation.feedback.recommendedPractice} />
                   <p className="text-xs text-fg-subtle">{answer.latestEvaluation.feedback.pronunciationNote}</p>
                 </div>
               </AIInsightCard>
@@ -154,15 +154,5 @@ export default function SpeakingPracticePage() {
         </div>
       )}
     </>
-  );
-}
-
-function List({ title, items }: { title: string; items: string[] }) {
-  if (items.length === 0) return null;
-  return (
-    <div>
-      <p className="mb-1 font-medium text-fg">{title}</p>
-      <ul className="list-disc space-y-1 pl-5 text-sm text-fg-muted">{items.map((t, i) => <li key={i}>{t}</li>)}</ul>
-    </div>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Card, LinkButton, Loading, PageHeader, ProgressBar } from '@/components/ui';
+import { Alert, Card, LinkButton, Loading, PageHeader, ProgressBar, SimpleList, SimpleListItem } from '@/components/ui';
 import { EnrollmentBadge, PaymentPendingNotice, primaryApplication, scheduleText, useApplications } from '@/components/student';
 import { api } from '@/lib/api';
 import { date, money } from '@/lib/format';
@@ -50,14 +50,14 @@ export default function MyCoursePage() {
       {certs.data && certs.data.length > 0 && (
         <>
           <h2 className="mb-3 mt-8 text-lg font-semibold">Certificates</h2>
-          <ul className="divide-y divide-border rounded-lg bg-surface ring-1 ring-border">
+          <SimpleList>
             {certs.data.map((x) => (
-              <li key={x.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
-                <span><strong>{x.courseTitle}</strong> <span className="text-fg-muted">· issued {date(x.issuedAt)} · {x.code}</span></span>
-                {x.valid && <span className="flex gap-3"><a href={'/api/certificates/' + x.code + '/pdf'} className="font-medium text-primary underline">Download PDF</a><a href={'/verify/' + x.code} className="text-fg-muted underline">Verification page</a></span>}
-              </li>
+              <SimpleListItem key={x.id}
+                left={<span><strong>{x.courseTitle}</strong> <span className="text-fg-muted">· issued {date(x.issuedAt)} · {x.code}</span></span>}
+                right={x.valid && <><a href={'/api/certificates/' + x.code + '/pdf'} className="font-medium text-primary underline">Download PDF</a><a href={'/verify/' + x.code} className="text-fg-muted underline">Verification page</a></>}
+              />
             ))}
-          </ul>
+          </SimpleList>
         </>
       )}
     </>

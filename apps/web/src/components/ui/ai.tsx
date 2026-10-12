@@ -39,3 +39,14 @@ export function AIInsightCard({ title, children, estimate, footer }: {
 export function AiUnavailable() {
   return <Alert kind="info">{AI_UNAVAILABLE_TEXT}</Alert>;
 }
+
+/** A titled bullet list inside an `AIInsightCard` — strengths, weaknesses, next steps. Hidden when there's nothing to show. */
+export function FeedbackList({ title, items }: { title: string; items: string[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div>
+      <p className="mb-1 font-medium text-fg">{title}</p>
+      <ul className="list-disc space-y-1 pl-5 text-sm text-fg-muted">{items.map((t, i) => <li key={i}>{t}</li>)}</ul>
+    </div>
+  );
+}

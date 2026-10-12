@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Badge, Card, Empty, Loading, PageHeader, ProgressBar } from '@/components/ui';
+import { Alert, Badge, Card, Empty, Loading, PageHeader, ProgressBar, SimpleList, SimpleListItem } from '@/components/ui';
 import { api } from '@/lib/api';
 import { date } from '@/lib/format';
 
@@ -45,14 +45,14 @@ export default function SchedulePage() {
       {sessions.data.past.length > 0 && (
         <>
           <h2 className="mb-3 mt-8 text-lg font-semibold">Past classes</h2>
-          <ul className="divide-y divide-border rounded-lg bg-surface ring-1 ring-border">
+          <SimpleList>
             {sessions.data.past.map((s) => (
-              <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
-                <span><strong>{s.topic}</strong> <span className="text-fg-muted">· {date(s.startsAt, true)}</span></span>
-                <span className="flex items-center gap-3">{s.attendance && <Badge status={s.attendance} />}{s.recordingUrl && <a href={s.recordingUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline">Recording ↗</a>}</span>
-              </li>
+              <SimpleListItem key={s.id}
+                left={<span><strong>{s.topic}</strong> <span className="text-fg-muted">· {date(s.startsAt, true)}</span></span>}
+                right={<>{s.attendance && <Badge status={s.attendance} />}{s.recordingUrl && <a href={s.recordingUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline">Recording ↗</a>}</>}
+              />
             ))}
-          </ul>
+          </SimpleList>
         </>
       )}
     </>

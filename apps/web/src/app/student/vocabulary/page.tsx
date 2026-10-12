@@ -2,7 +2,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Alert, Badge, Button, Card, Empty, Loading, PageHeader, Section } from '@/components/ui';
+import { Alert, Badge, Button, Card, CardList, CardListItem, Empty, Loading, PageHeader, Section } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { date } from '@/lib/format';
@@ -65,21 +65,21 @@ export default function VocabularyPage() {
 
           <Section title="Your words">
             {data.cards.length === 0 ? <Empty title="No saved words yet">Words suggested from your essays appear here when you save them.</Empty> : (
-              <ul className="space-y-2">
+              <CardList>
                 {data.cards.map((c) => (
-                  <li key={c.id} className="flex flex-col gap-1 rounded-lg border border-border bg-surface px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0">
+                  <CardListItem key={c.id}
+                    left={<div className="min-w-0">
                       <p className="font-medium text-fg">{c.item.word}{c.item.partOfSpeech ? <span className="ml-2 text-xs font-normal text-fg-muted">{c.item.partOfSpeech}</span> : null}</p>
                       <p className="text-sm text-fg-muted">{c.item.definition}</p>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-fg-muted">
+                    </div>}
+                    right={<div className="flex items-center gap-3 text-xs text-fg-muted">
                       <Badge status={c.status} />
                       <span>{c.correctRate === null ? 'Not reviewed' : `${Math.round(c.correctRate * 100)}% correct`}</span>
                       <span>Next {date(c.nextReviewAt)}</span>
-                    </div>
-                  </li>
+                    </div>}
+                  />
                 ))}
-              </ul>
+              </CardList>
             )}
           </Section>
         </div>

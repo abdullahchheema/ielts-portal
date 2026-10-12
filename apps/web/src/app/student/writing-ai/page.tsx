@@ -1,10 +1,9 @@
 'use client';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Alert, Badge, Button, Card, Empty, Field, Loading, PageHeader, Select, Textarea } from '@/components/ui';
+import { Alert, Badge, Button, Card, CardList, CardListItem, Empty, Field, Loading, PageHeader, Select, Textarea } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { date } from '@/lib/format';
@@ -47,21 +46,19 @@ export default function WritingPracticePage() {
       {isLoading && <Loading />}
       {isError && <Alert>Could not load your essays.</Alert>}
       {data && (data.length === 0 ? <Empty title="No essays yet">Start one above.</Empty> : (
-        <ul className="space-y-2">
+        <CardList>
           {data.map((r) => (
-            <li key={r.id}>
-              <Link href={`/student/writing-ai/${r.id}`} className="flex flex-col gap-1 rounded-lg border border-border bg-surface px-4 py-3 hover:border-primary sm:flex-row sm:items-center sm:justify-between">
-                <span className="min-w-0 truncate text-sm font-medium text-fg">{r.promptText}</span>
-                <span className="flex items-center gap-3 text-xs text-fg-muted">
-                  <span>{r.taskType === 'TASK1' ? 'Task 1' : 'Task 2'} · {r.wordCount} words</span>
-                  {r.estimatedBand && <span>AI estimate {r.estimatedBand}</span>}
-                  <Badge status={r.status} />
-                  <span>{date(r.submittedAt ?? null)}</span>
-                </span>
-              </Link>
-            </li>
+            <CardListItem key={r.id} href={`/student/writing-ai/${r.id}`}
+              left={<span className="min-w-0 truncate text-sm font-medium text-fg">{r.promptText}</span>}
+              right={<span className="flex items-center gap-3 text-xs text-fg-muted">
+                <span>{r.taskType === 'TASK1' ? 'Task 1' : 'Task 2'} · {r.wordCount} words</span>
+                {r.estimatedBand && <span>AI estimate {r.estimatedBand}</span>}
+                <Badge status={r.status} />
+                <span>{date(r.submittedAt ?? null)}</span>
+              </span>}
+            />
           ))}
-        </ul>
+        </CardList>
       ))}
     </>
   );

@@ -41,7 +41,15 @@ All 86 routes are now 🔶 (repainted via tokens). None are ✅ yet — that req
 - [x] Staff surfacing: "Onboarding survey" card on admin student detail (`account` tab), compact summary in the applications verification dialog, `StudentDetailDialog` "Survey" tab, student dashboard "Your goals" card — all via shared `components/survey/SurveySummary.tsx`, never exposed publicly
 - [x] `npm run lint -w @ielts/web`, `npm test -w @ielts/web` (16/16), `npm run build -w @ielts/web` clean on the full Phase D change set
 
-## Phase E — Student portal (33 routes) — not started
+## Phase E — Student portal (33 routes) — composition audit done, duplication pass done
+- [x] Audit of all 33 student routes: Phase A's token/primitive pass already left compositions sound (no missing `PageHeader`, no bare lists without states, no broken responsive handling found). Remaining Phase E work is narrower than originally scoped: consolidating duplicated list markup, hoisting a duplicated AI-feedback helper, and replacing one raw `<table>`.
+- [x] New shared primitives in `components/ui/display.tsx`: `SimpleList`/`SimpleListItem` (one bordered card, divided rows) and `CardList`/`CardListItem` (individually-bordered rows, optional `href`) — replace a "bordered row in a plain `<ul>`" pattern that had been hand-copied with minor class variations across 6 routes
+- [x] Applied: `course/page.tsx` (certificates), `progress/page.tsx` (submissions), `schedule/page.tsx` (past classes) → `SimpleList`; `vocabulary/page.tsx` (saved words), `referrals/page.tsx` (referral items), `writing-ai/page.tsx` (essays, now a `CardListItem` with `href` instead of a hand-wrapped `<Link>`) → `CardList`
+- [x] New `FeedbackList` in `components/ui/ai.tsx` — hoisted out of an identical local `List({ title, items })` helper duplicated verbatim in `writing-ai/[id]/page.tsx` and `speaking-ai/page.tsx`; both now import the shared component
+- [x] `submissions/[id]/page.tsx` — the hand-coded criteria/band `<table>` now uses the shared `Table`/`Td` primitives, consistent with the rest of the portal
+- [x] `/student/attempts/[id]` and `/student/simulator/[id]` untouched, per the plan's risk section (styling-only screens)
+- [x] Remaining 33 student routes not touched by this change set: no composition defects were found in them during the audit, so they stay as repainted-only (🔶) until a dedicated per-route pass, not because they were skipped by mistake
+- [x] `npm run lint -w @ielts/web`, `npm test -w @ielts/web` (16/16), `npm run build -w @ielts/web` (72/72 routes) all clean on this change set
 ## Phase F — Teacher portal (6 routes) — not started
 ## Phase G — Admin portal (35 routes) — not started
 ## Phase H — Motion + responsive pass — not started

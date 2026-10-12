@@ -3,7 +3,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { AIInsightCard, AiUnavailable, Alert, Badge, Button, Card, Loading, PageHeader, ScoreBreakdown, Textarea } from '@/components/ui';
+import { AIInsightCard, AiUnavailable, Alert, Badge, Button, Card, FeedbackList, Loading, PageHeader, ScoreBreakdown, Textarea } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 
@@ -132,9 +132,9 @@ export default function WritingEssayPage() {
             <AIInsightCard title="Writing feedback" estimate={ev.estimatedBand}>
               <div className="space-y-4">
                 <ScoreBreakdown items={ev.criteria.map((c) => ({ label: CRITERIA_LABEL[c.key] ?? c.key, score: c.score }))} />
-                <List title="Strengths" items={ev.feedback.strengths} />
-                <List title="Task response" items={ev.feedback.taskIssues} />
-                <List title="Coherence" items={ev.feedback.coherenceIssues} />
+                <FeedbackList title="Strengths" items={ev.feedback.strengths} />
+                <FeedbackList title="Task response" items={ev.feedback.taskIssues} />
+                <FeedbackList title="Coherence" items={ev.feedback.coherenceIssues} />
                 {ev.feedback.grammarIssues.length > 0 && (
                   <div>
                     <p className="mb-1 font-medium text-fg">Grammar</p>
@@ -147,8 +147,8 @@ export default function WritingEssayPage() {
                     <ul className="space-y-2">{ev.feedback.sentenceCorrections.map((c, i) => <li key={i} className="text-sm"><span className="text-fg-muted">{c.original}</span><span className="block text-success">{c.corrected}</span></li>)}</ul>
                   </div>
                 )}
-                <List title="Vocabulary" items={ev.feedback.vocabularyIssues.map((v) => `“${v.excerpt}” → ${v.suggestion}`)} />
-                <List title="Next steps" items={ev.feedback.suggestions} />
+                <FeedbackList title="Vocabulary" items={ev.feedback.vocabularyIssues.map((v) => `“${v.excerpt}” → ${v.suggestion}`)} />
+                <FeedbackList title="Next steps" items={ev.feedback.suggestions} />
               </div>
             </AIInsightCard>
           )}
@@ -174,16 +174,6 @@ export default function WritingEssayPage() {
         </section>
       </div>
     </>
-  );
-}
-
-function List({ title, items }: { title: string; items: string[] }) {
-  if (items.length === 0) return null;
-  return (
-    <div>
-      <p className="mb-1 font-medium text-fg">{title}</p>
-      <ul className="list-disc space-y-1 pl-5 text-sm text-fg-muted">{items.map((t, i) => <li key={i}>{t}</li>)}</ul>
-    </div>
   );
 }
 

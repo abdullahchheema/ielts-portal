@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
-import { Alert, Badge, Card, Loading, PageHeader } from '@/components/ui';
+import { Alert, Badge, Card, Loading, PageHeader, Table, Td } from '@/components/ui';
 import { api } from '@/lib/api';
 import { band, date } from '@/lib/format';
 
@@ -25,12 +25,11 @@ export default function SubmissionPage() {
       {latest ? (
         <Card className="mb-6 space-y-4">
           <div className="flex items-baseline justify-between"><h2 className="text-lg font-semibold">Teacher feedback</h2><p className="text-3xl font-semibold text-primary">Band {band(latest.finalBand)}</p></div>
-          <table className="w-full text-sm">
-            <thead><tr className="text-left text-fg-muted"><th className="py-1 font-medium">Criterion</th><th className="w-20 text-right font-medium">Band</th></tr></thead>
-            <tbody>{latest.scores.map((c) => (
-              <tr key={c.criterion} className="border-t border-border align-top"><td className="py-2">{c.criterion}{c.comment && <p className="text-fg-muted">{c.comment}</p>}</td><td className="py-2 text-right font-semibold">{band(c.score)}</td></tr>
-            ))}</tbody>
-          </table>
+          <Table head={['Criterion', 'Band']}>
+            {latest.scores.map((c) => (
+              <tr key={c.criterion} className="align-top"><Td>{c.criterion}{c.comment && <p className="text-fg-muted">{c.comment}</p>}</Td><Td className="text-right font-semibold">{band(c.score)}</Td></tr>
+            ))}
+          </Table>
           {latest.comment && <div><h3 className="mb-1 text-sm font-semibold">Overall comment</h3><p className="whitespace-pre-wrap text-sm text-fg">{latest.comment}</p></div>}
           {older.length > 0 && (
             <details className="text-sm"><summary className="cursor-pointer text-primary">Earlier gradings ({older.length})</summary>

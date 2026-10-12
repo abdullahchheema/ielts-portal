@@ -70,6 +70,31 @@ export function DefinitionList({ items }: { items: Array<{ label: string; value:
   );
 }
 
+/** A single rounded card of rows, divided by rules — certificates, submissions, past classes. */
+export function SimpleList({ children }: { children: ReactNode }) {
+  return <ul className="divide-y divide-border overflow-hidden rounded-lg bg-surface shadow-xs ring-1 ring-border">{children}</ul>;
+}
+
+export function SimpleListItem({ left, right, className }: { left: ReactNode; right?: ReactNode; className?: string }) {
+  return (
+    <li className={cx('flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm', className)}>
+      {left}
+      {right && <span className="flex items-center gap-3">{right}</span>}
+    </li>
+  );
+}
+
+/** A list of individually-bordered rows with gaps between — saved words, referrals, essays. */
+export function CardList({ children }: { children: ReactNode }) {
+  return <ul className="space-y-2">{children}</ul>;
+}
+
+export function CardListItem({ left, right, href, className }: { left: ReactNode; right?: ReactNode; href?: string; className?: string }) {
+  const cls = cx('flex flex-col gap-1 rounded-lg border border-border bg-surface px-4 py-3 sm:flex-row sm:items-center sm:justify-between', className);
+  if (href) return <li><Link href={href} className={cx(cls, 'hover:border-primary')}>{left}{right}</Link></li>;
+  return <li className={cls}>{left}{right}</li>;
+}
+
 export function Section({ title, description, actions, children, className }: { title?: string; description?: string; actions?: ReactNode; children: ReactNode; className?: string }) {
   return (
     <section className={cx('mb-8 last:mb-0', className)}>
