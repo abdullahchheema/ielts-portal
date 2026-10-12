@@ -53,7 +53,7 @@ export function DetailDialog({
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {actions}
-            <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1.5 text-fg-muted transition-colors hover:bg-surface-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-ring">
+            <button type="button" onClick={onClose} aria-label="Close" className="grid size-11 shrink-0 place-items-center rounded-md text-fg-muted transition-colors hover:bg-surface-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-ring">
               <X aria-hidden className="size-4.5" />
             </button>
           </div>

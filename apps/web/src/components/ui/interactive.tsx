@@ -64,7 +64,7 @@ export function OptionCard({ selected, onClick, children, multi }: { selected: b
       role={multi ? 'checkbox' : 'radio'}
       aria-checked={selected}
       className={cx(
-        'flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left text-sm font-medium transition-colors duration-150 ease-out-soft',
+        'flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left text-sm font-medium transition-colors duration-[var(--dur-fast)] ease-out-soft',
         selected ? 'border-primary bg-primary-soft text-primary' : 'border-border bg-surface text-fg hover:bg-surface-muted',
       )}
     >
@@ -94,9 +94,10 @@ export function Switch({ checked, onChange, label, id }: { checked: boolean; onC
         role="switch"
         aria-checked={checked}
         onClick={() => onChange(!checked)}
-        className={cx('relative h-5.5 w-9.5 shrink-0 rounded-full transition-colors duration-150 ease-out-soft', checked ? 'bg-primary' : 'bg-border-strong')}
+        className={cx('relative h-5.5 w-9.5 shrink-0 rounded-full transition-colors duration-[var(--dur-fast)] ease-out-soft', checked ? 'bg-primary' : 'bg-border-strong')}
       >
-        <span aria-hidden className={cx('absolute top-0.5 size-4.5 rounded-full bg-white shadow-xs transition-[left] duration-150 ease-out-soft', checked ? 'left-4.5' : 'left-0.5')} />
+        {/* Thumb slide gets the spring easing: a toggle is a discrete state flip, and a touch of overshoot on the transform reads as responsive rather than mechanical. */}
+        <span aria-hidden className={cx('absolute top-0.5 size-4.5 rounded-full bg-white shadow-xs transition-[left] duration-[var(--dur-fast)] ease-spring', checked ? 'left-4.5' : 'left-0.5')} />
       </button>
       {label && <span className="text-sm text-fg">{label}</span>}
     </label>
@@ -135,7 +136,7 @@ export function Accordion({ items, defaultOpen }: { items: AccordionItem[]; defa
               className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-medium text-fg"
             >
               {it.title}
-              <ChevronDown aria-hidden className={cx('size-4 shrink-0 text-fg-muted transition-transform duration-150 ease-out-soft', isOpen && 'rotate-180')} />
+              <ChevronDown aria-hidden className={cx('size-4 shrink-0 text-fg-muted transition-transform duration-[var(--dur-fast)] ease-spring', isOpen && 'rotate-180')} />
             </button>
             {isOpen && <div className="px-4 pb-4 text-sm leading-relaxed text-fg-muted">{it.content}</div>}
           </div>

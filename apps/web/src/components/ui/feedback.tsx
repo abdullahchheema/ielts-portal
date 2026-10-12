@@ -79,7 +79,7 @@ export function ProgressBar({ value, label: text }: { value: number; label?: str
     <div>
       {text && <div className="mb-1.5 flex justify-between text-xs text-fg-muted"><span>{text}</span><span className="tabular-nums">{Math.round(v)}%</span></div>}
       <div role="progressbar" aria-valuenow={Math.round(v)} aria-valuemin={0} aria-valuemax={100} aria-label={text ?? 'Progress'} className="h-2 overflow-hidden rounded-full bg-surface-muted">
-        <div className="h-full rounded-full bg-primary transition-[width] duration-300 ease-out-soft" style={{ width: `${v}%` }} />
+        <div className="h-full rounded-full bg-primary transition-[width] duration-[var(--dur-slow)] ease-out-soft" style={{ width: `${v}%` }} />
       </div>
     </div>
   );
@@ -94,7 +94,7 @@ export function ProgressRing({ value, size = 64, label: text }: { value: number;
     <div role="progressbar" aria-valuenow={Math.round(v)} aria-valuemin={0} aria-valuemax={100} aria-label={text ?? 'Progress'} className="relative inline-grid place-items-center" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90" aria-hidden>
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={6} className="stroke-surface-muted" />
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={6} strokeLinecap="round" className="stroke-primary transition-[stroke-dashoffset] duration-300 ease-out-soft" strokeDasharray={c} strokeDashoffset={c * (1 - v / 100)} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={6} strokeLinecap="round" className="stroke-primary transition-[stroke-dashoffset] duration-[var(--dur-slow)] ease-out-soft" strokeDasharray={c} strokeDashoffset={c * (1 - v / 100)} />
       </svg>
       <span className="absolute text-sm font-semibold tabular-nums text-fg">{Math.round(v)}%</span>
     </div>

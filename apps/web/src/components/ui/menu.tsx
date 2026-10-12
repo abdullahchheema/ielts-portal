@@ -40,7 +40,7 @@ export function DropdownMenu({ trigger, items, align = 'end' }: { trigger: React
               disabled={it.disabled}
               onClick={() => { setOpen(false); it.onSelect(); }}
               className={cx(
-                'flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors duration-100',
+                'flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors duration-[var(--dur-fast)] ease-out-soft',
                 it.danger ? 'text-danger hover:bg-danger-soft' : 'text-fg hover:bg-surface-muted',
                 it.disabled && 'cursor-not-allowed opacity-50 hover:bg-transparent',
               )}

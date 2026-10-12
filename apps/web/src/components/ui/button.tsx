@@ -11,7 +11,7 @@ export type Tone = "default" | "danger";
 
 const BASE =
   'inline-flex shrink-0 items-center justify-center gap-2 rounded-md font-medium whitespace-nowrap ' +
-  'transition-[background-color,box-shadow,color] duration-150 ease-out-soft ' +
+  'transition-[background-color,box-shadow,color] duration-[var(--dur-fast)] ease-out-soft ' +
   'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ' +
   'disabled:cursor-not-allowed disabled:opacity-55';
 

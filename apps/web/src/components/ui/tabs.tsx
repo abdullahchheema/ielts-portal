@@ -40,7 +40,7 @@ export function Tabs({ items, value, onChange, variant = 'segment', 'aria-label'
             onClick={() => onChange(t.key)}
             onKeyDown={(e) => onKey(e, i)}
             className={cx(
-              'inline-flex items-center gap-1.5 whitespace-nowrap text-sm font-medium transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+              'inline-flex items-center gap-1.5 whitespace-nowrap text-sm font-medium transition-colors duration-[var(--dur-fast)] ease-out-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
               isSeg
                 ? cx('rounded-md px-3.5 py-1.5', active ? 'bg-surface text-fg shadow-xs' : 'text-fg-muted hover:text-fg')
                 : cx('border-b-2 px-3 pb-2.5 pt-1.5 -mb-px', active ? 'border-primary text-primary' : 'border-transparent text-fg-muted hover:text-fg hover:border-border-strong'),

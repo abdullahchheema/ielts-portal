@@ -25,7 +25,7 @@ export function Drawer({ open, onClose, title, children, width = 'md' }: {
       <aside role="dialog" aria-modal="true" aria-label={title} className={cx('relative flex h-full w-full flex-col border-l border-border bg-surface shadow-xl', width === 'lg' ? 'max-w-2xl' : 'max-w-md')}>
         <header className="flex items-center justify-between border-b border-border px-5 py-3">
           <h2 className="font-display text-base font-semibold text-fg">{title}</h2>
-          <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1 text-fg-muted hover:bg-surface-muted">
+          <button type="button" onClick={onClose} aria-label="Close" className="grid size-11 shrink-0 place-items-center rounded-md text-fg-muted hover:bg-surface-muted">
             <X className="size-5" aria-hidden />
           </button>
         </header>

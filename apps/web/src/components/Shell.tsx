@@ -76,7 +76,7 @@ export function Shell({ title, groups, me, children, width = 'default' }: { titl
                     aria-current={active ? 'page' : undefined}
                     title={iconOnly ? it.label : undefined}
                     className={cx(
-                      'relative flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150',
+                      'relative flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-[var(--dur-fast)] ease-out-soft',
                       'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
                       active ? 'bg-primary-soft text-primary' : 'text-fg-muted hover:bg-surface-muted hover:text-fg',
                       iconOnly && 'lg:justify-center lg:px-0',
@@ -120,7 +120,7 @@ export function Shell({ title, groups, me, children, width = 'default' }: { titl
   );
 
   return (
-    <div className={cx('min-h-dvh bg-canvas lg:grid lg:transition-[grid-template-columns] lg:duration-200 lg:ease-out-soft', collapsed ? 'lg:grid-cols-[4.5rem_1fr]' : 'lg:grid-cols-[16rem_1fr]')}>
+    <div className={cx('min-h-dvh bg-canvas lg:grid lg:transition-[grid-template-columns] lg:duration-[var(--dur)] lg:ease-out-soft', collapsed ? 'lg:grid-cols-[4.5rem_1fr]' : 'lg:grid-cols-[16rem_1fr]')}>
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[60] focus:rounded-md focus:bg-surface focus:px-3 focus:py-2 focus:shadow-md">Skip to content</a>
 
       {/* Desktop sidebar */}
@@ -140,18 +140,18 @@ export function Shell({ title, groups, me, children, width = 'default' }: { titl
       </aside>
 
       {/* Mobile drawer */}
-      <div className={cx('fixed inset-0 z-40 bg-overlay transition-opacity duration-200 lg:hidden', drawer ? 'opacity-100' : 'pointer-events-none opacity-0')} onClick={() => setDrawer(false)} aria-hidden />
+      <div className={cx('fixed inset-0 z-40 bg-overlay transition-opacity duration-[var(--dur)] ease-out-soft lg:hidden', drawer ? 'opacity-100' : 'pointer-events-none opacity-0')} onClick={() => setDrawer(false)} aria-hidden />
       <aside
         id="mobile-nav"
         role="dialog"
         aria-modal={drawer || undefined}
         aria-label="Navigation"
         aria-hidden={!drawer}
-        className={cx('fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r border-border bg-surface shadow-xl transition-transform duration-200 ease-out-soft lg:hidden', drawer ? 'translate-x-0' : '-translate-x-full')}
+        className={cx('fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r border-border bg-surface shadow-xl transition-transform duration-[var(--dur)] ease-spring lg:hidden', drawer ? 'translate-x-0' : '-translate-x-full')}
       >
         <div className="flex items-center justify-between pr-3">
           {brand(false)}
-          <button type="button" onClick={() => setDrawer(false)} aria-label="Close navigation" className="grid size-9 place-items-center rounded-md text-fg-muted hover:bg-surface-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-ring">
+          <button type="button" onClick={() => setDrawer(false)} aria-label="Close navigation" className="grid size-11 place-items-center rounded-md text-fg-muted hover:bg-surface-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-ring">
             <X aria-hidden className="size-5" />
           </button>
         </div>
@@ -163,7 +163,7 @@ export function Shell({ title, groups, me, children, width = 'default' }: { titl
         <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-surface/90 px-4 backdrop-blur supports-[backdrop-filter]:bg-surface/75 sm:px-6">
           <button
             type="button"
-            className="grid size-9 place-items-center rounded-md text-fg-muted hover:bg-surface-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-ring lg:hidden"
+            className="grid size-11 place-items-center rounded-md text-fg-muted hover:bg-surface-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-ring lg:hidden"
             aria-expanded={drawer}
             aria-controls="mobile-nav"
             aria-label="Open navigation"

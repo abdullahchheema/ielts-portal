@@ -13,7 +13,7 @@ export function StatCard({ label: text, value, href, hint, icon: Icon, attention
   label: string; value: ReactNode; href?: string; hint?: string; icon?: LucideIcon; attention?: boolean;
 }) {
   const body = (
-    <Card className={cx('h-full transition-[box-shadow,ring-color] duration-150 hover:shadow-xs', attention && 'ring-2 ring-warning/60', href && 'hover:ring-border-strong')}>
+    <Card className={cx('h-full transition-[box-shadow,ring-color] duration-[var(--dur-fast)] ease-out-soft hover:shadow-xs', attention && 'ring-2 ring-warning/60', href && 'hover:ring-border-strong')}>
       <div className="flex items-start justify-between gap-3">
         <p className="text-sm font-medium text-fg-muted">{text}</p>
         {Icon && <span className="grid size-8 shrink-0 place-items-center rounded-md bg-primary-soft text-primary"><Icon aria-hidden className="size-4" /></span>}

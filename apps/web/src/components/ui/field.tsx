@@ -6,7 +6,7 @@ import { cx } from '@/lib/cx';
 
 const inputCls =
   'block w-full rounded-md border-0 bg-surface px-3 py-2 text-sm text-fg shadow-xs ring-1 ring-inset ring-border-strong ' +
-  'placeholder:text-fg-subtle transition-shadow duration-150 ' +
+  'placeholder:text-fg-subtle transition-shadow duration-[var(--dur-fast)] ease-out-soft ' +
   'focus:ring-2 focus:ring-primary focus:outline-none ' +
   'disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-fg-muted ' +
   'aria-[invalid=true]:ring-danger aria-[invalid=true]:focus:ring-danger';

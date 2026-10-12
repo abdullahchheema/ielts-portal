@@ -46,7 +46,7 @@ export function ClickableRow({ onClick, children, className }: { onClick: () => 
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
       role="button"
       tabIndex={0}
-      className={cx('cursor-pointer transition-colors duration-150 hover:bg-primary-soft/40 focus-visible:bg-primary-soft/40 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring', className)}
+      className={cx('cursor-pointer transition-colors duration-[var(--dur-fast)] ease-out-soft hover:bg-primary-soft/40 focus-visible:bg-primary-soft/40 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring', className)}
     >
       {children}
     </tr>

@@ -18,7 +18,7 @@ export function Stepper({ steps, activeIndex }: { steps: StepDef[]; activeIndex:
               <span
                 aria-hidden
                 className={cx(
-                  'grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold ring-1 ring-inset transition-colors duration-150 ease-out-soft',
+                  'grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold ring-1 ring-inset transition-colors duration-[var(--dur-fast)] ease-out-soft',
                   done ? 'bg-primary text-primary-fg ring-primary' : active ? 'bg-primary-soft text-primary ring-primary' : 'bg-surface text-fg-subtle ring-border-strong',
                 )}
               >
@@ -44,7 +44,7 @@ export function StepProgress({ current, total }: { current: number; total: numbe
         <span>{pct}%</span>
       </div>
       <div role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface-muted">
-        <div className="h-full rounded-full bg-primary transition-[width] duration-300 ease-out-soft" style={{ width: `${pct}%` }} />
+        <div className="h-full rounded-full bg-primary transition-[width] duration-[var(--dur-slow)] ease-out-soft" style={{ width: `${pct}%` }} />
       </div>
     </div>
   );

@@ -42,7 +42,7 @@ export function NotificationBell() {
         aria-haspopup="true"
         aria-expanded={open}
         aria-label={unread ? `Notifications, ${unread} unread` : 'Notifications'}
-        className="relative grid size-9 place-items-center rounded-md text-fg-muted transition-colors hover:bg-surface-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-ring"
+        className="relative grid size-11 place-items-center rounded-md text-fg-muted transition-colors hover:bg-surface-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-ring"
       >
         <Bell aria-hidden className="size-4.5" strokeWidth={1.75} />
         {unread > 0 && <span aria-hidden className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-semibold tabular-nums text-white ring-2 ring-surface">{unread > 9 ? '9+' : unread}</span>}
