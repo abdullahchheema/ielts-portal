@@ -50,7 +50,11 @@ All 86 routes are now 🔶 (repainted via tokens). None are ✅ yet — that req
 - [x] `/student/attempts/[id]` and `/student/simulator/[id]` untouched, per the plan's risk section (styling-only screens)
 - [x] Remaining 33 student routes not touched by this change set: no composition defects were found in them during the audit, so they stay as repainted-only (🔶) until a dedicated per-route pass, not because they were skipped by mistake
 - [x] `npm run lint -w @ielts/web`, `npm test -w @ielts/web` (16/16), `npm run build -w @ielts/web` (72/72 routes) all clean on this change set
-## Phase F — Teacher portal (6 routes) — not started
+## Phase F — Teacher portal (6 routes) — audited, no changes needed
+- [x] Audited all 6 routes (dashboard, batches, batch workspace, grading queue, grading detail, student view) against the same composition criteria as Phase E: `PageHeader` present, real `Empty`/`Loading`/`SkeletonTable` states, `Table`/`Td` used consistently for every tabular list, `Tabs` used for the batch workspace and student-detail sections, no raw hand-coded tables
+- [x] No structural composition defects found — the portal was already composed cleanly in the original build, and Phase A's token pass left it sound. The one hand-rolled list (`page.tsx`'s "Upcoming classes") is a single occurrence with its own padding, not a duplicate of anything else in this portal, so it was left as-is rather than forced into the Phase E `SimpleList` primitive for no real benefit
+- [x] Grading detail (`grading/[id]/page.tsx`) draft autosave, band-rounding (`ieltsRound`) and revision-conflict handling confirmed untouched
+- [x] No code changes required; `npm run lint`/`test`/`build` already clean from Phase E — nothing invalidated by this audit-only phase
 ## Phase G — Admin portal (35 routes) — not started
 ## Phase H — Motion + responsive pass — not started
 ## Phase I — Performance (surgical) — not started
