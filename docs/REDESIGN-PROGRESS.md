@@ -71,5 +71,15 @@ All 86 routes are now 🔶 (repainted via tokens). None are ✅ yet — that req
 - [x] Responsive check at 360/390/768/1280/1440: **static Tailwind-class analysis only** (no browser automation tool available in this environment) — no horizontal overflow found; Shell's drawer/rail are correctly breakpoint-gated, the data table collapses to stacked cards below `lg` by existing design, bare `grid-cols-N` usages hold only text-wrapping content with no fixed-width children. Not visually confirmed in a live viewport — flagged honestly rather than claimed as verified
 - [x] `admin/analytics/page.tsx` (owner-edited) and the two timed-assessment routes (`attempts/[id]`, `simulator/[id]`) untouched
 - [x] `npm run lint -w @ielts/web`, `npm test -w @ielts/web` (16/16), `npm run build -w @ielts/web` all clean, independently re-run before commit
-## Phase I — Performance (surgical) — not started
+## Phase I — Performance (surgical) — done
+- [x] `CommandCenterService.overview()` (admin dashboard): 7 permission-gated metric queries + batch health + risk distribution + academic report + recent activity + alerts (12 independent branches total) converted from strictly-sequential `await`s to one `Promise.all`; metric ordering preserved by reconstructing the `metrics` array after resolution, not by the order of the round trips
+- [x] `academicReport()` and `alerts()` each had 2–3 of their own internal independent reads parallelized the same way
+- [x] `TeacherWorkspaceService.batchHealth()`: 3 independent reads (reviewer scope, batch lookup, cached snapshot) parallelized; authorization checks still run only after all 3 resolve, logic unchanged
+- [x] `TeacherWorkspaceService.queue()`: reviewer scope + grading-queue setting parallelized
+- [x] `TeacherWorkspaceService.allBatchHealth()` confirmed N+1 fixed: was one `batchHealth()` round trip per batch, fully serialized across up to 100 batches; now runs in bounded concurrency slices of 10 via `Promise.all`, not fully unbounded (avoids opening 100 simultaneous connections against the pool)
+- [x] `InsightsService`: same accidentally-sequential pattern found in `weakness()`, `readiness()`, `readinessSignals()`, `computeWeakness()` — each had an independent lookup awaited before a `Promise.all` that didn't need it there; all 4 parallelized. `targetPlan()` left sequential by design — it genuinely needs `targetBand` before deciding whether to call `readinessSignals()` at all
+- [x] Added `compression` (gzip) middleware to `apps/api/src/app.ts`, alongside the existing `helmet()`
+- [x] Public data caching (`publicGet` honouring `_revalidate`, `/` on ISR) was already done in Phase C; re-confirmed still in place, not re-touched
+- [x] No live database was available in this environment to measure real wall-clock timings — the before/after numbers recorded in `docs/PERFORMANCE.md` are round-trip counts read from the code, not timed benchmarks. The full `npm test -w @ielts/api` integration suite also could not be run (hangs with no DB reachable); flagged for Phase J to re-attempt against a real database
+- [x] `npm run typecheck`, `npm run test:unit -w @ielts/api` (256/256), `npm run build -w @ielts/api`, `npm run build -w @ielts/web` all clean, independently re-run before commit
 ## Phase J — Regression + final report — not started
