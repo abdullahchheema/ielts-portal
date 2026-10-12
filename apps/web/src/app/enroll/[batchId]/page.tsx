@@ -4,9 +4,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { BAND_STEPS, COUNTRIES, PAKISTAN_CITIES, applicantProfileSchema } from '@ielts/validation';
+import { COUNTRIES, PAKISTAN_CITIES, applicantProfileSchema } from '@ielts/validation';
 import { AccountGate } from '@/components/AccountGate';
 import { PaymentSection, PaymentValues, METHOD_LABEL, emptyPayment, paymentFormData, validatePayment } from '@/components/PaymentSection';
+import { SurveyWizard, SurveyComplete } from '@/components/survey/SurveyWizard';
 import { PublicBatch } from '@/components/BatchCard';
 import { PublicHeader } from '@/components/PublicHeader';
 import { Alert, Button, Card, Field, Input, Loading, Select } from '@/components/ui';
@@ -22,7 +23,7 @@ interface Details {
 }
 const EMPTY: Details = { phone: '', city: '', country: 'Pakistan', testType: '', targetBand: '', examDate: '', ieltsHistory: '', ieltsOverall: '' };
 const DAY: Record<string, string> = { MON: 'Mon', TUE: 'Tue', WED: 'Wed', THU: 'Thu', FRI: 'Fri', SAT: 'Sat', SUN: 'Sun' };
-const LABELS = ['Your details', 'Payment', 'Review'];
+const LABELS = ['Your goals', 'Payment', 'Review & submit'];
 const TEST_LABEL: Record<string, string> = { ACADEMIC: 'Academic', GENERAL: 'General Training' };
 
 function Steps({ step }: { step: number }) {
@@ -122,15 +123,21 @@ export default function EnrollPage() {
 
   const next = () => {
     setFormError(null);
-    if (step === 0 && !validateDetails()) return;
     if (step === 1 && !validatePay()) return;
     setErrors({});
     setStep(step + 1);
   };
   const back = () => { setErrors({}); setFormError(null); setStep(Math.max(0, step - 1)); };
 
+  const onSurveyComplete = (mapped: SurveyComplete) => {
+    set({ targetBand: mapped.targetBand, ieltsHistory: mapped.ieltsHistory, ieltsOverall: mapped.ieltsOverall });
+    setStep(1);
+  };
+
   const submit = async () => {
-    setBusy(true); setFormError(null);
+    setFormError(null);
+    if (!validateDetails()) return;
+    setBusy(true);
     try {
       const extra: Record<string, string> = { batchId };
       for (const [k, v] of Object.entries(d)) if (v) extra[k] = v;
@@ -143,7 +150,7 @@ export default function EnrollPage() {
         const fe = e.details;
         setErrors(fe);
         const profileKeys = Object.keys(EMPTY);
-        if (Object.keys(fe).some((k) => profileKeys.includes(k))) setStep(0);
+        if (Object.keys(fe).some((k) => profileKeys.includes(k))) setStep(2);
         else if (Object.keys(fe).length) setStep(1);
       }
       setFormError(errorMessage(e));
@@ -160,38 +167,7 @@ export default function EnrollPage() {
         <Card>
           {formError && <div className="mb-4"><Alert>{formError}</Alert></div>}
 
-          {step === 0 && (
-            <div className="space-y-4">
-              <h2 className="text-lg font-semibold">Your details</h2>
-              <p className="text-sm text-fg-muted">Applying as <span className="font-medium text-fg">{me.data.email}</span>. Every field is required.</p>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Phone / WhatsApp" error={errors.phone}>{(p) => <Input {...p} type="tel" autoComplete="tel" {...text('phone')} />}</Field>
-                <Field label="City" error={errors.city}>{(p) => <Select {...p} {...text('city')}><option value="">Select</option>{PAKISTAN_CITIES.map((c) => <option key={c} value={c}>{c}</option>)}</Select>}</Field>
-                <Field label="Country" error={errors.country}>{(p) => <Select {...p} {...text('country')}>{COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}</Select>}</Field>
-                <Field label="Test you are preparing for" error={errors.testType}>{(p) => <Select {...p} {...text('testType')}><option value="">Select</option><option value="ACADEMIC">Academic</option><option value="GENERAL">General Training</option></Select>}</Field>
-                <Field label="Target band" error={errors.targetBand}>{(p) => <Select {...p} {...text('targetBand')}><option value="">Select</option>{BAND_STEPS.map((b) => <option key={b}>{b}</option>)}</Select>}</Field>
-                <Field label="Planned exam date" error={errors.examDate}>{(p) => <Input {...p} type="date" {...text('examDate')} />}</Field>
-              </div>
-
-              <fieldset className="rounded-md bg-canvas p-4">
-                <legend className="px-1 text-sm font-medium text-fg">Have you taken IELTS before?</legend>
-                <div className="flex gap-4 text-sm">
-                  <label className="flex items-center gap-2">
-                    <input type="radio" name="ieltsHistory" checked={d.ieltsHistory === 'NEVER'} onChange={() => set({ ieltsHistory: 'NEVER', ieltsOverall: '' })} /> No, this is my first time
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input type="radio" name="ieltsHistory" checked={d.ieltsHistory === 'TAKEN'} onChange={() => set({ ieltsHistory: 'TAKEN' })} /> Yes, I have
-                  </label>
-                </div>
-                {errors.ieltsHistory && <p className="mt-1 text-xs text-danger">{errors.ieltsHistory}</p>}
-                {d.ieltsHistory === 'TAKEN' && (
-                  <div className="mt-3 max-w-xs">
-                    <Field label="Your latest overall band" error={errors.ieltsOverall}>{(p) => <Select {...p} {...text('ieltsOverall')}><option value="">Select</option>{BAND_STEPS.map((b) => <option key={b}>{b}</option>)}</Select>}</Field>
-                  </div>
-                )}
-              </fieldset>
-            </div>
-          )}
+          {step === 0 && <SurveyWizard onComplete={onSurveyComplete} />}
 
           {step === 1 && (
             <div className="space-y-4">
@@ -203,14 +179,21 @@ export default function EnrollPage() {
 
           {step === 2 && (
             <div className="space-y-4">
-              <h2 className="text-lg font-semibold">Review and submit</h2>
+              <h2 className="text-lg font-semibold">A few more details</h2>
+              <p className="text-sm text-fg-muted">Applying as <span className="font-medium text-fg">{me.data.email}</span>. Every field is required.</p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Phone / WhatsApp" error={errors.phone}>{(p) => <Input {...p} type="tel" autoComplete="tel" {...text('phone')} />}</Field>
+                <Field label="City" error={errors.city}>{(p) => <Select {...p} {...text('city')}><option value="">Select</option>{PAKISTAN_CITIES.map((c) => <option key={c} value={c}>{c}</option>)}</Select>}</Field>
+                <Field label="Country" error={errors.country}>{(p) => <Select {...p} {...text('country')}>{COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}</Select>}</Field>
+                <Field label="Test you are preparing for" error={errors.testType}>{(p) => <Select {...p} {...text('testType')}><option value="">Select</option><option value="ACADEMIC">Academic</option><option value="GENERAL">General Training</option></Select>}</Field>
+                <Field label="Planned exam date" error={errors.examDate}>{(p) => <Input {...p} type="date" {...text('examDate')} />}</Field>
+              </div>
+
+              <h2 className="pt-2 text-lg font-semibold">Review and submit</h2>
               <dl className="grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
                 <div className="sm:col-span-2"><dt className="text-fg-muted">Applying as</dt><dd className="font-medium">{me.data.email}</dd></div>
-                <div><dt className="text-fg-muted">Phone</dt><dd className="font-medium">{d.phone}</dd></div>
-                <div><dt className="text-fg-muted">Location</dt><dd className="font-medium">{d.city}, {d.country}</dd></div>
                 <div><dt className="text-fg-muted">Test</dt><dd className="font-medium">{TEST_LABEL[d.testType] ?? d.testType}</dd></div>
                 <div><dt className="text-fg-muted">Target band</dt><dd className="font-medium">{d.targetBand}</dd></div>
-                <div><dt className="text-fg-muted">Planned exam date</dt><dd className="font-medium">{d.examDate ? date(d.examDate) : '—'}</dd></div>
                 <div><dt className="text-fg-muted">Previous IELTS</dt><dd className="font-medium">{d.ieltsHistory === 'TAKEN' ? `Yes, overall ${d.ieltsOverall}` : 'No, first time'}</dd></div>
                 <div><dt className="text-fg-muted">Batch</dt><dd className="font-medium">{batch.name}</dd></div>
                 <div><dt className="text-fg-muted">Payment method</dt><dd className="font-medium">{METHOD_LABEL[payment.paymentMethod] ?? payment.paymentMethod}</dd></div>
@@ -222,12 +205,14 @@ export default function EnrollPage() {
             </div>
           )}
 
-          <div className="mt-6 flex items-center justify-between gap-3 border-t border-border pt-4">
-            {step > 0 ? <Button variant="secondary" onClick={back} disabled={busy}>Back</Button> : <span />}
-            {step < LABELS.length - 1
-              ? <Button onClick={next}>Continue</Button>
-              : <Button onClick={submit} busy={busy}>Submit application</Button>}
-          </div>
+          {step > 0 && (
+            <div className="mt-6 flex items-center justify-between gap-3 border-t border-border pt-4">
+              <Button variant="secondary" onClick={back} disabled={busy}>Back</Button>
+              {step < LABELS.length - 1
+                ? <Button onClick={next}>Continue</Button>
+                : <Button onClick={submit} busy={busy}>Submit application</Button>}
+            </div>
+          )}
         </Card>
       </main>
     </>

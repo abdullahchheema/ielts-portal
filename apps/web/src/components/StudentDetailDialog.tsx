@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Alert, Badge, DefinitionList, DetailDialog, Empty, Loading, Section, Table, Td } from '@/components/ui';
 import { IeltsSummary, IeltsSummaryLike } from '@/components/IeltsSummary';
 import { ReceiptViewer } from '@/components/ReceiptViewer';
+import { SurveyDoc, SurveySummary } from '@/components/survey/SurveySummary';
 import { api } from '@/lib/api';
 import { band, date, money } from '@/lib/format';
 
@@ -27,6 +28,7 @@ const TABS = [
   { key: 'personal', label: 'Personal' },
   { key: 'contact', label: 'Contact' },
   { key: 'academic', label: 'Academic' },
+  { key: 'survey', label: 'Survey' },
   { key: 'enrollment', label: 'Enrollment' },
   { key: 'payment', label: 'Payment' },
   { key: 'timeline', label: 'Timeline' },
@@ -45,6 +47,11 @@ export function StudentDetailDialog({ studentId, onClose }: { studentId: string 
     queryKey: ['admin-payment', paymentId],
     queryFn: () => api<PaymentDetail>(`/admin/payments/${paymentId}`),
     enabled: !!paymentId && tab === 'payment',
+  });
+  const { data: survey } = useQuery({
+    queryKey: ['admin-student-enrollment-survey', studentId],
+    queryFn: () => api<SurveyDoc>(`/admin/students/${studentId}/enrollment-survey`),
+    enabled: !!studentId && tab === 'survey',
   });
 
   return (
@@ -93,6 +100,11 @@ export function StudentDetailDialog({ studentId, onClose }: { studentId: string 
                 { label: 'Test type', value: s.academicOrGeneral },
                 { label: 'Planned exam date', value: date(s.ieltsExamDate) },
               ]} />
+            </Section>
+          )}
+          {tab === 'survey' && (
+            <Section title="Onboarding survey">
+              <SurveySummary doc={survey} />
             </Section>
           )}
           {tab === 'enrollment' && (

@@ -7,6 +7,7 @@ import { EnrollmentBadge, METHOD_TEXT } from '@/components/student';
 import { Alert, Badge, Button, Card, ClickableRow, DefinitionList, Dialog, DetailDialog, Empty, Field, Loading, PageHeader, Section, Skeleton, Table, Td, Tabs, Textarea } from '@/components/ui';
 import { label } from '@/lib/format';
 import { ReceiptViewer } from '@/components/ReceiptViewer';
+import { SurveyDoc, SurveySummary } from '@/components/survey/SurveySummary';
 import { TeacherApplicationDetailDialog } from '@/components/TeacherApplicationDetailDialog';
 import { ApiError, api } from '@/lib/api';
 import { can, useMe } from '@/lib/auth';
@@ -54,6 +55,7 @@ function ApplicationCard({ a, onChanged }: { a: Application; onChanged: () => vo
   const p = a.proof;
   const mismatch = !!p?.flags.includes('AMOUNT_MISMATCH');
   const waiting = a.status === 'PENDING_PAYMENT' && p?.status === 'SUBMITTED';
+  const survey = useQuery({ queryKey: ['admin-student-enrollment-survey', a.student.id], queryFn: () => api<SurveyDoc>(`/admin/students/${a.student.id}/enrollment-survey`), enabled: details });
   // A signed receipt link expires; retrying refetches the list so the link is re-signed.
   const refreshLinks = () => qc.invalidateQueries({ queryKey: ['applications-admin'] });
 
@@ -145,6 +147,9 @@ function ApplicationCard({ a, onChanged }: { a: Application; onChanged: () => vo
               { label: 'Taken IELTS before', value: a.student.background.ieltsHistory === 'TAKEN' ? 'Yes' : a.student.background.ieltsHistory === 'NEVER' ? 'No, first time' : '—' },
               { label: 'Latest overall band', value: a.student.background.ieltsOverall ?? '—' },
             ]} />
+          </Section>
+          <Section title="Onboarding survey">
+            <SurveySummary doc={survey.data} />
           </Section>
           <Section title="Application">
             <DefinitionList items={[

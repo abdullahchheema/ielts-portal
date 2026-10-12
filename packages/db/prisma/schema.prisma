@@ -352,6 +352,7 @@ model StudentProfile {
   lifecycleTransitions StudentLifecycleTransition[]
   feedbackRequests FeedbackRequest[]
   feedbackResponses FeedbackResponse[]
+  enrollmentSurvey EnrollmentSurvey?
 
   @@map("student_profiles")
 }
@@ -2137,6 +2138,34 @@ model GradingDraft {
 
   @@unique([submissionId, mentorId], map: "grading_drafts_unique")
   @@map("grading_drafts")
+}
+
+// Onboarding survey, one row per student. Draft until submitted; a student may revise before submitting, so
+// this is not append-only, unlike grading_drafts' sibling (lifecycle/audit) tables.
+model EnrollmentSurvey {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentId         String    @unique @map("student_id") @db.Uuid
+  status            String    @default("DRAFT")
+  takenBefore       String?   @map("taken_before")
+  hadBand           String?   @map("had_band")
+  priorScores       Json?     @map("prior_scores")
+  reason            String?
+  reasonOther       String?   @map("reason_other")
+  targetBand        Decimal?  @map("target_band") @db.Decimal(3, 1)
+  testTimeline      String?   @map("test_timeline")
+  challengingSkills Json      @default("[]") @map("challenging_skills")
+  proficiency       String?
+  dailyMinutes      String?   @map("daily_minutes")
+  learningFormat    String?   @map("learning_format")
+  helpWith          Json      @default("[]") @map("help_with")
+  revision          Int       @default(1)
+  submittedAt       DateTime? @map("submitted_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("enrollment_surveys")
 }
 
 model BatchHealthSnapshot {

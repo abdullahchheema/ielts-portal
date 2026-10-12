@@ -8,6 +8,7 @@ import { EnrollmentBadge, PaymentPendingNotice, primaryApplication, scheduleText
 import { IeltsSummary, IeltsSummaryLike } from '@/components/IeltsSummary';
 import { Home, HomeHero, HomeInsights, TodaysPlan } from '@/components/StudentHome';
 import { FeedbackPrompt } from '@/components/FeedbackPrompt';
+import { SurveyDoc, SurveySummary } from '@/components/survey/SurveySummary';
 import { api } from '@/lib/api';
 import { band, date } from '@/lib/format';
 
@@ -27,6 +28,7 @@ export default function DashboardPage() {
   const sessions = useQuery({ queryKey: ['sessions'], queryFn: () => api<{ upcoming: { id: string; topic: string; startsAt: string; batch: string; joinUrl: string | null }[] }>('/me/sessions'), refetchInterval: 60_000, enabled: enrolled });
   const nextClass = sessions.data?.upcoming[0];
   const home = useQuery({ queryKey: ['home'], queryFn: () => api<Home>('/me/home') });
+  const survey = useQuery({ queryKey: ['enrollment-survey'], queryFn: () => api<SurveyDoc>('/me/enrollment-survey') });
 
   if (isLoading || apps.isLoading) return <Loading />;
   if (isError || !data) return <Alert>Could not load your dashboard.</Alert>;
@@ -98,6 +100,12 @@ export default function DashboardPage() {
           </Card>
         </div>
       </Section>
+
+      {survey.data?.status === 'SUBMITTED' && (
+        <Section title="Your goals">
+          <Card><SurveySummary doc={survey.data} /></Card>
+        </Section>
+      )}
 
       {/* 3. Course progress */}
       {app && (

@@ -8,6 +8,7 @@ import { EstimatedBand } from '@/components/EstimatedBand';
 import { IeltsSummary, IeltsSummaryLike } from '@/components/IeltsSummary';
 import { RiskBadge, type RiskLevelValue } from '@/components/RiskBadge';
 import { LifecyclePanel } from '@/components/LifecyclePanel';
+import { SurveyDoc, SurveySummary } from '@/components/survey/SurveySummary';
 import { api } from '@/lib/api';
 import { useUrlState } from '@/lib/url-state';
 import { date, label, money } from '@/lib/format';
@@ -49,6 +50,7 @@ export default function StudentDetailPage() {
   const attendance = useQuery({ queryKey: ['admin-student-attendance', id], queryFn: () => api<AttendanceRow[]>(`/admin/students/${id}/analytics/attendance`), enabled: tab === 'attendance' });
   const assessments = useQuery({ queryKey: ['admin-student-assessments', id], queryFn: () => api<AssessmentRow[]>(`/admin/students/${id}/analytics/assessments`), enabled: tab === 'assessments' });
   const assignments = useQuery({ queryKey: ['admin-student-assignments', id], queryFn: () => api<AssignmentRow[]>(`/admin/students/${id}/analytics/assignments`), enabled: tab === 'assignments' });
+  const survey = useQuery({ queryKey: ['admin-student-enrollment-survey', id], queryFn: () => api<SurveyDoc>(`/admin/students/${id}/enrollment-survey`), enabled: tab === 'account' });
 
   if (student.isLoading) return <SkeletonTable rows={6} cols={5} />;
   if (student.isError || !student.data) return <Alert>Student not found.</Alert>;
@@ -192,6 +194,10 @@ export default function StudentDetailPage() {
             <Card>
               <p className="mb-2 text-sm font-medium text-fg-muted">Self-reported IELTS history</p>
               <IeltsSummary ielts={s.ielts} />
+            </Card>
+            <Card>
+              <p className="mb-2 text-sm font-medium text-fg-muted">Onboarding survey</p>
+              <SurveySummary doc={survey.data} />
             </Card>
             <Section title="Enrollments">
               {s.enrollments.length === 0 ? <p className="text-sm text-fg-muted">None.</p> : (
