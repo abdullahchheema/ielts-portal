@@ -1,10 +1,10 @@
 import 'server-only';
 import { backendFetch } from './backend';
 
-/** Server-side fetch for public data. Returns null when the backend is unavailable so pages degrade gracefully. */
-export async function publicGet<T>(path: string, _revalidate = 30): Promise<T | null> {
+/** Server-side fetch for public data. ISR-cached for `revalidate` seconds; returns null when the backend is unavailable so pages degrade gracefully. */
+export async function publicGet<T>(path: string, revalidate = 30): Promise<T | null> {
   try {
-    const res = await backendFetch(path, { cache: 'no-store' });
+    const res = await backendFetch(path, { next: { revalidate } });
     if (!res.ok) return null;
     return (await res.json()) as T;
   } catch {

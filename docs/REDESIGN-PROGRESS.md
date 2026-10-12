@@ -17,10 +17,18 @@ Legend: ✅ done · 🔶 repainted only (inherits new tokens, not yet recomposed
 All 86 routes are now 🔶 (repainted via tokens). None are ✅ yet — that requires the per-portal composition passes below.
 
 ## Phase B — App-wide states
-- [ ] `loading.tsx` / `error.tsx` per portal segment + root `not-found.tsx`
+- [x] `loading.tsx` / `error.tsx` per portal segment (`(auth)`, `admin`, `alumni`, `apply-teacher`, `enroll`, `register`, `student`, `teacher`, `verify`, root) + root `not-found.tsx`
+- [x] `RouteStates.tsx` (`PageLoading`, `PageError`) as the shared skeleton/error implementation
 
 ## Phase C — Public + auth (10 routes)
-- [ ] `/`, `/register`, `/enroll/[batchId]`, `/apply-teacher`, `/verify/[code]`, 5× `(auth)` — original composition, delete `marketing.css`
+- [x] `/` — fully recomposed: ISR via `publicGet(..., 120)` + `revalidate = 120` (dropped `force-dynamic`), new hero/module/CTA composition on tokens
+- [x] `PublicHeader` — rewritten on tokens, `<BrandLogo>`, no `.mkt` classes
+- [x] `MarketingInteractive.tsx` — rewritten (`FeatureShowcase` tabs, `FaqAccordion`) on the `Tabs`/`Accordion` primitives; removed the only 3 raw hex values in `src/`
+- [x] `(auth)/layout.tsx` — rewritten split-panel shell on tokens + `<BrandLogo>`
+- [x] `server-api.ts` `publicGet` now honours `revalidate` instead of hardcoding `cache: 'no-store'`
+- [x] `/register`, `/enroll/[batchId]`, `/apply-teacher`, `/verify/[code]`, 5× `(auth)` pages — spot-checked, already compliant (use `ui` primitives/tokens only, no `.mkt` classes)
+- [x] `src/styles/marketing.css` deleted, `@import` removed; verified zero `mkt`/`--mkt-` references remain in `apps/web/src`
+- [x] `npm run lint -w @ielts/web`, `npm test -w @ielts/web` (13/13 passed), `npm run build -w @ielts/web` all clean on the combined Phase B+C change set
 
 ## Phase D — Onboarding survey
 - [ ] Migration, API, validation, `SurveyWizard`, staff surfacing

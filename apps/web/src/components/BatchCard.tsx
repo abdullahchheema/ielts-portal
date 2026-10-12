@@ -24,7 +24,7 @@ export function BatchCard({ batch }: { batch: PublicBatch }) {
     <article className="flex flex-col rounded-lg bg-surface p-6 shadow-xs ring-1 ring-border transition-shadow duration-200 hover:shadow-md">
       <div className="mb-5 flex items-start justify-between gap-3">
         <h3 className="font-display text-lg font-semibold leading-snug text-fg">{batch.name}</h3>
-        <span className={cx('shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset', running ? 'bg-info-soft text-sky-800 ring-sky-600/20' : 'bg-success-soft text-green-800 ring-green-600/20')}>
+        <span className={cx('shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset', running ? 'bg-info-soft text-info ring-info/20' : 'bg-success-soft text-success ring-success/20')}>
           {running ? 'Running' : 'Open'}
         </span>
       </div>

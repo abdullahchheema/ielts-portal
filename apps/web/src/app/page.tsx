@@ -2,10 +2,11 @@ import { CalendarClock, CalendarDays, CheckCircle2, ClipboardCheck, ScrollText, 
 import { BatchCard, PublicBatch } from '@/components/BatchCard';
 import { FaqAccordion, FeatureShowcase } from '@/components/MarketingInteractive';
 import { PublicHeader } from '@/components/PublicHeader';
+import { Empty } from '@/components/ui';
 import { money } from '@/lib/format';
 import { PublicCourse, publicGet } from '@/lib/server-api';
 
-export const dynamic = 'force-dynamic'; // batches change often; never bake them into the build
+export const revalidate = 120; // batches change, but not every second — ISR beats force-dynamic
 
 const TRUST_BADGES = [
   { icon: Users, text: 'Teacher-led classes, every week' },
@@ -38,61 +39,62 @@ const FAQ = [
 
 export default async function HomePage() {
   const [course, batches] = await Promise.all([
-    publicGet<PublicCourse>('/public/course'),
-    publicGet<PublicBatch[]>('/public/batches'),
+    publicGet<PublicCourse>('/public/course', 120),
+    publicGet<PublicBatch[]>('/public/batches', 120),
   ]);
 
   return (
-    <div className="mkt">
+    <div className="bg-canvas">
       <PublicHeader />
       <main>
         {/* Hero */}
-        <section className="pt-7 pb-16 sm:pb-22">
-          <div className="mkt-container text-center">
-            <p className="mkt-eyebrow">Complete IELTS preparation</p>
-            <h1 className="mx-auto mt-5 max-w-3xl text-[2.5rem] leading-[1.08] sm:text-5xl lg:text-[3.3rem]">
-              Designed to help you reach <span style={{ color: 'var(--mkt-blue)' }}>your target band</span> with a teacher beside you.
+        <section className="relative overflow-hidden pt-14 pb-20 sm:pb-28">
+          <div aria-hidden className="absolute inset-x-0 top-0 -z-10 h-[32rem] bg-[radial-gradient(60rem_28rem_at_50%_-10%,var(--primary-soft),transparent)]" />
+          <div className="mx-auto max-w-5xl px-6 text-center">
+            <p className="inline-flex items-center gap-1.5 rounded-full bg-primary-soft px-3 py-1 text-xs font-semibold tracking-wide text-primary uppercase">Complete IELTS preparation</p>
+            <h1 className="mx-auto mt-6 max-w-3xl font-display text-display text-fg">
+              Reach <span className="text-primary">your target band</span> with a teacher beside you.
             </h1>
-            <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed sm:text-lg">
+            <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-fg-muted">
               Join a live batch with teacher-led classes, regular mock tests and graded practice across Listening, Reading, Writing and Speaking.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-              <a href="/register" className="mkt-cta mkt-cta--gold">Join the next batch →</a>
-              <a href="#course" className="mkt-cta mkt-cta--outline">See what is included</a>
+              <a href="/register" className="inline-flex items-center justify-center rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-fg shadow-md transition-colors hover:bg-primary-hover">Join the next batch →</a>
+              <a href="#course" className="inline-flex items-center justify-center rounded-full bg-surface px-6 py-3 text-sm font-semibold text-fg ring-1 ring-inset ring-border-strong transition-colors hover:bg-surface-muted">See what is included</a>
             </div>
             <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
               {TRUST_BADGES.map((b) => (
-                <span key={b.text} className="mkt-badge">
-                  <b.icon aria-hidden className="size-4" style={{ color: 'var(--mkt-blue)' }} strokeWidth={1.75} />
+                <span key={b.text} className="inline-flex items-center gap-2 rounded-full bg-surface px-3.5 py-1.5 text-sm font-medium text-fg ring-1 ring-border">
+                  <b.icon aria-hidden className="size-4 text-primary" strokeWidth={1.75} />
                   {b.text}
                 </span>
               ))}
             </div>
             {course && (
-              <dl className="mx-auto mt-12 grid max-w-lg grid-cols-3 gap-6 border-t border-[var(--mkt-border)] pt-6 text-sm">
-                {course.durationWeeks ? <div><dt className="text-[var(--mkt-subtle)]">Duration</dt><dd className="mt-1 text-xl font-extrabold">{course.durationWeeks} weeks</dd></div> : <div />}
-                <div><dt className="text-[var(--mkt-subtle)]">Course fee</dt><dd className="mt-1 text-xl font-extrabold">{money(course.price, course.currency)}</dd></div>
-                <div><dt className="text-[var(--mkt-subtle)]">Batch size</dt><dd className="mt-1 text-xl font-extrabold">No limit</dd></div>
+              <dl className="mx-auto mt-12 grid max-w-lg grid-cols-3 gap-6 border-t border-border pt-6 text-sm">
+                {course.durationWeeks ? <div><dt className="text-fg-subtle">Duration</dt><dd className="mt-1 text-xl font-bold text-fg">{course.durationWeeks} weeks</dd></div> : <div />}
+                <div><dt className="text-fg-subtle">Course fee</dt><dd className="mt-1 text-xl font-bold text-fg">{money(course.price, course.currency)}</dd></div>
+                <div><dt className="text-fg-subtle">Batch size</dt><dd className="mt-1 text-xl font-bold text-fg">No limit</dd></div>
               </dl>
             )}
           </div>
         </section>
 
         {/* Feature showcase */}
-        <section id="course" className="mkt-section scroll-mt-20">
-          <div className="mkt-container">
+        <section id="course" className="scroll-mt-20 py-16 sm:py-20">
+          <div className="mx-auto max-w-5xl px-6">
             <div className="text-center">
-              <h2 className="text-3xl sm:text-4xl">Everything you need to raise your band — in one place</h2>
-              <p className="mx-auto mt-3 max-w-xl text-base">And the tools that keep you moving between classes.</p>
+              <h2 className="font-display text-h1 text-fg">Everything you need to raise your band — in one place</h2>
+              <p className="mx-auto mt-3 max-w-xl text-base text-fg-muted">And the tools that keep you moving between classes.</p>
             </div>
             {course && (course.description || course.includes.length > 0) && (
               <div className="mx-auto mt-10 grid max-w-4xl gap-8 lg:grid-cols-[1fr_1.1fr]">
-                {course.description && <p className="text-base leading-relaxed">{course.description}</p>}
+                {course.description && <p className="text-base leading-relaxed text-fg-muted">{course.description}</p>}
                 {course.includes.length > 0 && (
                   <ul className="grid gap-x-8 gap-y-3 text-left sm:grid-cols-2">
                     {course.includes.map((i) => (
-                      <li key={i} className="flex gap-3 text-sm leading-relaxed">
-                        <CheckCircle2 aria-hidden className="mt-0.5 size-4.5 shrink-0" style={{ color: 'var(--mkt-blue)' }} strokeWidth={2} />
+                      <li key={i} className="flex gap-3 text-sm leading-relaxed text-fg">
+                        <CheckCircle2 aria-hidden className="mt-0.5 size-4.5 shrink-0 text-accent-strong" strokeWidth={2} />
                         <span>{i}</span>
                       </li>
                     ))}
@@ -105,12 +107,12 @@ export default async function HomePage() {
             </div>
             <div className="mt-10 grid gap-5 sm:grid-cols-3">
               {TOOLS.map((t) => (
-                <div key={t.title} className="mkt-card p-6">
-                  <span aria-hidden className="grid size-10 place-items-center rounded-full text-white" style={{ background: 'var(--mkt-dark-grad)' }}>
+                <div key={t.title} className="rounded-lg bg-surface p-6 shadow-xs ring-1 ring-border">
+                  <span aria-hidden className="grid size-10 place-items-center rounded-full bg-accent-soft text-accent-strong">
                     <t.icon className="size-4.5" strokeWidth={1.75} />
                   </span>
-                  <h3 className="mt-4 text-base font-extrabold">{t.title}</h3>
-                  <p className="mt-1.5 text-sm leading-relaxed">{t.text}</p>
+                  <h3 className="mt-4 text-base font-bold text-fg">{t.title}</h3>
+                  <p className="mt-1.5 text-sm leading-relaxed text-fg-muted">{t.text}</p>
                 </div>
               ))}
             </div>
@@ -118,12 +120,12 @@ export default async function HomePage() {
         </section>
 
         {/* Batches */}
-        <section id="batches" className="scroll-mt-20 py-16 sm:py-20" style={{ background: 'var(--mkt-surface)' }}>
-          <div className="mkt-container">
+        <section id="batches" className="scroll-mt-20 border-y border-border bg-surface py-16 sm:py-20">
+          <div className="mx-auto max-w-5xl px-6">
             <div className="mb-10 text-center">
-              <p className="mkt-eyebrow">Batches</p>
-              <h2 className="mt-2 text-3xl sm:text-4xl">Upcoming batches</h2>
-              <p className="mx-auto mt-3 max-w-xl text-base">Every batch teaches the same complete course. Pick the schedule that fits your week.</p>
+              <p className="text-xs font-semibold tracking-wide text-primary uppercase">Batches</p>
+              <h2 className="mt-2 font-display text-h1 text-fg">Upcoming batches</h2>
+              <p className="mx-auto mt-3 max-w-xl text-base text-fg-muted">Every batch teaches the same complete course. Pick the schedule that fits your week.</p>
             </div>
             {batches === null ? (
               <Empty>We could not load the batches just now. Please refresh in a moment.</Empty>
@@ -136,23 +138,21 @@ export default async function HomePage() {
         </section>
 
         {/* How enrollment works */}
-        <section id="how" className="mkt-section scroll-mt-20">
-          <div className="mkt-container text-center">
-            <p className="mkt-eyebrow">How it works</p>
-            <h2 className="mt-2 text-3xl sm:text-4xl">From application to your first class — in five steps</h2>
+        <section id="how" className="scroll-mt-20 py-16 sm:py-20">
+          <div className="mx-auto max-w-5xl px-6 text-center">
+            <p className="text-xs font-semibold tracking-wide text-primary uppercase">How it works</p>
+            <h2 className="mt-2 font-display text-h1 text-fg">From application to your first class — in five steps</h2>
             <ol className="mt-10 grid gap-4 text-left sm:grid-cols-2 lg:grid-cols-5">
               {STEPS.map((s, i) => {
                 const Icon = [CalendarClock, UserCheck, Wallet, ScrollText, CalendarDays][i];
                 return (
-                  <li key={s.title} className="mkt-card relative overflow-hidden p-5">
-                    <span aria-hidden className="pointer-events-none absolute -right-1 -top-3 text-5xl font-extrabold text-[var(--mkt-border)]">{i + 1}</span>
-                    <div className="relative flex items-center justify-between">
-                      <span aria-hidden className="grid size-9 place-items-center rounded-full text-white" style={{ background: 'var(--mkt-blue-grad)' }}>
-                        <Icon className="size-4" strokeWidth={1.75} />
-                      </span>
-                    </div>
-                    <h3 className="relative mt-4 text-sm font-extrabold">{s.title}</h3>
-                    <p className="relative mt-1.5 text-sm leading-relaxed">{s.text}</p>
+                  <li key={s.title} className="relative overflow-hidden rounded-lg bg-surface p-5 shadow-xs ring-1 ring-border">
+                    <span aria-hidden className="pointer-events-none absolute -right-1 -top-3 text-5xl font-bold text-border">{i + 1}</span>
+                    <span aria-hidden className="relative grid size-9 place-items-center rounded-full bg-primary text-primary-fg">
+                      <Icon className="size-4" strokeWidth={1.75} />
+                    </span>
+                    <h3 className="relative mt-4 text-sm font-bold text-fg">{s.title}</h3>
+                    <p className="relative mt-1.5 text-sm leading-relaxed text-fg-muted">{s.text}</p>
                   </li>
                 );
               })}
@@ -161,10 +161,10 @@ export default async function HomePage() {
         </section>
 
         {/* FAQ */}
-        <section id="faq" className="mkt-section scroll-mt-20" style={{ background: 'var(--mkt-surface)' }}>
+        <section id="faq" className="scroll-mt-20 border-t border-border bg-surface py-16 sm:py-20">
           <div className="mx-auto max-w-3xl px-6 text-center">
-            <p className="mkt-eyebrow">FAQ</p>
-            <h2 className="mt-2 text-3xl sm:text-4xl">Questions, answered.</h2>
+            <p className="text-xs font-semibold tracking-wide text-primary uppercase">FAQ</p>
+            <h2 className="mt-2 font-display text-h1 text-fg">Questions, answered.</h2>
           </div>
           <div className="mx-auto mt-8 max-w-3xl px-6 text-left">
             <FaqAccordion items={FAQ} />
@@ -173,54 +173,43 @@ export default async function HomePage() {
 
         {/* Closing CTA */}
         <section className="px-6 py-16 sm:py-20">
-          <div
-            className="mkt-container flex flex-col items-start justify-between gap-6 rounded-[24px] px-8 py-12 text-white sm:flex-row sm:items-center sm:px-12"
-            style={{ background: 'var(--mkt-dark-grad)' }}
-          >
+          <div className="mx-auto flex max-w-5xl flex-col items-start justify-between gap-6 rounded-2xl bg-ink px-8 py-12 text-ink-fg sm:flex-row sm:items-center sm:px-12">
             <div className="min-w-0">
-              <h2 className="text-2xl text-white sm:text-3xl">Ready to work toward your target band?</h2>
+              <h2 className="font-display text-h2 text-white">Ready to work toward your target band?</h2>
               <p className="mt-2 max-w-xl text-ink-fg/70">Choose a batch, register and start your first class.</p>
             </div>
-            <a href="/register" className="mkt-cta mkt-cta--gold shrink-0">Enroll now</a>
+            <a href="/register" className="inline-flex shrink-0 items-center justify-center rounded-full bg-accent px-6 py-3 text-sm font-semibold text-white shadow-md transition-colors hover:bg-accent-strong">Enroll now</a>
           </div>
         </section>
       </main>
 
-      <footer className="border-t" style={{ borderColor: 'var(--mkt-border)', background: 'var(--mkt-surface)' }}>
-        <div className="mkt-container grid gap-10 py-14 sm:grid-cols-[1.3fr_1fr_1fr]">
+      <footer className="border-t border-border bg-surface">
+        <div className="mx-auto grid max-w-5xl gap-10 px-6 py-14 sm:grid-cols-[1.3fr_1fr_1fr]">
           <div>
-            <p className="text-base font-extrabold">IELTS Academy</p>
-            <p className="mt-2 max-w-xs text-sm">Teacher-led IELTS preparation across all four modules.</p>
+            <p className="text-base font-bold text-fg">IELTS Academy</p>
+            <p className="mt-2 max-w-xs text-sm text-fg-muted">Teacher-led IELTS preparation across all four modules.</p>
           </div>
           <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-[var(--mkt-subtle)]">Product</p>
-            <nav className="mt-3 flex flex-col gap-2 text-sm">
-              <a href="#course" className="hover:underline">Features</a>
-              <a href="#how" className="hover:underline">How it works</a>
-              <a href="#faq" className="hover:underline">FAQ</a>
+            <p className="text-xs font-bold tracking-wide text-fg-subtle uppercase">Product</p>
+            <nav className="mt-3 flex flex-col gap-2 text-sm text-fg-muted">
+              <a href="#course" className="hover:text-fg hover:underline">Features</a>
+              <a href="#how" className="hover:text-fg hover:underline">How it works</a>
+              <a href="#faq" className="hover:text-fg hover:underline">FAQ</a>
             </nav>
           </div>
           <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-[var(--mkt-subtle)]">Account</p>
-            <nav className="mt-3 flex flex-col gap-2 text-sm">
-              <a href="/login" className="hover:underline">Log in</a>
-              <a href="/register" className="hover:underline">Enroll now</a>
-              <a href="/apply-teacher" className="hover:underline">Teach with us</a>
+            <p className="text-xs font-bold tracking-wide text-fg-subtle uppercase">Account</p>
+            <nav className="mt-3 flex flex-col gap-2 text-sm text-fg-muted">
+              <a href="/login" className="hover:text-fg hover:underline">Log in</a>
+              <a href="/register" className="hover:text-fg hover:underline">Enroll now</a>
+              <a href="/apply-teacher" className="hover:text-fg hover:underline">Teach with us</a>
             </nav>
           </div>
         </div>
-        <div className="border-t py-6 text-center text-xs text-[var(--mkt-subtle)]" style={{ borderColor: 'var(--mkt-border)' }}>
+        <div className="border-t border-border py-6 text-center text-xs text-fg-subtle">
           © {new Date().getFullYear()} IELTS Academy
         </div>
       </footer>
-    </div>
-  );
-}
-
-function Empty({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="mkt-card rounded-2xl border-dashed px-6 py-10 text-center text-sm" style={{ background: 'var(--mkt-canvas)' }}>
-      {children}
     </div>
   );
 }
