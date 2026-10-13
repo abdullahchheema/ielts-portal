@@ -29,6 +29,7 @@ export const attendanceSchema = z.object({
     studentId: z.string().uuid(),
     status: z.enum(['PRESENT', 'ABSENT', 'LATE', 'EXCUSED']),
     minutesAttended: z.number().int().min(0).max(600).optional(),
+    note: z.string().trim().max(500).optional(),
   })).min(1).max(500),
 });
 
