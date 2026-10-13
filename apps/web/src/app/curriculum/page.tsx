@@ -57,15 +57,14 @@ export default async function CurriculumPage() {
               <p className="mx-auto mt-3 max-w-xl text-lead text-fg-muted">Every batch follows this structure. Your teacher adjusts the pace to where your diagnostic shows you actually need the work.</p>
             </Reveal>
             <Stagger className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-              {ROADMAP.map((r, i) => (
-                <StaggerItem key={r.week} className="relative overflow-hidden rounded-2xl bg-canvas p-6 shadow-sm ring-1 ring-border">
-                  <span aria-hidden className="pointer-events-none absolute -right-1 -top-4 text-6xl font-extrabold text-border">{i + 1}</span>
-                  <span aria-hidden className="relative grid size-11 place-items-center rounded-xl bg-primary text-primary-fg">
+              {ROADMAP.map((r) => (
+                <StaggerItem key={r.week} className="rounded-2xl bg-canvas p-6 shadow-sm ring-1 ring-border">
+                  <span aria-hidden className="grid size-11 place-items-center rounded-xl bg-primary text-primary-fg">
                     <r.icon className="size-5" strokeWidth={1.75} />
                   </span>
-                  <p className="relative mt-5 text-xs font-bold tracking-wide text-accent-strong uppercase">{r.week}</p>
-                  <h3 className="relative mt-1 text-base font-bold text-fg">{r.title}</h3>
-                  <p className="relative mt-2 text-sm leading-relaxed text-fg-muted">{r.text}</p>
+                  <p className="mt-5 text-xs font-bold tracking-wide text-accent-strong uppercase">{r.week}</p>
+                  <h3 className="mt-1 text-base font-bold text-fg">{r.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-fg-muted">{r.text}</p>
                 </StaggerItem>
               ))}
             </Stagger>

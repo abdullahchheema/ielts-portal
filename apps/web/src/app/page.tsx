@@ -236,13 +236,15 @@ export default async function HomePage() {
               {STEPS.map((s, i) => {
                 const Icon = [UserCheck, ClipboardCheck, CalendarDays][i];
                 return (
-                  <StaggerItem key={s.title} className="relative overflow-hidden rounded-2xl bg-surface p-6 shadow-sm ring-1 ring-border">
-                    <span aria-hidden className="pointer-events-none absolute -right-1 -top-4 text-6xl font-extrabold text-border">{i + 1}</span>
-                    <span aria-hidden className="relative grid size-11 place-items-center rounded-xl bg-primary text-primary-fg">
-                      <Icon className="size-5" strokeWidth={1.75} />
-                    </span>
-                    <h3 className="relative mt-5 text-base font-bold text-fg">{s.title}</h3>
-                    <p className="relative mt-2 text-sm leading-relaxed text-fg-muted">{s.text}</p>
+                  <StaggerItem key={s.title} className="rounded-2xl bg-surface p-6 shadow-sm ring-1 ring-border">
+                    <div className="flex items-start justify-between gap-3">
+                      <span aria-hidden className="grid size-11 place-items-center rounded-xl bg-primary text-primary-fg">
+                        <Icon className="size-5" strokeWidth={1.75} />
+                      </span>
+                      <span aria-hidden className="grid size-7 shrink-0 place-items-center rounded-full bg-primary-soft text-xs font-bold text-primary">{i + 1}</span>
+                    </div>
+                    <h3 className="mt-5 text-base font-bold text-fg">{s.title}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-fg-muted">{s.text}</p>
                   </StaggerItem>
                 );
               })}

@@ -1,6 +1,7 @@
 'use client';
 
 import { Menu, X } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { BrandLogo } from '@/components/BrandLogo';
@@ -8,7 +9,7 @@ import { Me, homeFor, useMe } from '@/lib/auth';
 
 const NAV_LINK = 'rounded-lg px-3.5 py-2 text-base font-semibold text-fg-muted transition-colors duration-[--dur-fast] ease-[--ease-out-soft] hover:bg-surface-muted hover:text-fg';
 const NAV_LINKS = [
-  { href: '/#course', label: 'The course' },
+  { href: '/#course', label: 'The Course' },
   { href: '/curriculum', label: 'Curriculum' },
   { href: '/pricing', label: 'Pricing' },
   { href: '/reviews', label: 'Reviews' },
@@ -75,14 +76,24 @@ export function PublicHeader() {
         </button>
       </div>
 
-      {open && (
-        <div className="border-t border-border bg-surface px-5 pt-2 pb-6 shadow-lg lg:hidden">
-          <nav aria-label="Main (mobile)" className="flex flex-col gap-1">
-            {NAV_LINKS.map((l) => <Link key={l.href} href={l.href} onClick={() => setOpen(false)} className={`${NAV_LINK} w-full`}>{l.label}</Link>)}
-          </nav>
-          <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4">{authCluster}</div>
-        </div>
-      )}
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            className="overflow-hidden border-t border-border bg-surface shadow-lg lg:hidden"
+          >
+            <div className="px-5 pt-2 pb-6">
+              <nav aria-label="Main (mobile)" className="flex flex-col gap-1">
+                {NAV_LINKS.map((l) => <Link key={l.href} href={l.href} onClick={() => setOpen(false)} className={`${NAV_LINK} w-full`}>{l.label}</Link>)}
+              </nav>
+              <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4">{authCluster}</div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </header>
   );
 }
