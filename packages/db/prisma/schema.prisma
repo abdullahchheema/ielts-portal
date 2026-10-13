@@ -281,6 +281,13 @@ model StudentProfile {
   redemptions  CouponRedemption[]
   timeline     StudentTimelineEvent[]
   certificates Certificate[]
+  curriculumAssignments CurriculumAssignment[]
+  skillStates           StudentSkillState[]
+  studyPlanItems        StudyPlanItem[]
+  mockAccessRequests    MockAccessRequest[]
+  recordingViews        LectureRecordingView[]
+  vocabularyEntries     VocabularyEntry[]
+  grammarIssues         GrammarIssue[]
 
   @@map("student_profiles")
 }
@@ -582,13 +589,21 @@ model CourseSection {
   description     String?
   sequence        Int           @default(0)
   status          ContentStatus @default(PUBLISHED)
+  // ── IELTS curriculum taxonomy (spec §11–§15, §28) ──
+  track           String        @default("BOTH") // ACADEMIC | GENERAL | BOTH
+  module          String?       // LISTENING | READING | WRITING | SPEAKING | GENERAL
+  kind            String        @default("UNIT") // MODULE | AREA | UNIT
+  area            String?
+  skillKey        String?       @map("skill_key")
 
   version  CourseVersion   @relation(fields: [courseVersionId], references: [id])
   parent   CourseSection?  @relation("SectionTree", fields: [parentSectionId], references: [id])
   children CourseSection[] @relation("SectionTree")
   items    ContentItem[]
+  liveSessions LiveSession[]
 
   @@index([courseVersionId, parentSectionId, sequence])
+  @@index([module, track])
   @@map("course_sections")
 }
 
@@ -605,12 +620,29 @@ model ContentItem {
   status           ContentStatus @default(PUBLISHED)
   metadataJson     Json?         @map("metadata_json")
   createdAt        DateTime      @default(now()) @map("created_at")
+  // ── IELTS curriculum taxonomy (spec §11–§15, §28) ──
+  track               String   @default("BOTH")
+  module              String?
+  skillKey            String?  @map("skill_key")
+  testPart            String?  @map("test_part")
+  activityKind        String   @default("LESSON") @map("activity_kind") // LESSON|WORKED_EXAMPLE|GUIDED_EXERCISE|PRACTICE|TIMED_PRACTICE|MASTERY_CHECK|PROMPT|REVISION
+  difficulty          String?  // FOUNDATION | EASY | MEDIUM | HARD
+  bandMin             Decimal? @map("band_min") @db.Decimal(3, 1)
+  bandMax             Decimal? @map("band_max") @db.Decimal(3, 1)
+  isTimed             Boolean  @default(false) @map("is_timed")
+  teacherAssignable   Boolean  @default(true) @map("teacher_assignable")
+  recommendable       Boolean  @default(true)
+  masteryPercent      Int?     @map("mastery_percent")
+  prerequisiteSkillKeys String[] @default([]) @map("prerequisite_skill_keys")
 
   section     CourseSection     @relation(fields: [sectionId], references: [id])
   progress    ContentProgress[]
   assignment  Assignment?
+  curriculumAssignments CurriculumAssignment[]
+  studyPlanItems        StudyPlanItem[]
 
   @@index([sectionId, sequence])
+  @@index([module, track, skillKey])
   @@map("content_items")
 }
 
@@ -639,6 +671,10 @@ model Batch {
   enrollments  Enrollment[]
   sessions     LiveSession[]
   orderItems   OrderItem[]
+  curriculumAssignments CurriculumAssignment[]
+  mockAccessRequests    MockAccessRequest[]
+  mockActivations       MockActivation[]
+  lectureRecordings     LectureRecording[]
 
   @@map("batches")
 }
@@ -668,6 +704,12 @@ model ContentProgress {
   startedAt        DateTime?      @map("started_at")
   completedAt      DateTime?      @map("completed_at")
   updatedAt        DateTime       @updatedAt @map("updated_at")
+  // ── Mastery is evidence-based and distinct from completion (spec §17–§18) ──
+  masteredAt     DateTime? @map("mastered_at")
+  needsReviewAt  DateTime? @map("needs_review_at")
+  reviewDueAt    DateTime? @map("review_due_at")
+  bestPercent    Decimal?  @map("best_percent") @db.Decimal(5, 2)
+  attemptCount   Int       @default(0) @map("attempt_count")
 
   enrollment  Enrollment     @relation(fields: [enrollmentId], references: [id])
   student     StudentProfile @relation(fields: [studentId], references: [id])
@@ -895,6 +937,8 @@ model Assessment {
   courseVersion CourseVersion?        @relation(fields: [courseVersionId], references: [id])
   versions      AssessmentVersion[]
   attempts      AssessmentAttempt[]
+  mockAccessRequests MockAccessRequest[]
+  mockActivations    MockActivation[]
 
   @@map("assessments")
 }
@@ -929,14 +973,27 @@ model AssessmentSection {
 model Question {
   id           String    @id @default(uuid()) @db.Uuid
   sectionId    String?   @map("section_id") @db.Uuid
-  questionType String    @map("question_type")
+  questionType String    @map("question_type") // grader discriminator: MCQ_SINGLE|MCQ_MULTI|TFNG|YNNG|MATCHING|COMPLETION
   sequence     Int       @default(0)
   createdAt    DateTime  @default(now()) @map("created_at")
   deletedAt    DateTime? @map("deleted_at")
+  // ── IELTS-facing taxonomy, separate from the grader above (spec §11–§16, §28–§29) ──
+  skillKey           String? @map("skill_key")
+  ieltsQuestionType  String? @map("ielts_question_type") // the IELTS-facing label, e.g. MATCHING_HEADINGS
+  module             String?
+  track              String  @default("BOTH")
+  testPart           String? @map("test_part")
+  difficulty         String?
+  bandMin            Decimal? @map("band_min") @db.Decimal(3, 1)
+  bandMax            Decimal? @map("band_max") @db.Decimal(3, 1)
+  expectedSeconds    Int?    @map("expected_seconds")
+  sourceLabel        String  @default("ORIGINAL") @map("source_label") // ORIGINAL | OFFICIAL_LICENSED
+  sourceNote         String? @map("source_note")
 
   section  AssessmentSection? @relation(fields: [sectionId], references: [id])
   versions QuestionVersion[]
 
+  @@index([module, ieltsQuestionType, difficulty])
   @@map("questions")
 }
 
@@ -1104,6 +1161,7 @@ model Submission {
   enrollment   Enrollment?          @relation(fields: [enrollmentId], references: [id])
   feedback     SubmissionFeedback[]
   rubricScores RubricScore[]
+  grammarIssues GrammarIssue[]
 
   @@map("submissions")
 }
@@ -1133,12 +1191,29 @@ model LiveSession {
   provider     String?
   meetingUrl   String?  @map("meeting_url")
   recordingUrl String?  @map("recording_url")
+  // ── Application-recorded lifecycle (spec §44–§46): never inferred from the clock alone ──
+  status                 String    @default("SCHEDULED") // DRAFT|SCHEDULED|IN_PROGRESS|COMPLETED|CANCELLED|RESCHEDULED
+  timezone               String?
+  instructions           String?
+  module                 String?
+  curriculumSectionId    String?   @map("curriculum_section_id") @db.Uuid
+  startedAt              DateTime? @map("started_at")
+  completedAt            DateTime? @map("completed_at")
+  cancelledAt            DateTime? @map("cancelled_at")
+  cancelReason           String?   @map("cancel_reason")
+  rescheduledFromStartsAt DateTime? @map("rescheduled_from_starts_at")
+  attendanceFinalizedAt  DateTime? @map("attendance_finalized_at")
+  attendanceFinalizedBy  String?   @map("attendance_finalized_by") @db.Uuid
 
   batch      Batch          @relation(fields: [batchId], references: [id])
   mentor     MentorProfile? @relation(fields: [mentorId], references: [id])
+  curriculumSection CourseSection? @relation(fields: [curriculumSectionId], references: [id])
   attendance Attendance[]
+  curriculumAssignments CurriculumAssignment[]
+  lectureRecordings     LectureRecording[]
 
   @@index([batchId, startsAt])
+  @@index([batchId, status])
   @@map("live_sessions")
 }
 
@@ -1151,6 +1226,8 @@ model Attendance {
   leftAt          DateTime?         @map("left_at")
   minutesAttended Int?              @map("minutes_attended")
   markedBy        String?           @map("marked_by") @db.Uuid
+  note            String?
+  updatedAt       DateTime          @default(now()) @updatedAt @map("updated_at")
 
   session LiveSession    @relation(fields: [sessionId], references: [id])
   student StudentProfile @relation(fields: [studentId], references: [id])
@@ -1278,4 +1355,202 @@ model StudentTimelineEvent {
 
   @@index([studentId, createdAt])
   @@map("student_timeline_events")
+}
+
+// ───────── Curriculum delivery & personalised learning (spec §17–§22, §28) ─────────
+// Distinct from `Assignment`, which is a writing/speaking task bound 1:1 to a content item:
+// this is a teacher assigning an existing curriculum item to a batch or named students.
+model CurriculumAssignment {
+  id             String    @id @default(uuid()) @db.Uuid
+  contentItemId  String    @map("content_item_id") @db.Uuid
+  batchId        String?   @map("batch_id") @db.Uuid
+  studentId      String?   @map("student_id") @db.Uuid
+  assignedBy     String    @map("assigned_by") @db.Uuid
+  requirement    String    @default("REQUIRED") // REQUIRED | RECOMMENDED
+  classification String    @default("GENERAL")  // PRE_CLASS | POST_CLASS | HOMEWORK | GENERAL
+  sessionId      String?   @map("session_id") @db.Uuid
+  dueAt          DateTime? @map("due_at")
+  instructions   String?
+  publishedAt    DateTime? @map("published_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  contentItem ContentItem  @relation(fields: [contentItemId], references: [id])
+  batch       Batch?       @relation(fields: [batchId], references: [id])
+  student     StudentProfile? @relation(fields: [studentId], references: [id])
+  session     LiveSession? @relation(fields: [sessionId], references: [id])
+
+  @@index([batchId])
+  @@index([studentId])
+  @@index([contentItemId])
+  @@map("curriculum_assignments")
+}
+
+/** Per-skill mastery/weakness state, maintained from real evidence (spec §17–§18, §24). */
+model StudentSkillState {
+  id              String    @id @default(uuid()) @db.Uuid
+  studentId       String    @map("student_id") @db.Uuid
+  skillKey        String    @map("skill_key")
+  module          String?
+  track           String    @default("BOTH")
+  state           String    @default("UNKNOWN") // UNKNOWN|WEAK|DEVELOPING|STRONG|MASTERED|NEEDS_REVIEW
+  accuracyPercent Decimal?  @map("accuracy_percent") @db.Decimal(5, 2)
+  sampleSize      Int       @default(0) @map("sample_size")
+  lastEvidenceAt  DateTime? @map("last_evidence_at")
+  reviewDueAt     DateTime? @map("review_due_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  student StudentProfile @relation(fields: [studentId], references: [id])
+
+  @@unique([studentId, skillKey])
+  @@map("student_skill_states")
+}
+
+/** When a student plans to work on something — distinct from My Course, which is what to learn (spec §9). */
+model StudyPlanItem {
+  id               String    @id @default(uuid()) @db.Uuid
+  studentId        String    @map("student_id") @db.Uuid
+  title            String
+  contentItemId    String?   @map("content_item_id") @db.Uuid
+  plannedFor       DateTime  @map("planned_for") @db.Date
+  estimatedMinutes Int?      @map("estimated_minutes")
+  status           String    @default("PLANNED") // PLANNED | DONE | SKIPPED
+  source           String    @default("STUDENT") // STUDENT | TEACHER | SYSTEM
+  notes            String?
+  completedAt      DateTime? @map("completed_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  student     StudentProfile @relation(fields: [studentId], references: [id])
+  contentItem ContentItem?   @relation(fields: [contentItemId], references: [id])
+
+  @@index([studentId, plannedFor])
+  @@map("study_plan_items")
+}
+
+/** A student's individual request to attempt a controlled mock test (spec §22B). */
+model MockAccessRequest {
+  id              String    @id @default(uuid()) @db.Uuid
+  studentId       String    @map("student_id") @db.Uuid
+  assessmentId    String    @map("assessment_id") @db.Uuid
+  batchId         String?   @map("batch_id") @db.Uuid
+  reason          String?
+  status          String    @default("PENDING") // PENDING | APPROVED | DECLINED | EXPIRED
+  reviewedBy      String?   @map("reviewed_by") @db.Uuid
+  decisionNote    String?   @map("decision_note")
+  reviewedAt      DateTime? @map("reviewed_at")
+  availableFrom   DateTime? @map("available_from")
+  availableUntil  DateTime? @map("available_until")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  student    StudentProfile @relation(fields: [studentId], references: [id])
+  assessment Assessment     @relation(fields: [assessmentId], references: [id])
+  batch      Batch?         @relation(fields: [batchId], references: [id])
+
+  @@index([assessmentId, status])
+  @@map("mock_access_requests")
+}
+
+/** A teacher opens a mock for an entire batch at once, without per-student requests (spec §22C). */
+model MockActivation {
+  id             String    @id @default(uuid()) @db.Uuid
+  batchId        String    @map("batch_id") @db.Uuid
+  assessmentId   String    @map("assessment_id") @db.Uuid
+  availableFrom  DateTime  @map("available_from")
+  availableUntil DateTime? @map("available_until")
+  instructions   String?
+  status         String    @default("ACTIVE") // ACTIVE | CANCELLED
+  activatedBy    String    @map("activated_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  batch      Batch      @relation(fields: [batchId], references: [id])
+  assessment Assessment @relation(fields: [assessmentId], references: [id])
+
+  @@unique([batchId, assessmentId])
+  @@map("mock_activations")
+}
+
+/** A Google Drive lecture recording linked to a class and batch (spec §47–§51). Many per session allowed. */
+model LectureRecording {
+  id           String    @id @default(uuid()) @db.Uuid
+  sessionId    String?   @map("session_id") @db.Uuid
+  batchId      String    @map("batch_id") @db.Uuid
+  title        String
+  module       String?
+  driveUrl     String    @map("drive_url")
+  driveFileId  String?   @map("drive_file_id")
+  description  String?
+  chapters     Json?
+  status       String    @default("SUBMITTED") // SUBMITTED|PENDING_REVIEW|PUBLISHED|REJECTED|ARCHIVED
+  submittedBy  String?   @map("submitted_by") @db.Uuid
+  submittedAt  DateTime  @default(now()) @map("submitted_at")
+  reviewedBy   String?   @map("reviewed_by") @db.Uuid
+  reviewedAt   DateTime? @map("reviewed_at")
+  reviewNote   String?   @map("review_note")
+  publishedAt  DateTime? @map("published_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  session LiveSession? @relation(fields: [sessionId], references: [id])
+  batch   Batch        @relation(fields: [batchId], references: [id])
+  views   LectureRecordingView[]
+
+  @@index([batchId])
+  @@index([sessionId])
+  @@map("lecture_recordings")
+}
+
+/** A student opened / marked reviewed a recording. Never a claim of watch time (spec §48). */
+model LectureRecordingView {
+  recordingId String    @map("recording_id") @db.Uuid
+  studentId   String    @map("student_id") @db.Uuid
+  openedAt    DateTime  @default(now()) @map("opened_at")
+  reviewedAt  DateTime? @map("reviewed_at")
+
+  recording LectureRecording @relation(fields: [recordingId], references: [id], onDelete: Cascade)
+  student   StudentProfile   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@id([recordingId, studentId])
+  @@map("lecture_recording_views")
+}
+
+/** Personal vocabulary bank (spec §26). */
+model VocabularyEntry {
+  id             String    @id @default(uuid()) @db.Uuid
+  studentId      String    @map("student_id") @db.Uuid
+  term           String
+  definition     String?
+  example        String?
+  collocation    String?
+  sourceType     String?   @map("source_type") // READING|LESSON|WRITING_FEEDBACK|SPEAKING_FEEDBACK|MANUAL
+  sourceId       String?   @map("source_id") @db.Uuid
+  studentExample String?   @map("student_example")
+  reviewStatus   String    @default("NEW") @map("review_status") // NEW | LEARNING | KNOWN
+  nextReviewAt   DateTime? @map("next_review_at")
+  reviewCount    Int       @default(0) @map("review_count")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  student StudentProfile @relation(fields: [studentId], references: [id])
+
+  @@index([studentId, reviewStatus])
+  @@map("vocabulary_entries")
+}
+
+/** Written only from teacher-reviewed submissions — never auto-detected (spec §25). */
+model GrammarIssue {
+  id           String    @id @default(uuid()) @db.Uuid
+  studentId    String    @map("student_id") @db.Uuid
+  category     String    // ARTICLES|SUBJECT_VERB_AGREEMENT|VERB_TENSE|SENTENCE_FRAGMENTS|RUN_ON_SENTENCES|PREPOSITIONS|COUNTABLE_UNCOUNTABLE_NOUNS|WORD_FORMS|PUNCTUATION|SENTENCE_STRUCTURE
+  submissionId String?   @map("submission_id") @db.Uuid
+  excerpt      String?
+  note         String?
+  recordedBy   String    @map("recorded_by") @db.Uuid
+  resolvedAt   DateTime? @map("resolved_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  student    StudentProfile @relation(fields: [studentId], references: [id])
+  submission Submission?    @relation(fields: [submissionId], references: [id])
+
+  @@index([studentId, category])
+  @@map("grammar_issues")
 }

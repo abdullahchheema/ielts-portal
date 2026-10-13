@@ -16,6 +16,7 @@ const PERMISSIONS = [
   'report.finance.view', 'report.academic.view',
   'audit.view', 'settings.edit', 'dashboard.view', 'assessment.manage',
   'admin.manage',
+  'curriculum.manage', 'curriculum.assign', 'mock.review', 'recording.manage', 'recording.review', 'batch.analytics.view',
 ] as const;
 
 const ROLES: Record<string, { description: string; permissions: readonly string[] | 'ALL' }> = {
@@ -24,11 +25,12 @@ const ROLES: Record<string, { description: string; permissions: readonly string[
     description: 'Courses, curriculum, batches, mentors, academic reports',
     permissions: ['course.view', 'course.create', 'course.edit', 'course.publish', 'content.manage',
       'batch.view', 'batch.create', 'batch.edit', 'mentor.assign', 'teaching.view', 'teacher.manage', 'student.view',
-      'enrollment.view', 'enrollment.create', 'report.academic.view', 'dashboard.view', 'assessment.manage'],
+      'enrollment.view', 'enrollment.create', 'report.academic.view', 'dashboard.view', 'assessment.manage',
+      'curriculum.manage', 'curriculum.assign', 'mock.review', 'recording.manage', 'recording.review', 'batch.analytics.view'],
   },
   CONTENT_MANAGER: {
     description: 'Lessons, files and practice material',
-    permissions: ['course.view', 'course.edit', 'content.manage', 'dashboard.view', 'assessment.manage'],
+    permissions: ['course.view', 'course.edit', 'content.manage', 'dashboard.view', 'assessment.manage', 'curriculum.manage'],
   },
   FINANCE_ADMIN: {
     description: 'Payments, refunds, coupons, revenue',
@@ -45,7 +47,7 @@ const ROLES: Record<string, { description: string; permissions: readonly string[
   },
   MENTOR: {
     description: 'Assigned batches, grading and feedback',
-    permissions: ['teaching.view', 'submission.view', 'submission.grade'],
+    permissions: ['teaching.view', 'submission.view', 'submission.grade', 'curriculum.assign', 'recording.manage', 'mock.review'],
   },
   STUDENT: { description: 'Learner', permissions: [] },
 };
