@@ -178,3 +178,38 @@ describe('grammar tracker (read side)', () => {
     expect(after.categories).toEqual([{ category: 'ARTICLES', count: 1, resolvedCount: 0, recent: [expect.objectContaining({ excerpt: 'a university' })] }]);
   });
 });
+
+describe('insights', () => {
+  it('surfaces a weak-skill insight only once there is enough evidence, never below the floor', async () => {
+    const skillKey = `reading.weak_skill.${uniq()}`;
+    const a = (await post('/admin/assessments', { title: `Quiz ${uniq()}`, type: 'QUIZ' }).expect(201)).body;
+    const versionId = (await as(admin)(http(app).get(`/admin/assessments/${a.id}`)).expect(200)).body.versions[0].id as string;
+    const sectionId = (await post(`/admin/assessment-versions/${versionId}/sections`, { title: 'Part 1' }).expect(201)).body.id as string;
+    const q = (body: object) => post(`/admin/assessment-sections/${sectionId}/questions`, body).expect(201);
+    const qs = [];
+    for (let i = 0; i < 5; i++) qs.push((await q({ type: 'TFNG', prompt: { text: `Q${i}` }, answerKey: { value: 'TRUE' } })).body);
+    await prisma.question.updateMany({ where: { id: { in: qs.map((x) => x.id) } }, data: { skillKey, module: 'READING', track: 'BOTH' } });
+    await post(`/admin/assessment-versions/${versionId}/publish`).expect(200);
+
+    const nc = await newCourse(app, admin, prisma, 1000);
+    const sec = (await post(`/admin/course-versions/${nc.versionId}/sections`, { title: 'Reading' }).expect(201)).body.id as string;
+    await post(`/admin/sections/${sec}/items`, { title: 'The quiz', contentType: 'QUIZ', metadata: { assessmentId: a.id } }).expect(201);
+    await post(`/admin/course-versions/${nc.versionId}/publish`).expect(200);
+    const batchId = await createOpenBatch(app, admin);
+    const st = await enrollStudent(app, prisma, admin, batchId);
+
+    // No evidence yet: no insight, not even a guess.
+    expect((await api(st).get('/me/insights').expect(200)).body).toEqual([]);
+
+    const started = (await api(st).post(`/assessments/${a.id}/start`).expect(201)).body;
+    const questions = started.paper.flatMap((s: { questions: PaperQ[] }) => s.questions) as PaperQ[];
+    // 1 correct, 4 wrong -> 20% accuracy, sample size 5 (right at the evidence floor).
+    const answers = questions.map((qn) => ({ questionVersionId: qn.id, answer: { value: qn.prompt.text === 'Q0' ? 'TRUE' : 'FALSE' } }));
+    await api(st).put(`/attempts/${started.attempt.id}/answers`, { revision: 0, answers }).expect(200);
+    await api(st).post(`/attempts/${started.attempt.id}/submit`).expect(200);
+
+    const insights = (await api(st).get('/me/insights').expect(200)).body as Array<{ kind: string; skillKey: string; accuracyPercent: number; sampleSize: number }>;
+    const found = insights.find((i) => i.skillKey === skillKey);
+    expect(found).toMatchObject({ kind: 'WEAK_SKILL', accuracyPercent: 20, sampleSize: 5 });
+  }, 30_000);
+});

@@ -12,7 +12,7 @@ export type SkillState = 'UNKNOWN' | 'WEAK' | 'DEVELOPING' | 'STRONG' | 'MASTERE
 export const DEFAULT_MASTERY_PERCENT = 80;
 
 /** Below this many recent outcomes, there isn't enough evidence to call a skill STRONG or WEAK. */
-const MIN_SAMPLE_FOR_VERDICT = 5;
+export const MIN_SAMPLE_FOR_VERDICT = 5;
 const WEAK_ACCURACY_CEILING = 50;
 const STRONG_ACCURACY_FLOOR = 80;
 

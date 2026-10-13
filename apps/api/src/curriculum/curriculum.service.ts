@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { forbidden, notFound } from '../common/app-error';
 import { AuthUser, CurrentUser } from '../common/decorators';
 import { ZodPipe } from '../common/zod.pipe';
-import { RecommendableItem, SkillEvidence, deriveSkillStates, recommendNext } from '../learning/pathway';
+import { MIN_SAMPLE_FOR_VERDICT, RecommendableItem, SkillEvidence, deriveSkillStates, recommendNext } from '../learning/pathway';
 import { PrismaService } from '../prisma/prisma.service';
 
 const sid = (u: AuthUser) => {
@@ -21,7 +21,7 @@ export class CurriculumService {
    * §24) and persists the snapshot so batch analytics (Phase 4) can read it cheaply. Never
    * invents evidence: a skill with no graded outcomes stays UNKNOWN.
    */
-  async refreshSkillStates(studentId: string) {
+  private async evidenceBySkill(studentId: string): Promise<Map<string, SkillEvidence>> {
     const rows = await this.prisma.attemptAnswer.findMany({
       where: { attempt: { studentId, status: { in: ['AUTO_GRADED', 'GRADED'] } }, isCorrect: { not: null }, questionVersion: { question: { skillKey: { not: null } } } },
       select: { isCorrect: true, updatedAt: true, questionVersion: { select: { question: { select: { skillKey: true, module: true, track: true } } } } },
@@ -34,6 +34,11 @@ export class CurriculumService {
       if (!bySkill.has(key)) bySkill.set(key, { skillKey: key, module: q.module, track: q.track, outcomes: [] });
       bySkill.get(key)!.outcomes.push({ correct: r.isCorrect!, at: r.updatedAt });
     }
+    return bySkill;
+  }
+
+  async refreshSkillStates(studentId: string) {
+    const bySkill = await this.evidenceBySkill(studentId);
     const now = new Date();
     const states = deriveSkillStates([...bySkill.values()], now);
     if (states.length) {
@@ -51,6 +56,47 @@ export class CurriculumService {
 
   async skillStates(studentId: string) {
     return this.refreshSkillStates(studentId);
+  }
+
+  /**
+   * Explains *why*, not just *what* (spec §23): weak skills, revision due, and a declining-
+   * accuracy trend, each carrying its own evidence (sample size + period) and a link to act on
+   * it. Nothing is claimed below MIN_SAMPLE_FOR_VERDICT outcomes — an empty list is honest when
+   * there just isn't enough history yet.
+   */
+  async insights(studentId: string) {
+    const [states, bySkill] = await Promise.all([this.refreshSkillStates(studentId), this.evidenceBySkill(studentId)]);
+    const insights: Array<{
+      kind: 'WEAK_SKILL' | 'REVIEW_DUE' | 'DECLINING_TREND'; skillKey: string; module: string | null;
+      accuracyPercent: number | null; sampleSize: number; earlierAccuracyPercent?: number; recentAccuracyPercent?: number;
+      periodStart: Date | null; periodEnd: Date | null;
+    }> = [];
+
+    for (const s of states) {
+      if (s.sampleSize < MIN_SAMPLE_FOR_VERDICT) continue;
+      const evidence = bySkill.get(s.skillKey)!;
+      if (s.state === 'WEAK') {
+        insights.push({ kind: 'WEAK_SKILL', skillKey: s.skillKey, module: evidence.module ?? null, accuracyPercent: s.accuracyPercent, sampleSize: s.sampleSize, periodStart: evidence.outcomes[0].at, periodEnd: s.lastEvidenceAt });
+      } else if (s.state === 'NEEDS_REVIEW') {
+        insights.push({ kind: 'REVIEW_DUE', skillKey: s.skillKey, module: evidence.module ?? null, accuracyPercent: s.accuracyPercent, sampleSize: s.sampleSize, periodStart: evidence.outcomes[0].at, periodEnd: s.lastEvidenceAt });
+      }
+    }
+
+    for (const [skillKey, evidence] of bySkill) {
+      const n = evidence.outcomes.length;
+      if (n < MIN_SAMPLE_FOR_VERDICT * 2) continue; // need enough in both halves to compare honestly
+      const mid = Math.floor(n / 2);
+      const acc = (outs: typeof evidence.outcomes) => Math.round((outs.filter((o) => o.correct).length / outs.length) * 10_000) / 100;
+      const earlier = acc(evidence.outcomes.slice(0, mid));
+      const recent = acc(evidence.outcomes.slice(mid));
+      if (earlier - recent >= 15) {
+        insights.push({
+          kind: 'DECLINING_TREND', skillKey, module: evidence.module ?? null, accuracyPercent: recent, sampleSize: n,
+          earlierAccuracyPercent: earlier, recentAccuracyPercent: recent, periodStart: evidence.outcomes[0].at, periodEnd: evidence.outcomes[n - 1].at,
+        });
+      }
+    }
+    return insights;
   }
 
   /** Today's workspace: required work, today's classes, personalised recommendations, revision due, and optional practice — each tagged with its source (spec §7). */
@@ -175,6 +221,9 @@ export class CurriculumController {
 
   @Get('me/skill-states')
   skillStates(@CurrentUser() u: AuthUser) { return this.curriculum.skillStates(sid(u)); }
+
+  @Get('me/insights')
+  insights(@CurrentUser() u: AuthUser) { return this.curriculum.insights(sid(u)); }
 
   @Get('me/study-plan')
   listStudyPlan(@CurrentUser() u: AuthUser) { return this.curriculum.listStudyPlan(sid(u)); }
