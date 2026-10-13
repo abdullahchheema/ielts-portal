@@ -22,9 +22,7 @@ function portalLabel(roles: string[]): string {
 export interface NavGroup { title?: string; items: NavItem[] }
 
 const COLLAPSE_KEY = 'ui:sidebar-collapsed';
-// Stepped down one notch from the pre-18px values: the root font-size bump already grew every
-// rem-based max-w-* utility ~12.5%, so holding the old notch would widen these containers further.
-const WIDTH = { default: 'max-w-5xl', wide: 'max-w-6xl', narrow: 'max-w-3xl' } as const;
+const WIDTH = { default: 'max-w-6xl', wide: 'max-w-7xl', narrow: 'max-w-4xl' } as const;
 
 /**
  * Sidebar and top bar shared by the student, teacher and admin areas.
@@ -122,7 +120,7 @@ export function Shell({ title, groups, me, children, width = 'default' }: { titl
   );
 
   return (
-    <div className={cx('min-h-dvh bg-canvas lg:grid lg:transition-[grid-template-columns] lg:duration-[var(--dur)] lg:ease-out-soft', collapsed ? 'lg:grid-cols-[4rem_1fr]' : 'lg:grid-cols-[15rem_1fr]')}>
+    <div className={cx('min-h-dvh bg-canvas lg:grid lg:transition-[grid-template-columns] lg:duration-[var(--dur)] lg:ease-out-soft', collapsed ? 'lg:grid-cols-[4.5rem_1fr]' : 'lg:grid-cols-[16rem_1fr]')}>
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[60] focus:rounded-md focus:bg-surface focus:px-3 focus:py-2 focus:shadow-md">Skip to content</a>
 
       {/* Desktop sidebar */}

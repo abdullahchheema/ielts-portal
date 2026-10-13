@@ -6,8 +6,8 @@ import { cx } from '@/lib/cx';
 
 /**
  * Single source of truth for the brand mark. Looks for a real asset in `public/brand/` at these paths:
- *   /brand/logo.jpeg       — full lockup, for light backgrounds (header, light auth panel)
- *   /brand/logo-dark.jpeg  — full lockup, for dark backgrounds (auth promo panel, dark footer)
+ *   /brand/logo.png       — full lockup, for light backgrounds (header, light auth panel)
+ *   /brand/logo-dark.png  — full lockup, for dark backgrounds (auth promo panel, dark footer)
  *   /brand/mark.png        — icon-only mark, for the collapsed sidebar rail and favicon-sized slots
  * These are plain <img> tags rather than next/image: the files may not exist yet, and a missing static
  * import would fail the build. Until the owner adds a file at one of these paths, onError swaps in the
@@ -17,7 +17,7 @@ type Variant = 'full' | 'mark';
 type Tone = 'light' | 'dark';
 
 const SRC: Record<Variant, Record<Tone, string>> = {
-  full: { light: '/brand/logo.jpeg', dark: '/brand/logo-dark.jpeg' },
+  full: { light: '/brand/logo.png', dark: '/brand/logo-dark.png' },
   mark: { light: '/brand/mark.png', dark: '/brand/mark.png' },
 };
 

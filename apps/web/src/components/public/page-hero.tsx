@@ -36,7 +36,7 @@ export function PageHero({
         </StaggerItem>
       )}
       <StaggerItem>
-        <h1 className={cx('font-display font-extrabold tracking-tight text-fg', eyebrow && 'mt-4', s.title)}>{title}</h1>
+        <h1 className={cx('font-display font-bold tracking-tight text-fg', eyebrow && 'mt-4', s.title)}>{title}</h1>
       </StaggerItem>
       {subtitle && (
         <StaggerItem>

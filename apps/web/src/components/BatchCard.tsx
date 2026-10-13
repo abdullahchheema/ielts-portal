@@ -21,25 +21,28 @@ export function BatchCard({ batch }: { batch: PublicBatch }) {
     { icon: UserRound, k: 'Teacher', v: batch.mentorAssigned ? batch.mentors.map((m) => m.name).join(', ') : 'Not assigned yet', muted: !batch.mentorAssigned },
   ];
   return (
-    <article className="flex flex-col rounded-2xl bg-surface p-7 shadow-sm ring-1 ring-border transition-[box-shadow,transform] duration-[--dur] ease-[--ease-out-soft] hover:shadow-lg hover:-translate-y-0.5">
+    <article className="flex h-full flex-col rounded-2xl bg-surface p-7 shadow-sm ring-1 ring-border transition-[box-shadow,transform] duration-[--dur] ease-[--ease-out-soft] hover:shadow-lg hover:-translate-y-0.5">
       <div className="mb-6 flex items-start justify-between gap-3">
         <h3 className="font-display text-xl font-bold leading-snug text-fg">{batch.name}</h3>
         <span className={cx('shrink-0 rounded-full px-3 py-1 text-xs font-bold ring-1 ring-inset', running ? 'bg-info-soft text-info ring-info/20' : 'bg-success-soft text-success ring-success/20')}>
           {running ? 'Running' : 'Open'}
         </span>
       </div>
-      <dl className="space-y-3 text-sm">
-        {rows.map((r) => (
-          <div key={r.k} className="flex items-start gap-3">
-            <r.icon aria-hidden className="mt-0.5 size-4 shrink-0 text-fg-subtle" strokeWidth={1.75} />
-            <div className="min-w-0">
-              <dt className="text-xs text-fg-muted">{r.k}</dt>
-              <dd className={cx('font-medium', r.muted ? 'text-fg-muted' : 'text-fg')}>{r.v}</dd>
+      {/* Grows to absorb any slack from a shorter description, so the button always lands on the same baseline across a row of cards. */}
+      <div className="flex-1">
+        <dl className="space-y-3 text-sm">
+          {rows.map((r) => (
+            <div key={r.k} className="flex items-start gap-3">
+              <r.icon aria-hidden className="mt-0.5 size-4 shrink-0 text-fg-subtle" strokeWidth={1.75} />
+              <div className="min-w-0">
+                <dt className="text-xs text-fg-muted">{r.k}</dt>
+                <dd className={cx('font-medium', r.muted ? 'text-fg-muted' : 'text-fg')}>{r.v}</dd>
+              </div>
             </div>
-          </div>
-        ))}
-      </dl>
-      {batch.description && <p className="mt-5 border-t border-border pt-4 text-sm leading-relaxed text-fg-muted">{batch.description}</p>}
+          ))}
+        </dl>
+        {batch.description && <p className="mt-5 border-t border-border pt-4 text-sm leading-relaxed text-fg-muted">{batch.description}</p>}
+      </div>
       <div className="mt-6">
         <LinkButton href={`/enroll/${batch.id}`} className="w-full">{running ? 'Join this batch' : 'Enroll in this batch'}</LinkButton>
       </div>
