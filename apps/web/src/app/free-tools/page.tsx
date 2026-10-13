@@ -13,6 +13,7 @@ export default function FreeToolsPage() {
       <main>
         <PageHero
           size="standard"
+          className="bg-wash"
           eyebrow="Free, no signup"
           title="Free IELTS tools."
           subtitle="No account needed. Start with the band score calculator below."

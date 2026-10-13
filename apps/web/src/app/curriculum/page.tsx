@@ -30,6 +30,7 @@ export default async function CurriculumPage() {
       <main>
         <PageHero
           size="standard"
+          className="bg-wash"
           eyebrow="Course outline"
           title="Your roadmap, module by module."
           subtitle="Exactly what's covered for Academic and General Training, and the week-by-week path from diagnostic to exam-ready."

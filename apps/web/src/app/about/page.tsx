@@ -20,6 +20,7 @@ export default function AboutPage() {
       <main>
         <PageHero
           size="standard"
+          className="bg-wash"
           eyebrow="About"
           title="Built by people who actually teach IELTS."
           subtitle="Connect IELTS Academy exists because most prep either costs too much for a cohort that needs weekly accountability, or is a pile of recorded videos nobody finishes. We built the thing in between: a live, teacher-led course with the practice tools to back it up."

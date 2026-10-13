@@ -10,7 +10,7 @@ export function LegalLayout({ eyebrow, title, updated, children }: { eyebrow: st
     <div className="bg-canvas">
       <PublicHeader />
       <main>
-        <PageHero size="compact" eyebrow={eyebrow} title={title} subtitle={`Last updated ${updated}`} />
+        <PageHero size="compact" className="bg-wash" eyebrow={eyebrow} title={title} subtitle={`Last updated ${updated}`} />
         <Reveal className="mx-auto max-w-3xl px-5 pb-20 sm:px-8 sm:pb-24">
           <div className="legal-prose rounded-3xl bg-surface p-8 shadow-sm ring-1 ring-border sm:p-10">
             {children}

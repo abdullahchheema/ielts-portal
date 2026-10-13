@@ -22,7 +22,7 @@ export default async function VerifyCertificatePage({ params }: { params: Promis
     <>
       <PublicHeader />
       <main>
-        <PageHero size="compact" eyebrow="Certificates" title="Verify a certificate" />
+        <PageHero size="compact" className="bg-wash" eyebrow="Certificates" title="Verify a certificate" />
         <div className="mx-auto max-w-xl px-5 pt-6 pb-20 sm:px-8 sm:pt-8 sm:pb-24">
           <div className="rounded-3xl bg-surface p-9 text-center shadow-sm ring-1 ring-border">
             {r?.valid ? (

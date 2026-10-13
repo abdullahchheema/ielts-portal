@@ -19,6 +19,7 @@ export default function RegisterPage() {
       <main>
         <PageHero
           size="compact"
+          className="bg-wash"
           eyebrow="Enroll"
           title="Select your batch"
           subtitle={<>Choose the batch you want to join. Next you will create your account and verify your email, then fill in a short form and upload your payment receipt. The academy verifies it and enrolls you. Already applied? <Link href="/login" className="font-bold text-primary underline underline-offset-2">Log in</Link>.</>}

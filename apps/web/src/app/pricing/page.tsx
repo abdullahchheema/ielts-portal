@@ -29,6 +29,7 @@ export default async function PricingPage() {
       <main>
         <PageHero
           size="standard"
+          className="bg-wash"
           eyebrow="Pricing"
           title="One course. One price. No tiers to compare."
           subtitle="We do not split Listening, Reading, Writing and Speaking into separate paid plans. Every student gets the complete course."

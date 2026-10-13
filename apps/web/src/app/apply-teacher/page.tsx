@@ -35,7 +35,7 @@ export default function ApplyTeacherPage() {
     <>
       <PublicHeader />
       <main>
-        <PageHero size="compact" eyebrow="Teach with us" title="Apply to teach with us" />
+        <PageHero size="compact" className="bg-wash" eyebrow="Teach with us" title="Apply to teach with us" />
         <div className="mx-auto max-w-2xl px-5 pt-6 pb-20 sm:px-8 sm:pt-8 sm:pb-24">
           {me.isLoading ? <Loading /> : !me.data ? (
             <Card>

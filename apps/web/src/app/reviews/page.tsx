@@ -36,6 +36,7 @@ export default async function ReviewsPage() {
       <main>
         <PageHero
           size="standard"
+          className="bg-wash"
           eyebrow="Student reviews"
           title="Real students. Real band jumps."
           subtitle="The cards below show the kind of feedback we collect and how we present it — each one is a sample, clearly marked, until it is replaced with a named, permissioned review."
