@@ -3,6 +3,7 @@ import { BrandLogo } from '@/components/BrandLogo';
 
 const PRODUCT_LINKS = [
   { href: '/#course', label: 'The course' },
+  { href: '/curriculum', label: 'Curriculum' },
   { href: '/#batches', label: 'Batches' },
   { href: '/pricing', label: 'Pricing' },
   { href: '/#how', label: 'How it works' },

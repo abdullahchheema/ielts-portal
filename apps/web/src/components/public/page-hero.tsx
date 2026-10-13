@@ -6,9 +6,9 @@ import { cx } from '@/lib/cx';
 export interface HeroCta { label: string; href: string }
 
 const SIZE = {
-  full: { section: 'pt-20 pb-24 sm:pt-28 sm:pb-32', title: 'text-display' },
-  standard: { section: 'pt-16 pb-14 sm:pt-20 sm:pb-16', title: 'text-h1 sm:text-display' },
-  compact: { section: 'pt-14 pb-10 sm:pt-16', title: 'text-h1' },
+  full: { section: 'pt-10 pb-24 sm:pt-14 sm:pb-32', title: 'text-display' },
+  standard: { section: 'pt-8 pb-14 sm:pt-10 sm:pb-16', title: 'text-h1 sm:text-display' },
+  compact: { section: 'pt-7 pb-10 sm:pt-8', title: 'text-h1' },
 } as const;
 
 /**

@@ -3,11 +3,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { COUNTRIES, PAKISTAN_CITIES, applicantProfileSchema } from '@ielts/validation';
 import { AccountGate } from '@/components/AccountGate';
 import { PaymentSection, PaymentValues, METHOD_LABEL, emptyPayment, paymentFormData, validatePayment } from '@/components/PaymentSection';
-import { SurveyWizard, SurveyComplete } from '@/components/survey/SurveyWizard';
+import { Answers, SurveyWizard, SurveyComplete } from '@/components/survey/SurveyWizard';
 import { PublicBatch } from '@/components/BatchCard';
 import { PublicFooter } from '@/components/PublicFooter';
 import { PublicHeader } from '@/components/PublicHeader';
@@ -43,6 +43,19 @@ export default function EnrollPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // Anonymous visitors take the survey before they have an account; their answers live here until
+  // the authenticated SurveyWizard picks them up and submits them for real.
+  const draftKey = `survey:${batchId}`;
+  const [anonSurveyDone, setAnonSurveyDone] = useState(false);
+  const [localDraft, setLocalDraft] = useState<Answers | undefined>(undefined);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(draftKey);
+      if (raw) setLocalDraft(JSON.parse(raw));
+    } catch { /* storage may be blocked */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftKey]);
+
   if (batches.isLoading || course.isLoading || me.isLoading) return <><PublicHeader /><Loading /></>;
   const batch = batches.data?.find((b) => b.id === batchId);
   if (!batch || !course.data) {
@@ -69,31 +82,53 @@ export default function EnrollPage() {
     </>
   );
 
-  if (!me.data) {
+  const set = (patch: Partial<Details>) => setD((v) => ({ ...v, ...patch }));
+
+  const onSurveyComplete = (mapped: SurveyComplete) => {
+    set({ targetBand: mapped.targetBand, ieltsHistory: mapped.ieltsHistory, ieltsOverall: mapped.ieltsOverall });
+    try { localStorage.removeItem(draftKey); } catch { /* storage may be blocked */ }
+    setStep(1);
+  };
+
+  if (step === 0) {
     return (
       <>
         <PublicHeader />
         <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8">
           {header}
+          <div className="mb-7"><Stepper steps={STEP_DEFS} activeIndex={step} /></div>
           <Card>
-            <AccountGate
-              next={`/enroll/${batchId}`}
-              title="Create your account to apply"
-              intro="Your application is saved to your student account, so you can track it and open your portal after it is approved."
-            />
+            {!me.data ? (
+              anonSurveyDone ? (
+                <AccountGate
+                  next={`/enroll/${batchId}`}
+                  title="Create your account to continue"
+                  intro="Nice — we've saved your answers. Create your account and we'll pick up right where you left off, no need to answer again."
+                />
+              ) : (
+                <SurveyWizard persist="local" storageKey={draftKey} onComplete={() => setAnonSurveyDone(true)} />
+              )
+            ) : me.data.studentId ? (
+              <SurveyWizard persist="auth" localSeed={localDraft} onComplete={onSurveyComplete} />
+            ) : (
+              <Alert kind="info">You are signed in with a staff or teacher account. Log in with a student account to apply for a batch.</Alert>
+            )}
           </Card>
         </main>
         <PublicFooter />
       </>
     );
   }
-  if (!me.data.studentId) {
+
+  // Past step 0, an account (and student role) is required — this is a defensive guard for the rare
+  // case a session expires mid-flow, not the normal path (step only ever advances once authenticated).
+  if (!me.data || !me.data.studentId) {
     return (
       <>
         <PublicHeader />
-        <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8">
-          {header}
-          <Alert kind="info">You are signed in with a staff or teacher account. Log in with a student account to apply for a batch.</Alert>
+        <main className="mx-auto max-w-xl px-5 py-20 text-center sm:px-8">
+          <Alert kind="info">Your session changed. Please start again from the beginning.</Alert>
+          <Link href={`/enroll/${batchId}`} className="mt-5 inline-flex items-center justify-center rounded-xl bg-primary px-6 py-3.5 text-sm font-bold text-white shadow-sm hover:bg-primary-hover">Start over</Link>
         </main>
         <PublicFooter />
       </>
@@ -103,7 +138,6 @@ export default function EnrollPage() {
   const price = course.data.price;
   const payment = pay ?? emptyPayment(price);
 
-  const set = (patch: Partial<Details>) => setD((v) => ({ ...v, ...patch }));
   const text = (k: keyof Details) => ({ value: d[k], onChange: (e: { target: { value: string } }) => set({ [k]: e.target.value } as Partial<Details>) });
 
   const validateDetails = () => {
@@ -122,11 +156,6 @@ export default function EnrollPage() {
     setStep(step + 1);
   };
   const back = () => { setErrors({}); setFormError(null); setStep(Math.max(0, step - 1)); };
-
-  const onSurveyComplete = (mapped: SurveyComplete) => {
-    set({ targetBand: mapped.targetBand, ieltsHistory: mapped.ieltsHistory, ieltsOverall: mapped.ieltsOverall });
-    setStep(1);
-  };
 
   const submit = async () => {
     setFormError(null);
@@ -160,8 +189,6 @@ export default function EnrollPage() {
 
         <Card>
           {formError && <div className="mb-4"><Alert>{formError}</Alert></div>}
-
-          {step === 0 && <SurveyWizard onComplete={onSurveyComplete} />}
 
           {step === 1 && (
             <Section title="Payment" description="Pay the course fee, then upload your receipt. Your place is confirmed once the academy verifies the payment.">

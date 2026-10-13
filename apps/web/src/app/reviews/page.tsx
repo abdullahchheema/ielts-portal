@@ -1,10 +1,17 @@
+import { CalendarDays, Users } from 'lucide-react';
 import { Star } from 'lucide-react';
+import { PublicBatch } from '@/components/BatchCard';
 import { Reveal, Stagger, StaggerItem } from '@/components/motion/primitives';
 import { PageHero } from '@/components/public/page-hero';
 import { PublicFooter } from '@/components/PublicFooter';
 import { PublicHeader } from '@/components/PublicHeader';
+import { date } from '@/lib/format';
+import { publicGet } from '@/lib/server-api';
 
+export const revalidate = 120;
 export const metadata = { title: 'Student reviews — Connect IELTS Academy' };
+
+const DAY: Record<string, string> = { MON: 'Mon', TUE: 'Tue', WED: 'Wed', THU: 'Thu', FRI: 'Fri', SAT: 'Sat', SUN: 'Sun' };
 
 /**
  * Placeholder reviews. Replace every entry here with a real, permissioned student testimonial
@@ -19,7 +26,10 @@ const REVIEWS: { name: string; country: string; quote: string; before: string; a
   { name: 'Sample student', country: 'Pakistan', quote: 'One course, one clear path. I was not juggling five different apps to prepare.', before: '6.5', after: '7.5' },
 ];
 
-export default function ReviewsPage() {
+export default async function ReviewsPage() {
+  const batches = await publicGet<PublicBatch[]>('/public/batches', 120);
+  const running = batches?.filter((b) => b.status === 'IN_PROGRESS') ?? [];
+
   return (
     <div className="bg-canvas">
       <PublicHeader />
@@ -55,6 +65,33 @@ export default function ReviewsPage() {
             </Stagger>
           </div>
         </section>
+
+        {running.length > 0 && (
+          <section className="border-t border-border bg-surface px-5 py-20 sm:px-8 sm:py-24">
+            <Reveal className="mx-auto max-w-5xl">
+              <div className="mb-10 text-center">
+                <p className="text-overline font-bold text-primary uppercase">Right now</p>
+                <h2 className="mt-2 font-display text-h1 text-fg">Batches currently underway.</h2>
+                <p className="mx-auto mt-3 max-w-xl text-lead text-fg-muted">Real, running classes — not projected numbers. These batches are already in progress with their teacher.</p>
+              </div>
+              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                {running.map((b) => (
+                  <div key={b.id} className="rounded-2xl bg-canvas p-6 shadow-sm ring-1 ring-border">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="font-display text-base font-bold text-fg">{b.name}</h3>
+                      <span className="shrink-0 rounded-full bg-info-soft px-2.5 py-1 text-xs font-bold text-info ring-1 ring-inset ring-info/20">Running</span>
+                    </div>
+                    <div className="mt-4 space-y-2 text-sm text-fg-muted">
+                      <p className="flex items-center gap-2"><CalendarDays className="size-4 shrink-0 text-fg-subtle" strokeWidth={1.75} />Started {date(b.startAt)}</p>
+                      <p className="flex items-center gap-2"><Users className="size-4 shrink-0 text-fg-subtle" strokeWidth={1.75} />{b.mentorAssigned ? b.mentors.map((m) => m.name).join(', ') : 'Teacher not assigned yet'}</p>
+                    </div>
+                    {b.days.length > 0 && <p className="mt-3 border-t border-border pt-3 text-xs text-fg-subtle">{b.days.map((d) => DAY[d] ?? d).join(', ')}{b.classTime ? ` · ${b.classTime}` : ''}</p>}
+                  </div>
+                ))}
+              </div>
+            </Reveal>
+          </section>
+        )}
 
         <section className="border-t border-border bg-surface px-5 py-20 sm:px-8 sm:py-24">
           <Reveal className="mx-auto max-w-3xl text-center">

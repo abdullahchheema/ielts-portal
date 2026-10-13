@@ -11,6 +11,8 @@ import { api } from '@/lib/api';
 
 export default function RegisterPage() {
   const batches = useQuery({ queryKey: ['public-batches'], queryFn: () => api<PublicBatch[]>('/public/batches') });
+  // Only batches still taking new students — one already underway isn't something a new visitor can join today.
+  const openBatches = batches.data?.filter((b) => b.status === 'OPEN');
   return (
     <>
       <PublicHeader />
@@ -23,10 +25,10 @@ export default function RegisterPage() {
         />
         <div className="mx-auto max-w-6xl px-5 pb-20 sm:px-8 sm:pb-24">
           <Section title="Open batches" description="Every batch teaches the same complete course — pick the schedule that fits your week.">
-            {batches.isLoading ? <Loading /> : batches.isError ? <Alert>Could not load the batches. Please refresh the page.</Alert> : !batches.data?.length ? (
+            {batches.isLoading ? <Loading /> : batches.isError ? <Alert>Could not load the batches. Please refresh the page.</Alert> : !openBatches?.length ? (
               <Empty>No batch is open for enrollment right now. Please check back soon.</Empty>
             ) : (
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">{batches.data.map((b) => <BatchCard key={b.id} batch={b} />)}</div>
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">{openBatches.map((b) => <BatchCard key={b.id} batch={b} />)}</div>
             )}
           </Section>
         </div>

@@ -13,7 +13,7 @@ import {
 } from './questions';
 
 interface SurveyDoc { status: 'DRAFT' | 'SUBMITTED'; revision: number; submittedAt: string | null }
-type Answers = SurveyDraftInput;
+export type Answers = SurveyDraftInput;
 
 const SLIDE_TITLE = [
   'Have you taken IELTS before?', 'How confident are you with your current level?', "What's bringing you to IELTS?",
@@ -24,8 +24,20 @@ const SLIDE_TITLE = [
 
 export interface SurveyComplete { targetBand: string; ieltsHistory: 'NEVER' | 'TAKEN'; ieltsOverall: string }
 
-/** The 10-question onboarding survey. Autosaves every answer behind the account gate, then submits as its own record. */
-export function SurveyWizard({ onComplete }: { onComplete: (mapped: SurveyComplete) => void }) {
+/**
+ * The 10-question onboarding survey.
+ *
+ * `persist="auth"` (default): behind an account, exactly as before — GET on mount, PUT-autosave per
+ * slide, POST on submit, all against `/me/enrollment-survey`.
+ *
+ * `persist="local"`: for an anonymous visitor taking the survey before they have an account. No network
+ * calls — every save/submit writes to `localStorage` under `storageKey` instead. `onComplete` still
+ * fires on submit so the caller can move them on to account creation; the answers are picked back up
+ * once they're authenticated, via `localSeed`.
+ */
+export function SurveyWizard({ onComplete, persist = 'auth', storageKey, localSeed }: {
+  onComplete: (mapped: SurveyComplete) => void; persist?: 'auth' | 'local'; storageKey?: string; localSeed?: Answers;
+}) {
   const [mode, setMode] = useState<'loading' | 'slides' | 'review' | 'submitted'>('loading');
   const [slide, setSlide] = useState(0);
   const [answers, setAnswers] = useState<Answers>({});
@@ -35,18 +47,36 @@ export function SurveyWizard({ onComplete }: { onComplete: (mapped: SurveyComple
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    if (persist === 'local') {
+      let seeded: Answers = {};
+      try {
+        const raw = storageKey ? localStorage.getItem(storageKey) : null;
+        if (raw) seeded = JSON.parse(raw);
+      } catch { /* storage may be blocked */ }
+      setAnswers(seeded);
+      setMode(surveySubmitSchema.safeParse(seeded).success ? 'review' : 'slides');
+      return;
+    }
     (async () => {
       const doc = await api<SurveyDoc & Answers>('/me/enrollment-survey');
       const { status, revision: rev, submittedAt, ...rest } = doc;
-      setAnswers(rest);
+      const hasServerAnswers = Object.keys(rest).length > 0;
+      // A completed answer set captured anonymously, picked up once the account exists.
+      const seeded = hasServerAnswers ? rest : (localSeed ?? rest);
+      setAnswers(seeded);
       setRevision(rev);
-      setMode(status === 'SUBMITTED' ? 'submitted' : 'slides');
+      setMode(status === 'SUBMITTED' ? 'submitted' : (surveySubmitSchema.safeParse(seeded).success ? 'review' : 'slides'));
     })();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [persist]);
 
   const patch = (p: Partial<Answers>) => setAnswers((a) => ({ ...a, ...p }));
 
   const save = async (next: Answers) => {
+    if (persist === 'local') {
+      try { if (storageKey) localStorage.setItem(storageKey, JSON.stringify(next)); } catch { /* storage may be blocked */ }
+      return true;
+    }
     try {
       const doc = await api<SurveyDoc & Answers>('/me/enrollment-survey', { method: 'PUT', body: { revision, answers: next } });
       setRevision(doc.revision);
@@ -109,6 +139,12 @@ export function SurveyWizard({ onComplete }: { onComplete: (mapped: SurveyComple
       return;
     }
     setSubmitErrors({});
+    if (persist === 'local') {
+      try { if (storageKey) localStorage.setItem(storageKey, JSON.stringify(r.data)); } catch { /* storage may be blocked */ }
+      setBusy(false);
+      onComplete(mapped());
+      return;
+    }
     try {
       await api('/me/enrollment-survey/submit', { method: 'POST', body: r.data });
       onComplete(mapped());

@@ -28,7 +28,7 @@ export function BrandLogo({ variant = 'full', tone = 'light', className, markCla
   if (!failed) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={src} alt="Connect IELTS Academy" className={cx(variant === 'mark' ? 'size-11' : 'h-11 sm:h-12', className)} onError={() => setFailed(true)} />
+      <img src={src} alt="Connect IELTS Academy" className={cx(variant === 'mark' ? 'size-11' : 'h-14 sm:h-16', className)} onError={() => setFailed(true)} />
     );
   }
 

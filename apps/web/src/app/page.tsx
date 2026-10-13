@@ -1,10 +1,12 @@
-import { CalendarDays, CheckCircle2, ClipboardCheck, ScrollText, Star, Target, TrendingUp, UserCheck, Users } from 'lucide-react';
+import { Award, CalendarDays, CheckCircle2, ClipboardCheck, GraduationCap, ScrollText, Star, Target, TrendingUp, UserCheck, Users } from 'lucide-react';
 import { BatchCard, PublicBatch } from '@/components/BatchCard';
 import { FaqAccordion, FeatureShowcase } from '@/components/MarketingInteractive';
 import { CountUp, Reveal, Stagger, StaggerItem } from '@/components/motion/primitives';
 import { PageHero } from '@/components/public/page-hero';
+import { PortalPreview } from '@/components/PortalPreview';
 import { PublicFooter } from '@/components/PublicFooter';
 import { PublicHeader } from '@/components/PublicHeader';
+import { TrustTicker } from '@/components/TrustTicker';
 import { Empty } from '@/components/ui';
 import { money } from '@/lib/format';
 import { PublicCourse, publicGet } from '@/lib/server-api';
@@ -57,10 +59,13 @@ const FAQ = [
 ];
 
 export default async function HomePage() {
-  const [course, batches] = await Promise.all([
+  const [course, allBatches] = await Promise.all([
     publicGet<PublicCourse>('/public/course', 120),
     publicGet<PublicBatch[]>('/public/batches', 120),
   ]);
+  // Only batches still taking new students belong on the homepage — a batch already underway or
+  // in its verification window isn't something a new visitor can actually join today.
+  const batches = allBatches?.filter((b) => b.status === 'OPEN') ?? allBatches;
 
   return (
     <div className="bg-canvas">
@@ -81,8 +86,8 @@ export default async function HomePage() {
             </span>
           ))}
           visual={
-            <div className="relative mx-auto w-full max-w-sm">
-              <div aria-hidden className="absolute -right-4 -top-4 rounded-2xl bg-surface px-3.5 py-2 text-xs font-bold text-accent-strong shadow-md ring-1 ring-border">
+            <div className="relative mx-auto w-full max-w-sm animate-[float_7s_ease-in-out_infinite] motion-reduce:animate-none">
+              <div aria-hidden className="absolute -right-4 -top-4 animate-[float-sm_5s_ease-in-out_infinite] rounded-2xl bg-surface px-3.5 py-2 text-xs font-bold text-accent-strong shadow-md ring-1 ring-border motion-reduce:animate-none">
                 <span className="inline-flex items-center gap-1.5"><TrendingUp className="size-4" strokeWidth={2} />Progress tracked weekly</span>
               </div>
               <div className="rounded-3xl bg-surface p-7 shadow-xl ring-1 ring-border">
@@ -109,6 +114,8 @@ export default async function HomePage() {
             </dl>
           )}
         </PageHero>
+
+        <TrustTicker />
 
         {/* Stats strip */}
         <section className="border-y border-border bg-ink">
@@ -150,9 +157,13 @@ export default async function HomePage() {
               <FeatureShowcase />
             </Reveal>
             <Stagger className="mt-12 grid gap-6 sm:grid-cols-3">
-              {TOOLS.map((t) => (
+              {TOOLS.map((t, i) => (
                 <StaggerItem key={t.title} className="rounded-2xl bg-surface p-7 shadow-sm ring-1 ring-border transition-[box-shadow,transform] duration-[--dur] ease-[--ease-out-soft] hover:shadow-lg hover:-translate-y-0.5">
-                  <span aria-hidden className="grid size-11 place-items-center rounded-xl bg-accent-soft text-accent-strong">
+                  <span
+                    aria-hidden
+                    className="grid size-11 animate-[float-sm_4.5s_ease-in-out_infinite] place-items-center rounded-xl bg-accent-soft text-accent-strong motion-reduce:animate-none"
+                    style={{ animationDelay: `${i * 0.4}s` }}
+                  >
                     <t.icon className="size-5" strokeWidth={1.75} />
                   </span>
                   <h3 className="mt-5 text-base font-bold text-fg">{t.title}</h3>
@@ -161,6 +172,39 @@ export default async function HomePage() {
               ))}
             </Stagger>
           </div>
+        </section>
+
+        {/* Portal preview */}
+        <section className="scroll-mt-20 border-y border-border bg-surface py-20 sm:py-24">
+          <div className="mx-auto max-w-5xl px-5 sm:px-8">
+            <Reveal className="mb-12 text-center">
+              <p className="text-overline font-bold text-primary uppercase">Inside the portal</p>
+              <h2 className="mt-2 font-display text-h1 text-fg">What your student portal actually looks like.</h2>
+              <p className="mx-auto mt-3 max-w-xl text-lead text-fg-muted">A live preview of the dashboard, mock tests, writing feedback and speaking practice — not screenshots from someone else's product.</p>
+            </Reveal>
+            <Reveal>
+              <PortalPreview />
+            </Reveal>
+          </div>
+        </section>
+
+        {/* Teachers */}
+        <section className="py-20 sm:py-24">
+          <Reveal className="mx-auto max-w-5xl px-5 sm:px-8">
+            <div className="flex flex-col items-center gap-8 rounded-3xl bg-primary-soft p-10 text-center sm:p-14">
+              <span aria-hidden className="grid size-16 animate-[float_6s_ease-in-out_infinite] place-items-center rounded-2xl bg-primary text-primary-fg shadow-md motion-reduce:animate-none">
+                <GraduationCap className="size-8" strokeWidth={1.75} />
+              </span>
+              <div className="max-w-2xl">
+                <h2 className="font-display text-h1 text-fg">Taught by experienced, hands-on IELTS teachers.</h2>
+                <p className="mx-auto mt-4 text-lead leading-relaxed text-fg-muted">Every class is led by a professional teacher with real, hands-on IELTS coaching experience — not a recorded video. They grade your work personally, sit in on your progress, and adjust what you practice next.</p>
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <span className="inline-flex items-center gap-2 rounded-full bg-surface px-4 py-2 text-sm font-semibold text-fg shadow-xs ring-1 ring-border"><Award className="size-4 text-primary" strokeWidth={1.75} />Hands-on IELTS coaching experience</span>
+                <span className="inline-flex items-center gap-2 rounded-full bg-surface px-4 py-2 text-sm font-semibold text-fg shadow-xs ring-1 ring-border"><Users className="size-4 text-primary" strokeWidth={1.75} />Every submission graded by a person</span>
+              </div>
+            </div>
+          </Reveal>
         </section>
 
         {/* Batches */}
