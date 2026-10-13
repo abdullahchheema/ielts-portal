@@ -22,9 +22,13 @@ export type ProgressBody = z.infer<typeof progressBodySchema>;
 
 export interface SectionNode {
   id: string; title: string; description: string | null; sequence: number; parentSectionId: string | null;
+  track: string; module: string | null; kind: string; area: string | null;
   items: Array<{
     id: string; title: string; contentType: ContentType; isRequired: boolean; estimatedMinutes: number | null;
     state: ItemState; progressPercent: number; lock?: Omit<Extract<ReleaseState, { unlocked: false }>, 'unlocked'>;
+    track: string; module: string | null; skillKey: string | null; activityKind: string; difficulty: string | null;
+    isTimed: boolean; teacherAssignable: boolean; recommendable: boolean;
+    mastered: boolean; masteredAt: Date | null; needsReview: boolean;
   }>;
   children: SectionNode[];
   totals: { required: number; completedRequired: number };
@@ -49,7 +53,7 @@ export class LearningService {
   private async ownEnrollment(studentId: string, enrollmentId: string) {
     const e = await this.prisma.enrollment.findFirst({
       where: { id: enrollmentId, studentId, deletedAt: null },
-      include: { batch: { select: { startAt: true, name: true } }, course: { select: { title: true, slug: true } } },
+      include: { batch: { select: { startAt: true, name: true } }, course: { select: { title: true, slug: true } }, student: { select: { academicOrGeneral: true } } },
     });
     if (!e) throw notFound('Enrollment');
     return e;
@@ -71,16 +75,22 @@ export class LearningService {
   async getCourse(studentId: string, enrollmentId: string) {
     const enrollment = await this.ownEnrollment(studentId, enrollmentId);
     this.assertAccess(enrollment);
-    const state = await this.courseState(enrollment);
+    const state = await this.courseState(enrollment, enrollment.student.academicOrGeneral);
     return {
       enrollment: { id: enrollment.id, status: enrollment.status, progressPercent: enrollment.progressPercent, accessEndsAt: enrollment.accessEndsAt },
-      course: enrollment.course, batch: enrollment.batch, sections: state.tree,
+      course: enrollment.course, batch: enrollment.batch, sections: state.tree, studentTrack: enrollment.student.academicOrGeneral,
     };
   }
 
   /** Builds the section/item tree with per-item lock state and progress for one enrollment. */
-  private async courseState(enrollment: Pick<Enrollment, 'id' | 'courseVersionId' | 'studentId'> & { batch: { startAt: Date } }) {
-    const [sections, progressRows] = await Promise.all([
+  /**
+   * studentTrack is the student's chosen IELTS track (ACADEMIC/GENERAL) or null if they have not
+   * chosen one yet. Shared content (track BOTH) always shows; track-specific content shows only
+   * for a matching track, or for both tracks at once when the student has not chosen (spec §5: a
+   * "choose your track" prompt, never a silent guess).
+   */
+  private async courseState(enrollment: Pick<Enrollment, 'id' | 'courseVersionId' | 'studentId'> & { batch: { startAt: Date } }, studentTrack: string | null = null) {
+    const [sectionsRaw, progressRows] = await Promise.all([
       this.prisma.courseSection.findMany({
         where: { courseVersionId: enrollment.courseVersionId, status: 'PUBLISHED' },
         orderBy: [{ sequence: 'asc' }, { title: 'asc' }],
@@ -88,6 +98,23 @@ export class LearningService {
       }),
       this.prisma.contentProgress.findMany({ where: { enrollmentId: enrollment.id } }),
     ]);
+
+    const visibleTrack = (track: string) => track === 'BOTH' || studentTrack === null || track === studentTrack;
+    const byId = new Map(sectionsRaw.map((s) => [s.id, s]));
+    const visibilityCache = new Map<string, boolean>();
+    const sectionVisible = (id: string): boolean => {
+      const cached = visibilityCache.get(id);
+      if (cached !== undefined) return cached;
+      const s = byId.get(id)!;
+      // A mismatched track hides the whole subtree, even if a descendant is itself track BOTH.
+      const ok = visibleTrack(s.track) && (!s.parentSectionId || !byId.has(s.parentSectionId) || sectionVisible(s.parentSectionId));
+      visibilityCache.set(id, ok);
+      return ok;
+    };
+    const sections = sectionsRaw
+      .filter((s) => sectionVisible(s.id))
+      .map((s) => ({ ...s, items: s.items.filter((i) => visibleTrack(i.track)) }));
+
     const progress = new Map(progressRows.map((p) => [p.contentItemId, p]));
     const completed = new Set(progressRows.filter((p) => p.status === 'COMPLETED').map((p) => p.contentItemId));
     const published = new Set(sections.flatMap((s) => s.items.map((i) => i.id)));
@@ -98,6 +125,7 @@ export class LearningService {
     for (const s of sections) {
       nodes.set(s.id, {
         id: s.id, title: s.title, description: s.description, sequence: s.sequence, parentSectionId: s.parentSectionId,
+        track: s.track, module: s.module, kind: s.kind, area: s.area,
         items: s.items.map((i) => {
           const release = evaluateRelease({ releaseType: i.releaseType, releaseValue: i.releaseValue }, {
             now, batchStartAt: enrollment.batch.startAt, completedItemIds: completed, publishedItemIds: published, bestScorePercentByItemId: bestScores,
@@ -110,6 +138,9 @@ export class LearningService {
           return {
             id: i.id, title: i.title, contentType: i.contentType, isRequired: i.isRequired, estimatedMinutes: i.estimatedMinutes,
             state, progressPercent: p?.progressPercent ?? 0, lock,
+            track: i.track, module: i.module, skillKey: i.skillKey, activityKind: i.activityKind, difficulty: i.difficulty,
+            isTimed: i.isTimed, teacherAssignable: i.teacherAssignable, recommendable: i.recommendable,
+            mastered: p?.masteredAt != null, masteredAt: p?.masteredAt ?? null, needsReview: p?.needsReviewAt != null,
           };
         }),
         children: [], totals: { required: 0, completedRequired: 0 },
@@ -337,10 +368,12 @@ export class LearningService {
     ]);
 
     const courses = await Promise.all(enrollments.map(async (e) => {
-      const { tree } = await this.courseState({ id: e.id, courseVersionId: e.courseVersionId, studentId: e.studentId, batch: e.batch });
+      const { tree } = await this.courseState({ id: e.id, courseVersionId: e.courseVersionId, studentId: e.studentId, batch: e.batch }, profile.academicOrGeneral);
       const skills: Record<string, number | null> = {};
       for (const skill of SKILLS) {
-        const root = tree.find((n) => n.title.toLowerCase().startsWith(skill));
+        // Prefer the reliable module tag; fall back to the title heuristic only for sections a
+        // teacher created before the taxonomy fields existed (so older content keeps working).
+        const root = tree.find((n) => n.module === skill.toUpperCase()) ?? tree.find((n) => !n.module && n.title.toLowerCase().startsWith(skill));
         skills[skill] = root ? progressPercent(root.totals.completedRequired, root.totals.required) : null;
       }
       return {
