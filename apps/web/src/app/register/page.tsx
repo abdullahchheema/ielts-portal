@@ -23,7 +23,7 @@ export default function RegisterPage() {
           title="Select your batch"
           subtitle={<>Choose the batch you want to join. Next you will create your account and verify your email, then fill in a short form and upload your payment receipt. The academy verifies it and enrolls you. Already applied? <Link href="/login" className="font-bold text-primary underline underline-offset-2">Log in</Link>.</>}
         />
-        <div className="mx-auto max-w-6xl px-5 pb-20 sm:px-8 sm:pb-24">
+        <div className="mx-auto max-w-6xl px-5 pt-6 pb-20 sm:px-8 sm:pt-8 sm:pb-24">
           <Section title="Open batches" description="Every batch teaches the same complete course — pick the schedule that fits your week.">
             {batches.isLoading ? <Loading /> : batches.isError ? <Alert>Could not load the batches. Please refresh the page.</Alert> : !openBatches?.length ? (
               <Empty>No batch is open for enrollment right now. Please check back soon.</Empty>

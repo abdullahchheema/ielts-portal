@@ -7,6 +7,7 @@ import {
 } from '@ielts/validation';
 import { Alert, Button, Loading, OptionCard, Select, StepProgress } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
+import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import {
   DAILY_MINUTES_LABEL, HELP_LABEL, LEARNING_FORMAT_LABEL, PROFICIENCY_LABEL, REASON_LABEL, SKILL_LABEL, SURVEY_SLIDE_COUNT, TIMELINE_LABEL,
@@ -72,6 +73,9 @@ export function SurveyWizard({ onComplete, persist = 'auth', storageKey, localSe
 
   const patch = (p: Partial<Answers>) => setAnswers((a) => ({ ...a, ...p }));
 
+  /** Jump to any question at any time — not gated on earlier questions being answered. */
+  const jump = (i: number) => { setNotice(null); setSlide(i); setMode('slides'); };
+
   const save = async (next: Answers) => {
     if (persist === 'local') {
       try { if (storageKey) localStorage.setItem(storageKey, JSON.stringify(next)); } catch { /* storage may be blocked */ }
@@ -111,16 +115,28 @@ export function SurveyWizard({ onComplete, persist = 'auth', storageKey, localSe
     }
   })();
 
-  const next = async () => {
+  /** Saves `toSave` (not necessarily the latest `answers` state, which hasn't flushed yet when
+   * called right after a `setAnswers`) and moves to the next question, or review on the last one. */
+  const advance = async (toSave: Answers) => {
     setNotice(null);
     setBusy(true);
-    const ok = await save(answers);
+    const ok = await save(toSave);
     setBusy(false);
     if (!ok) return;
     if (slide < SURVEY_SLIDE_COUNT - 1) setSlide(slide + 1);
     else setMode('review');
   };
+  const next = () => advance(answers);
   const back = () => { setNotice(null); if (slide === 0) return; setSlide(slide - 1); };
+
+  /** Pick a single-choice answer and immediately move on — the common case where there's nothing
+   * else to fill in on this question. Slides with a follow-up field (an "Other" text box, prior
+   * band scores) or multi-select stay on manual Next so the person can finish filling them in. */
+  const selectAndAdvance = (p: Partial<Answers>) => {
+    const merged = { ...answers, ...p };
+    setAnswers(merged);
+    advance(merged);
+  };
 
   const mapped = (): SurveyComplete => ({
     targetBand: answers.targetBand !== undefined ? String(answers.targetBand) : '',
@@ -207,13 +223,31 @@ export function SurveyWizard({ onComplete, persist = 'auth', storageKey, localSe
   return (
     <div className="space-y-5">
       <StepProgress current={slide + 1} total={SURVEY_SLIDE_COUNT} />
+      <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Jump to a question">
+        {Array.from({ length: SURVEY_SLIDE_COUNT }, (_, i) => (
+          <button
+            key={i}
+            type="button"
+            role="tab"
+            aria-selected={i === slide}
+            aria-label={`Question ${i + 1}: ${SLIDE_TITLE[i]}`}
+            onClick={() => jump(i)}
+            className={cx(
+              'grid size-7 shrink-0 place-items-center rounded-full text-xs font-bold ring-1 ring-inset transition-colors duration-[var(--dur-fast)] ease-out-soft',
+              i === slide ? 'bg-primary text-primary-fg ring-primary' : 'bg-surface text-fg-subtle ring-border-strong hover:bg-surface-muted hover:text-fg',
+            )}
+          >
+            {i + 1}
+          </button>
+        ))}
+      </div>
       {notice && <Alert>{notice}</Alert>}
       <h2 className="text-lg font-semibold text-fg">{SLIDE_TITLE[slide]}</h2>
 
       {slide === 0 && (
         <div className="space-y-2">
-          <OptionCard selected={answers.takenBefore === 'YES'} onClick={() => patch({ takenBefore: 'YES' })}>Yes, I have</OptionCard>
-          <OptionCard selected={answers.takenBefore === 'NO'} onClick={() => patch({ takenBefore: 'NO', hadBand: undefined, priorScores: undefined })}>No, this is my first time</OptionCard>
+          <OptionCard selected={answers.takenBefore === 'YES'} onClick={() => selectAndAdvance({ takenBefore: 'YES' })}>Yes, I have</OptionCard>
+          <OptionCard selected={answers.takenBefore === 'NO'} onClick={() => selectAndAdvance({ takenBefore: 'NO', hadBand: undefined, priorScores: undefined })}>No, this is my first time</OptionCard>
         </div>
       )}
 
@@ -224,7 +258,7 @@ export function SurveyWizard({ onComplete, persist = 'auth', storageKey, localSe
           <div className="space-y-4">
             <div className="space-y-2">
               <OptionCard selected={answers.hadBand === 'YES'} onClick={() => patch({ hadBand: 'YES' })}>Yes, I remember my band</OptionCard>
-              <OptionCard selected={answers.hadBand === 'NO'} onClick={() => patch({ hadBand: 'NO', priorScores: undefined })}>No / I don&apos;t remember</OptionCard>
+              <OptionCard selected={answers.hadBand === 'NO'} onClick={() => selectAndAdvance({ hadBand: 'NO', priorScores: undefined })}>No / I don&apos;t remember</OptionCard>
             </div>
             {answers.hadBand === 'YES' && (
               <div className="grid gap-3 sm:grid-cols-2">
@@ -250,7 +284,12 @@ export function SurveyWizard({ onComplete, persist = 'auth', storageKey, localSe
         <div className="space-y-3">
           <div className="grid gap-2 sm:grid-cols-2">
             {SURVEY_REASONS.map((r) => (
-              <OptionCard key={r} selected={answers.reason === r} onClick={() => patch({ reason: r, reasonOther: r === 'OTHER' ? answers.reasonOther : undefined })}>{REASON_LABEL[r]}</OptionCard>
+              <OptionCard
+                key={r} selected={answers.reason === r}
+                onClick={() => r === 'OTHER' ? patch({ reason: r }) : selectAndAdvance({ reason: r, reasonOther: undefined })}
+              >
+                {REASON_LABEL[r]}
+              </OptionCard>
             ))}
           </div>
           {answers.reason === 'OTHER' && (
@@ -264,7 +303,7 @@ export function SurveyWizard({ onComplete, persist = 'auth', storageKey, localSe
 
       {slide === 3 && (
         <div className="max-w-xs">
-          <Select value={answers.targetBand !== undefined ? String(answers.targetBand) : ''} onChange={(e) => patch({ targetBand: e.target.value ? Number(e.target.value) : undefined })}>
+          <Select value={answers.targetBand !== undefined ? String(answers.targetBand) : ''} onChange={(e) => e.target.value && selectAndAdvance({ targetBand: Number(e.target.value) })}>
             <option value="">Select</option>
             {BAND_STEPS.map((b) => <option key={b} value={b}>{b}</option>)}
           </Select>
@@ -273,7 +312,7 @@ export function SurveyWizard({ onComplete, persist = 'auth', storageKey, localSe
 
       {slide === 4 && (
         <div className="grid gap-2 sm:grid-cols-2">
-          {SURVEY_TIMELINES.map((t) => <OptionCard key={t} selected={answers.testTimeline === t} onClick={() => patch({ testTimeline: t })}>{TIMELINE_LABEL[t]}</OptionCard>)}
+          {SURVEY_TIMELINES.map((t) => <OptionCard key={t} selected={answers.testTimeline === t} onClick={() => selectAndAdvance({ testTimeline: t })}>{TIMELINE_LABEL[t]}</OptionCard>)}
         </div>
       )}
 
@@ -302,19 +341,19 @@ export function SurveyWizard({ onComplete, persist = 'auth', storageKey, localSe
 
       {slide === 6 && (
         <div className="grid gap-2 sm:grid-cols-3">
-          {SURVEY_PROFICIENCY.map((p) => <OptionCard key={p} selected={answers.proficiency === p} onClick={() => patch({ proficiency: p })}>{PROFICIENCY_LABEL[p]}</OptionCard>)}
+          {SURVEY_PROFICIENCY.map((p) => <OptionCard key={p} selected={answers.proficiency === p} onClick={() => selectAndAdvance({ proficiency: p })}>{PROFICIENCY_LABEL[p]}</OptionCard>)}
         </div>
       )}
 
       {slide === 7 && (
         <div className="grid gap-2 sm:grid-cols-2">
-          {SURVEY_DAILY_MINUTES.map((m) => <OptionCard key={m} selected={answers.dailyMinutes === m} onClick={() => patch({ dailyMinutes: m })}>{DAILY_MINUTES_LABEL[m]}</OptionCard>)}
+          {SURVEY_DAILY_MINUTES.map((m) => <OptionCard key={m} selected={answers.dailyMinutes === m} onClick={() => selectAndAdvance({ dailyMinutes: m })}>{DAILY_MINUTES_LABEL[m]}</OptionCard>)}
         </div>
       )}
 
       {slide === 8 && (
         <div className="grid gap-2 sm:grid-cols-2">
-          {SURVEY_LEARNING_FORMATS.map((f) => <OptionCard key={f} selected={answers.learningFormat === f} onClick={() => patch({ learningFormat: f })}>{LEARNING_FORMAT_LABEL[f]}</OptionCard>)}
+          {SURVEY_LEARNING_FORMATS.map((f) => <OptionCard key={f} selected={answers.learningFormat === f} onClick={() => selectAndAdvance({ learningFormat: f })}>{LEARNING_FORMAT_LABEL[f]}</OptionCard>)}
         </div>
       )}
 

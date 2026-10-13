@@ -34,7 +34,7 @@ export default async function PricingPage() {
           subtitle="We do not split Listening, Reading, Writing and Speaking into separate paid plans. Every student gets the complete course."
         />
 
-        <Reveal as="section" className="px-5 pb-20 sm:px-8 sm:pb-24">
+        <Reveal as="section" className="px-5 pt-6 pb-20 sm:px-8 sm:pt-8 sm:pb-24">
           <div className="mx-auto max-w-2xl overflow-hidden rounded-3xl bg-surface shadow-xl ring-1 ring-border">
             <div className="bg-ink px-8 py-10 text-center text-white">
               <p className="text-overline font-bold uppercase text-white/70">{course?.title ?? 'Complete IELTS Preparation'}</p>

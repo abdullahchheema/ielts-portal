@@ -19,11 +19,11 @@ const SIZE = {
  */
 export function PageHero({
   eyebrow, title, subtitle, primaryCta, secondaryCta, trust, visual, children,
-  size = 'standard', align = 'center',
+  size = 'standard', align = 'center', className,
 }: {
   eyebrow?: string; title: ReactNode; subtitle?: ReactNode;
   primaryCta?: HeroCta; secondaryCta?: HeroCta; trust?: ReactNode; visual?: ReactNode; children?: ReactNode;
-  size?: keyof typeof SIZE; align?: 'center' | 'split';
+  size?: keyof typeof SIZE; align?: 'center' | 'split'; className?: string;
 }) {
   const s = SIZE[size];
   const split = align === 'split' && !!visual;
@@ -69,7 +69,7 @@ export function PageHero({
   );
 
   return (
-    <section className={cx('relative overflow-hidden px-5 sm:px-8', s.section)}>
+    <section className={cx('relative overflow-hidden px-5 sm:px-8', s.section, className)}>
       <HeroBackdrop drift={size !== 'compact'} />
       <div className="mx-auto max-w-6xl">
         {split ? (

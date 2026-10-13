@@ -41,7 +41,7 @@ export default async function ReviewsPage() {
           subtitle="The cards below show the kind of feedback we collect and how we present it — each one is a sample, clearly marked, until it is replaced with a named, permissioned review."
         />
 
-        <section className="px-5 pb-20 sm:px-8 sm:pb-24">
+        <section className="px-5 pt-6 pb-20 sm:px-8 sm:pt-8 sm:pb-24">
           <div className="mx-auto max-w-5xl">
             <Stagger className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {REVIEWS.map((r, i) => (

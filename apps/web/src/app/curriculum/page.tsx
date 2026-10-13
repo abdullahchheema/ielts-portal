@@ -37,7 +37,7 @@ export default async function CurriculumPage() {
           secondaryCta={{ label: 'See pricing', href: '/pricing' }}
         />
 
-        <section className="px-5 pb-20 sm:px-8 sm:pb-24">
+        <section className="px-5 pt-6 pb-20 sm:px-8 sm:pt-8 sm:pb-24">
           <div className="mx-auto max-w-5xl">
             <Reveal className="mb-10 text-center">
               <p className="text-overline font-bold text-primary uppercase">Modules</p>

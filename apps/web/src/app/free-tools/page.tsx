@@ -18,7 +18,7 @@ export default function FreeToolsPage() {
           subtitle="No account needed. Start with the band score calculator below."
         />
 
-        <section className="px-5 pb-20 sm:px-8 sm:pb-24">
+        <section className="px-5 pt-6 pb-20 sm:px-8 sm:pt-8 sm:pb-24">
           <Reveal className="mx-auto max-w-2xl">
             <h2 className="mb-6 text-center text-xl font-bold text-fg">Band score calculator</h2>
             <BandScoreCalculator />

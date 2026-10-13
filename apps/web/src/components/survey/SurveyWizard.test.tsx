@@ -22,16 +22,12 @@ describe('SurveyWizard', () => {
     await screen.findByText('Have you taken IELTS before?');
     expect(screen.getByText('Question 1 of 10')).toBeTruthy();
     expect((screen.getByRole('button', { name: 'Next' }) as HTMLButtonElement).disabled).toBe(true);
-
-    fireEvent.click(screen.getByText('No, this is my first time'));
-    expect((screen.getByRole('button', { name: 'Next' }) as HTMLButtonElement).disabled).toBe(false);
   });
 
-  it('advances past the conditional prior-band slide when the student has never taken it, and Back preserves the first answer', async () => {
+  it('auto-advances on a single-choice answer, skips the conditional prior-band slide, and Back preserves the first answer', async () => {
     render(<SurveyWizard onComplete={vi.fn()} />);
     await screen.findByText('Have you taken IELTS before?');
     fireEvent.click(screen.getByText('No, this is my first time'));
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
 
     await waitFor(() => expect(screen.queryByText('Question 2 of 10')).toBeTruthy());
     expect(screen.getByText(/only applies if you have taken IELTS before/)).toBeTruthy();
@@ -39,6 +35,13 @@ describe('SurveyWizard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
     await waitFor(() => expect(screen.queryByText('Question 1 of 10')).toBeTruthy());
     expect(screen.getByText('No, this is my first time').closest('button')?.getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('lets you jump directly to any question via the numbered navigation row', async () => {
+    render(<SurveyWizard onComplete={vi.fn()} />);
+    await screen.findByText('Have you taken IELTS before?');
+    fireEvent.click(screen.getByRole('tab', { name: /Question 4:/ }));
+    await waitFor(() => expect(screen.queryByText("What's your target band?")).toBeTruthy());
   });
 
   it('resumes a previously submitted survey with a summary instead of the first question', async () => {

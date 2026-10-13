@@ -214,3 +214,14 @@
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-6px); }
 }
+
+/* A colorful but readable wash built from the two brand colors (navy + amber) fading into white.
+   Kept pale deliberately -- dark body text sits directly on it in several places, so saturation is
+   tuned to stay well clear of contrast trouble, not for maximum vividness. */
+.bg-wash {
+  background:
+    radial-gradient(60% 55% at 12% 8%, rgb(36 51 86 / .14), transparent 60%),
+    radial-gradient(55% 50% at 92% 12%, rgb(245 158 11 / .16), transparent 60%),
+    radial-gradient(70% 60% at 50% 105%, rgb(47 76 143 / .10), transparent 70%),
+    var(--surface);
+}

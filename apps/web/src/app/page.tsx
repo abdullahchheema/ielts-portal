@@ -74,6 +74,7 @@ export default async function HomePage() {
         <PageHero
           size="full"
           align="split"
+          className="bg-wash"
           eyebrow="Complete IELTS preparation"
           title={<>Reach <span className="text-primary">your target band</span> with a teacher beside you.</>}
           subtitle="Join a live batch with teacher-led classes, regular mock tests and graded practice across Listening, Reading, Writing and Speaking."
@@ -191,7 +192,7 @@ export default async function HomePage() {
         {/* Teachers */}
         <section className="py-20 sm:py-24">
           <Reveal className="mx-auto max-w-5xl px-5 sm:px-8">
-            <div className="flex flex-col items-center gap-8 rounded-3xl bg-primary-soft p-10 text-center sm:p-14">
+            <div className="flex flex-col items-center gap-8 rounded-3xl bg-wash p-10 text-center ring-1 ring-border sm:p-14">
               <span aria-hidden className="grid size-16 animate-[float_6s_ease-in-out_infinite] place-items-center rounded-2xl bg-primary text-primary-fg shadow-md motion-reduce:animate-none">
                 <GraduationCap className="size-8" strokeWidth={1.75} />
               </span>

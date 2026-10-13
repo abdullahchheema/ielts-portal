@@ -9,7 +9,7 @@ import { Me, homeFor, useMe } from '@/lib/auth';
 
 const NAV_LINK = 'rounded-lg px-3.5 py-2 text-base font-semibold text-fg-muted transition-colors duration-[--dur-fast] ease-[--ease-out-soft] hover:bg-surface-muted hover:text-fg';
 const NAV_LINKS = [
-  { href: '/#course', label: 'The Course' },
+  { href: '/', label: 'Home' },
   { href: '/curriculum', label: 'Curriculum' },
   { href: '/pricing', label: 'Pricing' },
   { href: '/reviews', label: 'Reviews' },
