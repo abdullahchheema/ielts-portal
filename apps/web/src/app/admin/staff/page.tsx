@@ -2,7 +2,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Alert, Badge, Button, Card, Dialog, Field, Input, Loading, PageHeader, Table, Td, useConfirm } from '@/components/ui';
+import { Alert, Badge, Button, Card, Checkbox, Dialog, DropdownMenu, Empty, Field, Input, Loading, PageHeader, Section, Table, Td, useConfirm } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useMe } from '@/lib/auth';
 import { errorMessage } from '@/lib/errors';
@@ -18,9 +18,7 @@ function RolePicker({ value, onChange }: { value: string[]; onChange: (v: string
     <fieldset className="grid grid-cols-2 gap-2">
       <legend className="sr-only">Roles</legend>
       {ASSIGNABLE.map((r) => (
-        <label key={r} className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={value.includes(r)} onChange={(e) => onChange(e.target.checked ? [...value, r] : value.filter((x) => x !== r))} /> {roleLabel(r)}
-        </label>
+        <Checkbox key={r} checked={value.includes(r)} onChange={(e) => onChange(e.target.checked ? [...value, r] : value.filter((x) => x !== r))} label={roleLabel(r)} />
       ))}
     </fieldset>
   );
@@ -63,30 +61,35 @@ export default function StaffPage() {
     <>
       <PageHeader title="Staff & roles" subtitle="Role changes sign the person out everywhere and are audited." actions={<Button onClick={() => { setPicked([]); setEmail(''); setError(null); setInvite(true); }}>Invite staff</Button>} />
       {error && !invite && !edit && <div className="mb-4"><Alert>{error}</Alert></div>}
-      {staff.isLoading && <Loading />}
-      {staff.isError && <Alert>Could not load staff.</Alert>}
-      {staff.data && (
-        <Table head={['Email', 'Roles', '2FA', 'Last login', 'Status', '']}>
-          {staff.data.map((s) => (
-            <tr key={s.id}>
-              <Td className="font-medium">{s.email}{s.isOwner && <span className="ml-2 text-xs text-fg-muted">Owner</span>}</Td>
-              <Td>{s.roles.filter((r) => ASSIGNABLE.includes(r)).map((r) => roleLabel(r)).join(', ')}</Td>
-              <Td>{s.mfaEnabled ? <Badge status="ACTIVE" tone="green" /> : <Badge status="PENDING" tone="amber" />}</Td>
-              <Td>{date(s.lastLoginAt, true)}</Td><Td><Badge status={s.status} /></Td>
-              <Td>
-                <div className="flex flex-wrap gap-1">
-                  <Button variant="ghost" className="!py-1" onClick={() => { setPicked(s.roles.filter((r) => ASSIGNABLE.includes(r))); setError(null); setEdit(s); }}>Edit roles</Button>
-                  {canRemove(s) && <Button variant="ghost" tone="danger" className="!py-1" onClick={() => remove(s)}>Remove</Button>}
-                </div>
-              </Td>
-            </tr>
-          ))}
-        </Table>
-      )}
+      <Section title="Staff accounts">
+        {staff.isLoading && <Loading />}
+        {staff.isError && <Alert>Could not load staff.</Alert>}
+        {staff.data && (staff.data.length === 0 ? <Empty title="No staff yet">Invite your first staff member to get started.</Empty> : (
+          <Table head={['Email', 'Roles', '2FA', 'Last login', 'Status', '']} sticky>
+            {staff.data.map((s) => (
+              <tr key={s.id}>
+                <Td className="font-medium">{s.email}{s.isOwner && <span className="ml-2 text-xs text-fg-muted">Owner</span>}</Td>
+                <Td>{s.roles.filter((r) => ASSIGNABLE.includes(r)).map((r) => roleLabel(r)).join(', ')}</Td>
+                <Td>{s.mfaEnabled ? <Badge status="ACTIVE" tone="green" /> : <Badge status="PENDING" tone="amber" />}</Td>
+                <Td>{date(s.lastLoginAt, true)}</Td><Td><Badge status={s.status} /></Td>
+                <Td>
+                  <DropdownMenu
+                    align="end"
+                    trigger={<Button variant="ghost" className="!py-1">Actions</Button>}
+                    items={[
+                      { key: 'edit', label: 'Edit roles', onSelect: () => { setPicked(s.roles.filter((r) => ASSIGNABLE.includes(r))); setError(null); setEdit(s); } },
+                      ...(canRemove(s) ? [{ key: 'remove', label: 'Remove', danger: true, onSelect: () => remove(s) }] : []),
+                    ]}
+                  />
+                </Td>
+              </tr>
+            ))}
+          </Table>
+        ))}
+      </Section>
 
       {roles.data && (
-        <div className="mt-8">
-          <h2 className="mb-3 font-semibold">What each role can do</h2>
+        <Section title="What each role can do" className="mt-8">
           <div className="grid gap-4 md:grid-cols-2">
             {roles.data.filter((r) => ASSIGNABLE.includes(r.name)).map((r) => (
               <Card key={r.id}>
@@ -96,7 +99,7 @@ export default function StaffPage() {
               </Card>
             ))}
           </div>
-        </div>
+        </Section>
       )}
 
       <Dialog open={invite} onClose={() => setInvite(false)} title="Invite staff member">

@@ -1,8 +1,9 @@
 'use client';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Ticket } from 'lucide-react';
 import { useState } from 'react';
-import { Alert, Badge, Button, Dialog, Empty, Field, Input, Loading, PageHeader, Select, Table, Td } from '@/components/ui';
+import { Alert, Badge, Button, Checkbox, Dialog, Empty, Field, FilterBar, Input, Loading, PageHeader, Section, Select, Table, Td } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { date } from '@/lib/format';
@@ -37,23 +38,36 @@ export default function CouponsPage() {
 
   return (
     <>
-      <PageHeader title="Coupons" actions={<Button onClick={() => setOpen(true)}>New coupon</Button>} />
+      <PageHeader
+        title="Coupons"
+        subtitle="Discount codes for checkout. Disabling a coupon stops new redemptions without deleting its history."
+        actions={<Button onClick={() => setOpen(true)}>New coupon</Button>}
+      />
       {isLoading && <Loading />}
       {isError && <Alert>Could not load coupons.</Alert>}
-      {data && (data.length === 0 ? <Empty>No coupons yet.</Empty> : (
-        <Table head={['Code', 'Discount', 'Used', 'Per user', 'Expires', 'Status', '']}>
-          {data.map((c) => (
-            <tr key={c.id}>
-              <Td className="font-mono font-medium">{c.code}{c.firstPurchaseOnly && <span className="block font-sans text-xs font-normal text-fg-muted">First purchase only</span>}</Td>
-              <Td>{c.discountType === 'PERCENTAGE' ? `${Number(c.value)}%` : `PKR ${Number(c.value).toLocaleString()}`}</Td>
-              <Td>{c.redeemedCount}{c.maxRedemptions ? ` / ${c.maxRedemptions}` : ''}</Td>
-              <Td>{c.perUserLimit}</Td><Td>{date(c.expiresAt)}</Td>
-              <Td><Badge status={c.status} /></Td>
-              <Td><Button variant="ghost" className="!py-1" onClick={() => toggle(c)}>{c.active ? 'Disable' : 'Enable'}</Button></Td>
-            </tr>
-          ))}
-        </Table>
-      ))}
+      {data && (
+        <Section title="All coupons">
+          <FilterBar count={data.length}>
+            <span className="text-sm text-fg-muted">Showing every coupon, active and inactive.</span>
+          </FilterBar>
+          {data.length === 0 ? (
+            <Empty icon={Ticket} title="No coupons yet">Create one to offer a discount at checkout.</Empty>
+          ) : (
+            <Table sticky head={['Code', 'Discount', 'Used', 'Per user', 'Expires', 'Status', '']}>
+              {data.map((c) => (
+                <tr key={c.id}>
+                  <Td className="font-mono font-medium">{c.code}{c.firstPurchaseOnly && <span className="block font-sans text-xs font-normal text-fg-muted">First purchase only</span>}</Td>
+                  <Td>{c.discountType === 'PERCENTAGE' ? `${Number(c.value)}%` : `PKR ${Number(c.value).toLocaleString()}`}</Td>
+                  <Td>{c.redeemedCount}{c.maxRedemptions ? ` / ${c.maxRedemptions}` : ''}</Td>
+                  <Td>{c.perUserLimit}</Td><Td>{date(c.expiresAt)}</Td>
+                  <Td><Badge status={c.status} /></Td>
+                  <Td><Button variant="ghost" className="!py-1" onClick={() => toggle(c)}>{c.active ? 'Disable' : 'Enable'}</Button></Td>
+                </tr>
+              ))}
+            </Table>
+          )}
+        </Section>
+      )}
       <Dialog open={open} onClose={() => setOpen(false)} title="New coupon">
         <div className="space-y-3">
           {error && <Alert>{error}</Alert>}
@@ -65,7 +79,7 @@ export default function CouponsPage() {
             <Field label="Per student">{(p) => <Input {...p} type="number" min={1} value={f.perUserLimit} onChange={(e) => setF({ ...f, perUserLimit: e.target.value })} />}</Field>
           </div>
           <Field label="Expires">{(p) => <Input {...p} type="datetime-local" value={f.expiresAt} onChange={(e) => setF({ ...f, expiresAt: e.target.value })} />}</Field>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.firstPurchaseOnly} onChange={(e) => setF({ ...f, firstPurchaseOnly: e.target.checked })} /> First purchase only</label>
+          <Checkbox label="First purchase only" checked={f.firstPurchaseOnly} onChange={(e) => setF({ ...f, firstPurchaseOnly: e.target.checked })} />
           <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button><Button busy={busy} disabled={f.code.length < 3 || !f.value} onClick={create}>Create</Button></div>
         </div>
       </Dialog>

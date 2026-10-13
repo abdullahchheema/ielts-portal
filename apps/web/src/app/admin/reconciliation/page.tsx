@@ -2,7 +2,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Alert, Button, Card, CardList, Empty, Loading, PageHeader, Section, Select, StatCard, Table, Td, Textarea } from '@/components/ui';
+import { Alert, Badge, Button, Card, CardList, Empty, FilterBar, Loading, PageHeader, Section, Select, StatCard, Table, Td, Textarea } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 
@@ -16,8 +16,16 @@ const METHODS = ['BANK_TRANSFER', 'JAZZCASH', 'EASYPAISA', 'OTHER'] as const;
 export default function ReconciliationPage() {
   const qc = useQueryClient();
   const summary = useQuery({ queryKey: ['recon-summary'], queryFn: () => api<Summary>('/admin/reconciliation/summary') });
-  const exceptions = useQuery({ queryKey: ['recon-exceptions'], queryFn: () => api<Exception[]>('/admin/reconciliation/exceptions') });
-  const risk = useQuery({ queryKey: ['payment-risk'], queryFn: () => api<Flag[]>('/admin/payment-risk') });
+  const [exceptionStatus, setExceptionStatus] = useState('');
+  const exceptions = useQuery({
+    queryKey: ['recon-exceptions', exceptionStatus],
+    queryFn: () => api<Exception[]>('/admin/reconciliation/exceptions' + (exceptionStatus ? '?status=' + exceptionStatus : '')),
+  });
+  const [riskLevel, setRiskLevel] = useState('');
+  const risk = useQuery({
+    queryKey: ['payment-risk', riskLevel],
+    queryFn: () => api<Flag[]>('/admin/payment-risk' + (riskLevel ? '?level=' + riskLevel : '')),
+  });
   const [method, setMethod] = useState<(typeof METHODS)[number]>('BANK_TRANSFER');
   const [csv, setCsv] = useState('');
   const [message, setMessage] = useState<string | null>(null);
@@ -101,9 +109,15 @@ export default function ReconciliationPage() {
       </Section>
 
       <Section title="Exceptions to decide">
+        <FilterBar count={exceptions.data?.length}>
+          <Select aria-label="Exception status" className="!w-auto" value={exceptionStatus} onChange={(e) => setExceptionStatus(e.target.value)}>
+            <option value="">All exception types</option>
+            {['MISMATCHED', 'DUPLICATE', 'PENDING_REVIEW', 'UNMATCHED'].map((s) => <option key={s} value={s}>{s.toLowerCase().replace('_', ' ')}</option>)}
+          </Select>
+        </FilterBar>
         {exceptions.isLoading && <Loading />}
         {exceptions.data && (exceptions.data.length === 0 ? <Empty title="No exceptions" /> : (
-          <Table head={['Reference', 'Order', 'Status', 'Why', '']}>
+          <Table sticky head={['Reference', 'Order', 'Status', 'Why', '']}>
             {exceptions.data.map((x) => (
               <tr key={x.id}>
                 <Td className="font-mono text-xs">{x.proof.bankTxnReference}</Td>
@@ -123,6 +137,12 @@ export default function ReconciliationPage() {
       </Section>
 
       <Section title="Payment risk to review" description="Flags explain the concern. A person decides; nothing is rejected automatically.">
+        <FilterBar count={risk.data?.length}>
+          <Select aria-label="Risk level" className="!w-auto" value={riskLevel} onChange={(e) => setRiskLevel(e.target.value)}>
+            <option value="">All levels</option>
+            {['LOW', 'MEDIUM', 'HIGH'].map((l) => <option key={l} value={l}>{l.toLowerCase()}</option>)}
+          </Select>
+        </FilterBar>
         {risk.isLoading && <Loading />}
         {risk.data && (risk.data.length === 0 ? <Empty title="No open flags" /> : (
           <CardList>
@@ -131,7 +151,7 @@ export default function ReconciliationPage() {
                 <Card className="space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="font-medium text-fg">{p.orderReference} · {p.student}</p>
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${p.overall === 'HIGH' ? 'bg-danger-soft text-danger' : p.overall === 'MEDIUM' ? 'bg-warning-soft text-warning' : 'bg-info-soft text-info'}`}>{(p.overall ?? 'LOW').toLowerCase()} risk</span>
+                    <Badge status={p.overall ?? 'LOW'} tone={p.overall === 'HIGH' ? 'red' : p.overall === 'MEDIUM' ? 'amber' : 'blue'} text={`${(p.overall ?? 'LOW').toLowerCase()} risk`} />
                   </div>
                   <ul className="space-y-2">
                     {p.flags.map((f) => (

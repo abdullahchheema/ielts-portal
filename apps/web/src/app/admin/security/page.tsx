@@ -3,7 +3,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { QRCodeSVG } from 'qrcode.react';
 import { useState } from 'react';
-import { Alert, Button, Card, Field, Input, PageHeader } from '@/components/ui';
+import { Alert, Button, Card, Field, Input, PageHeader, Section } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useMe } from '@/lib/auth';
 import { errorMessage } from '@/lib/errors';
@@ -32,15 +32,22 @@ export default function SecurityPage() {
   return (
     <>
       <PageHeader title="Two-factor authentication" subtitle="Admin accounts must use an authenticator app (Google Authenticator, Authy, 1Password…)." />
-      <Card className="max-w-xl space-y-4">
-        {me?.mfaSetupRequired && <Alert kind="warning">You must enable two-factor authentication before you can use the admin panel.</Alert>}
-        {me?.mfaEnabled && <Alert kind="success">Two-factor authentication is enabled on your account. You will be asked for a code each time you log in.</Alert>}
-        {error && <Alert>{error}</Alert>}
 
-        {!me?.mfaEnabled && !setup && <Button onClick={start} busy={busy}>Set up authenticator app</Button>}
+      <Section title="Status">
+        {me?.mfaSetupRequired && <div className="mb-4"><Alert kind="warning">You must enable two-factor authentication before you can use the admin panel.</Alert></div>}
+        {me?.mfaEnabled && <div className="mb-4"><Alert kind="success">Two-factor authentication is enabled on your account. You will be asked for a code each time you log in.</Alert></div>}
+        {error && <div className="mb-4"><Alert>{error}</Alert></div>}
 
-        {setup && (
-          <div className="space-y-4">
+        {!me?.mfaEnabled && !setup && (
+          <Card className="max-w-xl">
+            <Button onClick={start} busy={busy}>Set up authenticator app</Button>
+          </Card>
+        )}
+      </Section>
+
+      {setup && (
+        <Section title="Set up your authenticator app" description="Scan the QR code, then confirm with the 6-digit code it shows.">
+          <Card className="max-w-xl space-y-4">
             <ol className="list-decimal space-y-1 pl-5 text-sm text-fg">
               <li>Scan this QR code with your authenticator app.</li>
               <li>Enter the 6-digit code it shows to finish.</li>
@@ -49,9 +56,9 @@ export default function SecurityPage() {
             <p className="text-xs text-fg-muted">Can’t scan? Enter this key manually: <code className="rounded bg-surface-muted px-1.5 py-0.5 font-mono text-fg">{setup.secret}</code></p>
             <Field label="6-digit code">{(p) => <Input {...p} inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} />}</Field>
             <Button onClick={confirm} busy={busy} disabled={code.length !== 6}>Confirm and enable</Button>
-          </div>
-        )}
-      </Card>
+          </Card>
+        </Section>
+      )}
     </>
   );
 }

@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
 import { useMemo } from 'react';
-import { Alert, Badge, Card, Empty, PageHeader, Section, SkeletonCards, SkeletonTable, Table, Tabs, Td } from '@/components/ui';
+import { Alert, Badge, Card, DefinitionList, Empty, PageHeader, Section, SkeletonCards, SkeletonTable, Table, Tabs, Td } from '@/components/ui';
 import { EstimatedBand } from '@/components/EstimatedBand';
 import { IeltsSummary, IeltsSummaryLike } from '@/components/IeltsSummary';
 import { RiskBadge, type RiskLevelValue } from '@/components/RiskBadge';
@@ -81,23 +81,27 @@ export default function StudentDetailPage() {
                   {analytics.data.risk.level === 'GREEN' && analytics.data.risk.positives.length > 0 && (
                     <ul className="mt-3 list-inside list-disc text-sm text-fg-muted">{analytics.data.risk.positives.map((p) => <li key={p}>{p}</li>)}</ul>
                   )}
-                  <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                    <div><dt className="text-fg-muted">Attendance</dt><dd className="font-medium tabular-nums">{analytics.data.risk.signals.attendancePercent === null ? 'No sessions yet' : `${analytics.data.risk.signals.attendancePercent}%`}</dd></div>
-                    <div><dt className="text-fg-muted">Last academic activity</dt><dd className="font-medium">{analytics.data.risk.signals.daysSinceAcademicActivity === null ? 'None yet' : `${analytics.data.risk.signals.daysSinceAcademicActivity} days ago`}</dd></div>
-                    <div><dt className="text-fg-muted">Overdue work</dt><dd className="font-medium tabular-nums">{analytics.data.risk.signals.overdueCount}</dd></div>
-                    <div><dt className="text-fg-muted">Late recently</dt><dd className="font-medium tabular-nums">{analytics.data.risk.signals.lateRecent}</dd></div>
-                  </dl>
+                  <div className="mt-4">
+                    <DefinitionList items={[
+                      { label: 'Attendance', value: analytics.data.risk.signals.attendancePercent === null ? 'No sessions yet' : `${analytics.data.risk.signals.attendancePercent}%` },
+                      { label: 'Last academic activity', value: analytics.data.risk.signals.daysSinceAcademicActivity === null ? 'None yet' : `${analytics.data.risk.signals.daysSinceAcademicActivity} days ago` },
+                      { label: 'Overdue work', value: analytics.data.risk.signals.overdueCount },
+                      { label: 'Late recently', value: analytics.data.risk.signals.lateRecent },
+                    ]} />
+                  </div>
                 </>
               ) : <p className="text-sm text-fg-muted">Not enrolled, so there is no risk to assess.</p>}
             </Card>
             <Card>
               <EstimatedBand value={band.overall} missingSkills={band.missingSkills.map((k) => label(k))} trend={band.overallTrend} delta={band.overall !== null && band.overallPrevious !== null ? Math.round((band.overall - band.overallPrevious) * 2) / 2 : null} />
-              <dl className="mt-5 grid grid-cols-2 gap-3 text-sm">
-                <div><dt className="text-fg-muted">Target band</dt><dd className="font-medium tabular-nums">{band.target ?? 'Not set'}</dd></div>
-                <div><dt className="text-fg-muted">Gap to target</dt><dd className="font-medium tabular-nums">{band.gapToTarget ?? '—'}</dd></div>
-                <div><dt className="text-fg-muted">Exam date</dt><dd className="font-medium">{date(s.ieltsExamDate)}</dd></div>
-                <div><dt className="text-fg-muted">Last login</dt><dd className="font-medium">{date(s.user.lastLoginAt, true)}</dd></div>
-              </dl>
+              <div className="mt-5">
+                <DefinitionList items={[
+                  { label: 'Target band', value: band.target ?? 'Not set' },
+                  { label: 'Gap to target', value: band.gapToTarget ?? '—' },
+                  { label: 'Exam date', value: date(s.ieltsExamDate) },
+                  { label: 'Last login', value: date(s.user.lastLoginAt, true) },
+                ]} />
+              </div>
             </Card>
           </div>
         )
@@ -126,7 +130,7 @@ export default function StudentDetailPage() {
         attendance.isLoading ? <SkeletonTable rows={6} cols={5} /> : attendance.isError || !attendance.data ? <Alert>Could not load attendance.</Alert> : attendance.data.length === 0 ? (
           <Empty title="No attendance yet">Attendance appears here once a teacher marks a class this student was enrolled for.</Empty>
         ) : (
-          <Table head={['Date', 'Class', 'Batch', 'Status', 'Note']}>
+          <Table head={['Date', 'Class', 'Batch', 'Status', 'Note']} sticky>
             {attendance.data.map((r, i) => (
               <tr key={i}>
                 <Td className="tabular-nums">{date(r.date, true)}</Td>
@@ -144,7 +148,7 @@ export default function StudentDetailPage() {
         assessments.isLoading ? <SkeletonTable rows={6} cols={6} /> : assessments.isError || !assessments.data ? <Alert>Could not load assessments.</Alert> : assessments.data.length === 0 ? (
           <Empty title="No assessments yet">Attempts appear here as the student completes tests.</Empty>
         ) : (
-          <Table head={['Test', 'Skill', 'Attempt', 'Submitted', 'Score', 'Band']}>
+          <Table head={['Test', 'Skill', 'Attempt', 'Submitted', 'Score', 'Band']} sticky>
             {assessments.data.map((r, i) => (
               <tr key={i}>
                 <Td className="font-medium">{r.title}</Td>
@@ -163,7 +167,7 @@ export default function StudentDetailPage() {
         assignments.isLoading ? <SkeletonTable rows={6} cols={6} /> : assignments.isError || !assignments.data ? <Alert>Could not load assignments.</Alert> : assignments.data.length === 0 ? (
           <Empty title="No assignments on this course">Writing and speaking tasks appear here once the course has them.</Empty>
         ) : (
-          <Table head={['Task', 'Skill', 'Due', 'Status', 'Submitted', 'Band']}>
+          <Table head={['Task', 'Skill', 'Due', 'Status', 'Submitted', 'Band']} sticky>
             {assignments.data.map((r, i) => (
               <tr key={i}>
                 <Td className="font-medium">{r.title}</Td>
@@ -200,15 +204,15 @@ export default function StudentDetailPage() {
               <SurveySummary doc={survey.data} />
             </Card>
             <Section title="Enrollments">
-              {s.enrollments.length === 0 ? <p className="text-sm text-fg-muted">None.</p> : (
-                <Table head={['Course', 'Batch', 'Progress', 'Status']}>
+              {s.enrollments.length === 0 ? <Empty>No enrollments yet.</Empty> : (
+                <Table head={['Course', 'Batch', 'Progress', 'Status']} sticky>
                   {s.enrollments.map((e) => <tr key={e.id}><Td>{e.course.title}</Td><Td>{e.batch.name}</Td><Td className="tabular-nums">{Math.round(Number(e.progressPercent))}%</Td><Td><Badge status={e.status} /></Td></tr>)}
                 </Table>
               )}
             </Section>
             <Section title="Orders">
-              {s.orders.length === 0 ? <p className="text-sm text-fg-muted">None.</p> : (
-                <Table head={['Reference', 'Total', 'Status', 'Date']}>
+              {s.orders.length === 0 ? <Empty>No orders yet.</Empty> : (
+                <Table head={['Reference', 'Total', 'Status', 'Date']} sticky>
                   {s.orders.map((o) => <tr key={o.id}><Td className="font-mono text-xs">{o.reference}</Td><Td className="tabular-nums">{money(o.total, o.currency)}</Td><Td><Badge status={o.status} /></Td><Td>{date(o.createdAt)}</Td></tr>)}
                 </Table>
               )}

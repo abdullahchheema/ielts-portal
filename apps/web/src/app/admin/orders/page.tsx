@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Alert, Badge, ClickableRow, DefinitionList, DetailDialog, Empty, Loading, PageHeader, Section, Select, Table, Td } from '@/components/ui';
+import { Alert, Badge, ClickableRow, DefinitionList, DetailDialog, Empty, FilterBar, Loading, PageHeader, Section, Select, Table, Td } from '@/components/ui';
 import { ReceiptViewer } from '@/components/ReceiptViewer';
 import { api } from '@/lib/api';
 import { date, label, money } from '@/lib/format';
@@ -67,25 +67,29 @@ export default function OrdersAdminPage() {
   return (
     <>
       <PageHeader title="Orders" subtitle="Financial records are never deleted." />
-      <div className="mb-4 max-w-xs"><Select aria-label="Filter by status" value={status} onChange={(e) => setStatus(e.target.value)}>
-        <option value="">All</option>{['AWAITING_PAYMENT', 'PENDING_REVIEW', 'PAID', 'CANCELLED', 'EXPIRED', 'REFUNDED'].map((s) => <option key={s} value={s}>{label(s)}</option>)}
-      </Select></div>
-      {isLoading && <Loading />}
-      {isError && <Alert>Could not load orders.</Alert>}
-      {data && (data.length === 0 ? <Empty>No orders.</Empty> : (
-        <Table head={['Reference', 'Student', 'Course / batch', 'Total', 'Payment', 'Status', 'Created']}>
-          {data.map((o) => (
-            <ClickableRow key={o.id} onClick={() => setOpen(o)}>
-              <Td className="font-mono text-xs">{o.reference}</Td>
-              <Td>{o.student.firstName} {o.student.lastName}<span className="block text-xs text-fg-muted">{o.student.user.email}</span></Td>
-              <Td>{o.items[0]?.batch.course.title}<span className="block text-xs text-fg-muted">{o.items[0]?.batch.name}</span></Td>
-              <Td>{money(o.total, o.currency)}{Number(o.discount) > 0 && <span className="block text-xs text-green-700">−{money(o.discount, o.currency)}</span>}</Td>
-              <Td>{o.payments[0] ? <Badge status={o.payments[0].status} /> : '—'}</Td>
-              <Td><Badge status={o.status} /></Td><Td>{date(o.createdAt, true)}</Td>
-            </ClickableRow>
-          ))}
-        </Table>
-      ))}
+      <Section title="All orders">
+        <FilterBar count={data?.length}>
+          <Select aria-label="Filter by status" className="!w-auto" value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="">All statuses</option>{['AWAITING_PAYMENT', 'PENDING_REVIEW', 'PAID', 'CANCELLED', 'EXPIRED', 'REFUNDED'].map((s) => <option key={s} value={s}>{label(s)}</option>)}
+          </Select>
+        </FilterBar>
+        {isLoading && <Loading />}
+        {isError && <Alert>Could not load orders.</Alert>}
+        {data && (data.length === 0 ? <Empty title="No orders">No orders match this filter.</Empty> : (
+          <Table sticky head={['Reference', 'Student', 'Course / batch', 'Total', 'Payment', 'Status', 'Created']}>
+            {data.map((o) => (
+              <ClickableRow key={o.id} onClick={() => setOpen(o)}>
+                <Td className="font-mono text-xs">{o.reference}</Td>
+                <Td>{o.student.firstName} {o.student.lastName}<span className="block text-xs text-fg-muted">{o.student.user.email}</span></Td>
+                <Td>{o.items[0]?.batch.course.title}<span className="block text-xs text-fg-muted">{o.items[0]?.batch.name}</span></Td>
+                <Td>{money(o.total, o.currency)}{Number(o.discount) > 0 && <span className="block text-xs text-green-700">−{money(o.discount, o.currency)}</span>}</Td>
+                <Td>{o.payments[0] ? <Badge status={o.payments[0].status} /> : '—'}</Td>
+                <Td><Badge status={o.status} /></Td><Td>{date(o.createdAt, true)}</Td>
+              </ClickableRow>
+            ))}
+          </Table>
+        ))}
+      </Section>
       <OrderDetailDialog order={open} onClose={() => setOpen(null)} />
     </>
   );

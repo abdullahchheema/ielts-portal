@@ -4,7 +4,7 @@ import { useConfirm } from '@/components/ui';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { Alert, Badge, Button, Card, Dialog, Field, Input, Loading, PageHeader, Select, Textarea } from '@/components/ui';
+import { Alert, Badge, Button, Card, Checkbox, Dialog, Field, Input, Loading, PageHeader, Section, Select, Textarea } from '@/components/ui';
 import { api } from '@/lib/api';
 import { can, useMe } from '@/lib/auth';
 import { errorMessage } from '@/lib/errors';
@@ -84,7 +84,7 @@ function ItemDialog({ open, onClose, sectionId, item, siblings, onSaved }: { ope
         {f.contentType === 'TEXT' && <Field label="Text">{(p) => <Textarea {...p} rows={5} value={f.body} onChange={(e) => set('body', e.target.value)} />}</Field>}
         {['VIDEO', 'EXTERNAL_LINK'].includes(f.contentType) && <Field label="URL" hint="Direct .mp4 links play inline; other links open in a new tab.">{(p) => <Input {...p} type="url" value={f.url} onChange={(e) => set('url', e.target.value)} />}</Field>}
         {ASSESSMENT_TYPES.includes(f.contentType) && <Field label="Assessment" hint="Build it under Academics → Assessments. Only published assessments can be taken.">{(p) => <Select {...p} value={f.assessmentId} onChange={(e) => set('assessmentId', e.target.value)}><option value="">Select…</option>{assessments.data?.map((a) => <option key={a.id} value={a.id}>{a.title} ({label(a.type)}){a.versions.some((v) => v.publishedAt) ? '' : ' — draft'}</option>)}</Select>}</Field>}
-        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.isRequired} onChange={(e) => set('isRequired', e.target.checked)} /> Required for course completion</label>
+        <Checkbox checked={f.isRequired} onChange={(e) => set('isRequired', e.target.checked)} label="Required for course completion" />
         <div className="grid grid-cols-2 gap-3">
           <Field label="Release">{(p) => <Select {...p} value={f.releaseType} onChange={(e) => set('releaseType', e.target.value)}>{RELEASES.map((r) => <option key={r} value={r}>{label(r)}</option>)}</Select>}</Field>
           {f.releaseType === 'BATCH_DATE' && <Field label="Release at">{(p) => <Input {...p} type="datetime-local" value={f.date} onChange={(e) => set('date', e.target.value)} />}</Field>}
@@ -215,18 +215,19 @@ function CourseDetails({ c, canEdit, onSaved }: { c: CourseDetail; canEdit: bool
     } catch (e) { setMsg({ ok: false, text: errorMessage(e) }); } finally { setBusy(false); }
   }
   return (
-    <Card className="mb-6">
-      <h2 className="mb-3 font-semibold">Course details</h2>
-      {msg && <div className="mb-3"><Alert kind={msg.ok ? 'success' : 'error'}>{msg.text}</Alert></div>}
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Title">{(p) => <Input {...p} disabled={!canEdit} value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} />}</Field>
-        <Field label={`Price (${c.currency})`}>{(p) => <Input {...p} type="number" min={0} disabled={!canEdit} value={f.price} onChange={(e) => setF({ ...f, price: e.target.value })} />}</Field>
-        <Field label="Duration (weeks)">{(p) => <Input {...p} type="number" min={1} disabled={!canEdit} value={f.durationWeeks} onChange={(e) => setF({ ...f, durationWeeks: e.target.value })} />}</Field>
-        <Field label="Access after enrollment (days)">{(p) => <Input {...p} type="number" min={1} disabled={!canEdit} value={f.defaultAccessDays} onChange={(e) => setF({ ...f, defaultAccessDays: e.target.value })} />}</Field>
-        <div className="sm:col-span-2"><Field label="Description">{(p) => <Textarea {...p} rows={3} disabled={!canEdit} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} />}</Field></div>
-      </div>
-      {canEdit && <div className="mt-3"><Button onClick={save} busy={busy} disabled={f.title.trim().length < 2}>Save details</Button></div>}
-    </Card>
+    <Section title="Course details" className="mb-6">
+      <Card>
+        {msg && <div className="mb-3"><Alert kind={msg.ok ? 'success' : 'error'}>{msg.text}</Alert></div>}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Title">{(p) => <Input {...p} disabled={!canEdit} value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} />}</Field>
+          <Field label={`Price (${c.currency})`}>{(p) => <Input {...p} type="number" min={0} disabled={!canEdit} value={f.price} onChange={(e) => setF({ ...f, price: e.target.value })} />}</Field>
+          <Field label="Duration (weeks)">{(p) => <Input {...p} type="number" min={1} disabled={!canEdit} value={f.durationWeeks} onChange={(e) => setF({ ...f, durationWeeks: e.target.value })} />}</Field>
+          <Field label="Access after enrollment (days)">{(p) => <Input {...p} type="number" min={1} disabled={!canEdit} value={f.defaultAccessDays} onChange={(e) => setF({ ...f, defaultAccessDays: e.target.value })} />}</Field>
+          <div className="sm:col-span-2"><Field label="Description">{(p) => <Textarea {...p} rows={3} disabled={!canEdit} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} />}</Field></div>
+        </div>
+        {canEdit && <div className="mt-3"><Button onClick={save} busy={busy} disabled={f.title.trim().length < 2}>Save details</Button></div>}
+      </Card>
+    </Section>
   );
 }
 
@@ -276,7 +277,8 @@ export default function CourseBuilderPage() {
       {error && <div className="mb-4"><Alert>{error}</Alert></div>}
       <CourseDetails key={c.id + c.title + c.price} c={c} canEdit={can(me, 'course.edit')} onSaved={refreshCourse} />
 
-      <Card className="mb-6">
+      <Section title="Version" className="mb-6">
+        <Card>
         <div className="flex flex-wrap items-center gap-3">
           <label className="text-sm font-medium text-fg" htmlFor="version">Version</label>
           <Select id="version" className="!w-auto" value={current ?? ''} onChange={(e) => setVersionId(e.target.value)}>
@@ -299,19 +301,19 @@ export default function CourseBuilderPage() {
             </Alert>
           </div>
         )}
-      </Card>
+        </Card>
+      </Section>
 
-      {tree.isLoading && <Loading />}
-      {tree.data && (
-        <>
-          {editable && <div className="mb-4"><Button variant="secondary" onClick={() => setSectionDlg({ open: true, parent: null })}>+ Section</Button></div>}
-          {tree.data.sections.length === 0 ? <Alert kind="info">No content yet. Add a section, then add lessons to it.</Alert> : (
+      <Section title="Content" actions={editable && <Button variant="secondary" onClick={() => setSectionDlg({ open: true, parent: null })}>+ Section</Button>}>
+        {tree.isLoading && <Loading />}
+        {tree.data && (
+          tree.data.sections.length === 0 ? <Alert kind="info">No content yet. Add a section, then add lessons to it.</Alert> : (
             <ul className="space-y-3">
               {tree.data.sections.map((s) => <SectionNode key={s.id} s={s} siblings={tree.data!.sections} all={items} editable={editable} actions={actions} />)}
             </ul>
-          )}
-        </>
-      )}
+          )
+        )}
+      </Section>
 
       {current && <SectionDialog open={sectionDlg.open} onClose={() => setSectionDlg({ open: false, parent: null })} versionId={current} parentId={sectionDlg.parent} onSaved={refresh} />}
       <TaskDialog item={taskItem} onClose={() => setTaskItem(null)} />

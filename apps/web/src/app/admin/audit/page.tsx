@@ -2,7 +2,7 @@
 
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Alert, Button, Empty, Input, Loading, PageHeader, Table, Td } from '@/components/ui';
+import { Accordion, Alert, Button, Empty, FilterBar, Input, Loading, PageHeader, Table, Td, Tooltip } from '@/components/ui';
 import { api } from '@/lib/api';
 import { date } from '@/lib/format';
 
@@ -11,10 +11,11 @@ interface Page { items: Entry[]; nextBefore: string | null }
 
 export default function AuditPage() {
   const [action, setAction] = useState('');
+  const [entityType, setEntityType] = useState('');
   const q = useInfiniteQuery({
-    queryKey: ['audit', action],
+    queryKey: ['audit', action, entityType],
     initialPageParam: '' as string,
-    queryFn: ({ pageParam }) => api<Page>(`/admin/audit-logs?take=50${action ? `&action=${encodeURIComponent(action)}` : ''}${pageParam ? `&before=${encodeURIComponent(pageParam)}` : ''}`),
+    queryFn: ({ pageParam }) => api<Page>(`/admin/audit-logs?take=50${action ? `&action=${encodeURIComponent(action)}` : ''}${entityType ? `&entityType=${encodeURIComponent(entityType)}` : ''}${pageParam ? `&before=${encodeURIComponent(pageParam)}` : ''}`),
     getNextPageParam: (last) => last.nextBefore ?? undefined,
   });
   const rows = q.data?.pages.flatMap((p) => p.items) ?? [];
@@ -22,22 +23,26 @@ export default function AuditPage() {
   return (
     <>
       <PageHeader title="Audit log" subtitle="Append-only. Entries cannot be edited or deleted." />
-      <div className="mb-4 max-w-xs"><Input aria-label="Filter by action" placeholder="Action, e.g. ADMIN_APPROVED_PAYMENT" value={action} onChange={(e) => setAction(e.target.value.trim().toUpperCase())} /></div>
+      <FilterBar>
+        <Input aria-label="Filter by action" placeholder="Action, e.g. ADMIN_APPROVED_PAYMENT" className="max-w-xs" value={action} onChange={(e) => setAction(e.target.value.trim().toUpperCase())} />
+        <Input aria-label="Filter by entity type" placeholder="Entity type, e.g. PAYMENT" className="max-w-xs" value={entityType} onChange={(e) => setEntityType(e.target.value.trim().toUpperCase())} />
+      </FilterBar>
       {q.isLoading && <Loading />}
       {q.isError && <Alert>Could not load the audit log.</Alert>}
-      {q.data && (rows.length === 0 ? <Empty>No entries.</Empty> : (
+      {q.data && (rows.length === 0 ? <Empty title="No entries">No audit entries match these filters.</Empty> : (
         <>
-          <Table head={['When', 'Actor', 'Action', 'Entity', 'Details']}>
+          <Table head={['When', 'Actor', 'Action', 'Entity', 'Details']} sticky>
             {rows.map((r) => (
               <tr key={r.id}>
                 <Td className="whitespace-nowrap">{date(r.createdAt, true)}</Td>
                 <Td>{r.actor ?? 'system'}<span className="block text-xs text-fg-muted">{r.ip}</span></Td>
                 <Td className="font-mono text-xs">{r.action}</Td>
-                <Td>{r.entityType}<span className="block font-mono text-xs text-fg-muted">{r.entityId?.slice(0, 8)}</span></Td>
+                <Td>{r.entityType}{r.entityId && <Tooltip content={r.entityId}><span className="block cursor-default font-mono text-xs text-fg-muted">{r.entityId.slice(0, 8)}</span></Tooltip>}</Td>
                 <Td>{(r.before || r.after) ? (
-                  <details><summary className="cursor-pointer text-primary">View</summary>
-                    <pre className="mt-1 max-h-48 max-w-md overflow-auto rounded bg-canvas p-2 text-xs">{JSON.stringify({ before: r.before, after: r.after }, null, 2)}</pre>
-                  </details>) : '—'}</Td>
+                  <Accordion items={[{ key: r.id, title: 'View', content: (
+                    <pre className="max-h-48 max-w-md overflow-auto rounded bg-canvas p-2 text-xs">{JSON.stringify({ before: r.before, after: r.after }, null, 2)}</pre>
+                  ) }]} />
+                ) : '—'}</Td>
               </tr>
             ))}
           </Table>

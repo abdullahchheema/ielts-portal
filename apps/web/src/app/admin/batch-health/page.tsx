@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Card, Empty, Loading, PageHeader, Section, StatCard, Table, Td } from '@/components/ui';
+import { Alert, Badge, Card, Empty, Loading, PageHeader, Section, StatCard, Table, Td } from '@/components/ui';
 import { api } from '@/lib/api';
 import { label } from '@/lib/format';
 
@@ -15,11 +15,7 @@ interface BatchHealth {
   cached: boolean;
 }
 
-const TONE: Record<Health, string> = {
-  GREEN: 'bg-success-soft text-success',
-  YELLOW: 'bg-warning-soft text-warning',
-  RED: 'bg-danger-soft text-danger',
-};
+const TONE: Record<Health, 'green' | 'amber' | 'red'> = { GREEN: 'green', YELLOW: 'amber', RED: 'red' };
 
 /** Batch health across open and running batches. Each rating states the reasons behind it. */
 export default function BatchHealthPage() {
@@ -41,13 +37,11 @@ export default function BatchHealthPage() {
           </div>
           <Section title="Batches">
             {rows.length === 0 ? <Empty title="No open or running batches" /> : (
-              <Table head={['Batch', 'Status', 'Active', 'At risk', 'Why']}>
+              <Table sticky head={['Batch', 'Status', 'Active', 'At risk', 'Why']}>
                 {rows.map((r) => (
                   <tr key={r.batch}>
                     <Td className="font-medium">{r.batch}</Td>
-                    <Td>
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${TONE[r.status]}`}>{label(r.status)}</span>
-                    </Td>
+                    <Td><Badge status={r.status} tone={TONE[r.status]} text={label(r.status)} /></Td>
                     <Td>{r.metrics.activeStudents}</Td>
                     <Td>{r.metrics.atRiskStudents}</Td>
                     <Td className="max-w-md text-sm text-fg-muted">{r.reasons.length ? r.reasons.join(' ') : 'Nothing flagged.'}</Td>

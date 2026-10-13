@@ -42,7 +42,7 @@ export default function ContentAnalyticsPage() {
         {items.isLoading ? <SkeletonTable rows={6} cols={5} /> : items.isError || !items.data ? <Alert>Could not load course analytics.</Alert> : items.data.items.length === 0 ? (
           <Empty title="No items yet">Add lessons to this course version to see how students progress through them.</Empty>
         ) : (
-          <Table head={['Section', 'Item', 'Type', 'Started', 'Completed', 'Completion']}>
+          <Table head={['Section', 'Item', 'Type', 'Started', 'Completed', 'Completion']} sticky>
             {items.data.items.map((r) => (
               <tr key={r.itemId}>
                 <Td className="text-fg-muted">{r.section}</Td>
@@ -70,7 +70,7 @@ export default function ContentAnalyticsPage() {
         {questions.isLoading ? <SkeletonTable rows={6} cols={5} /> : questions.isError || !questions.data ? <Alert>Could not load question analysis.</Alert> : questions.data.questions.length === 0 ? (
           <Empty title="No questions yet">Questions appear here once this assessment has them.</Empty>
         ) : (
-          <Table head={['Question', 'Type', 'Attempts', 'Correct', 'Discrimination', 'Review']}>
+          <Table head={['Question', 'Type', 'Attempts', 'Correct', 'Discrimination', 'Review']} sticky>
             {questions.data.questions.map((q) => {
               const flags: string[] = [];
               if (q.correctPercent !== null && q.correctPercent >= 90) flags.push('Very easy');

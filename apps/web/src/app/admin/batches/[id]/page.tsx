@@ -5,7 +5,7 @@ import { useConfirm } from '@/components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
-import { Alert, Badge, Button, Card, Field, Input, Loading, PageHeader, Select, Table, Td } from '@/components/ui';
+import { Alert, Badge, Button, Card, Empty, Field, Loading, PageHeader, Section, Select, SimpleList, SimpleListItem, Table, Td } from '@/components/ui';
 import { api } from '@/lib/api';
 import { can, useMe } from '@/lib/auth';
 import { errorMessage } from '@/lib/errors';
@@ -54,11 +54,10 @@ export default function BatchDetailPage() {
       {error && <div className="mb-4"><Alert>{error}</Alert></div>}
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <h2 className="mb-3 font-semibold">Students & status</h2>
-          <p className="mb-3 text-sm text-fg-muted"><strong>{b.counts.enrolled}</strong> enrolled · <strong>{b.counts.pending}</strong> waiting for payment verification. Batches have no size limit.</p>
-          {canEdit && (
-            <div className="space-y-4">
+        <Section title="Students & status">
+          <Card>
+            <p className="mb-3 text-sm text-fg-muted"><strong>{b.counts.enrolled}</strong> enrolled · <strong>{b.counts.pending}</strong> waiting for payment verification. Batches have no size limit.</p>
+            {canEdit && (
               <div>
                 <p className="mb-1 text-sm font-medium text-fg">Move to</p>
                 <div className="flex flex-wrap gap-2">
@@ -68,36 +67,40 @@ export default function BatchDetailPage() {
                   ))}
                 </div>
               </div>
-            </div>
-          )}
-        </Card>
+            )}
+          </Card>
+        </Section>
 
-        <Card>
-          <h2 className="mb-3 font-semibold">Teachers</h2>
-          <ul className="mb-4 divide-y divide-border text-sm">
-            {b.mentors.length === 0 && <li className="py-2 text-fg-muted">No teacher assigned yet. Students can still apply; once you assign one, they see this batch in their portal.</li>}
-            {b.mentors.map((m) => (
-              <li key={`${m.mentor.id}-${m.mentorRole}`} className="flex items-center justify-between py-2">
-                <span>{m.mentor.displayName} <span className="text-fg-muted">· {label(m.mentorRole)}</span></span>
-                {can(me, 'mentor.assign') && <Button variant="ghost" tone="danger" className="!py-1" onClick={() => run(() => api(`/admin/batches/${id}/mentors/${m.mentor.id}/${m.mentorRole}`, { method: 'DELETE' }))}>Remove</Button>}
-              </li>
-            ))}
-          </ul>
-          {can(me, 'mentor.assign') && (
-            <div className="flex flex-wrap items-end gap-2">
-              <Field label="Teacher">{(p) => <Select {...p} value={mentorId} onChange={(e) => setMentorId(e.target.value)}><option value="">Select…</option>{mentors.data?.filter((m) => m.status === 'ACTIVE').map((m) => <option key={m.id} value={m.id}>{m.displayName}</option>)}</Select>}</Field>
-              <Field label="Role">{(p) => <Select {...p} value={role} onChange={(e) => setRole(e.target.value)}><option value="MAIN">Main</option><option value="WRITING">Writing</option><option value="SPEAKING">Speaking</option></Select>}</Field>
-              <Button disabled={!mentorId} onClick={() => run(() => api(`/admin/batches/${id}/mentors`, { method: 'POST', body: { mentorId, mentorRole: role } }))}>Assign</Button>
-            </div>
-          )}
-        </Card>
+        <Section title="Teachers">
+          <Card>
+            {b.mentors.length === 0 ? (
+              <Empty>No teacher assigned yet. Students can still apply; once you assign one, they see this batch in their portal.</Empty>
+            ) : (
+              <SimpleList>
+                {b.mentors.map((m) => (
+                  <SimpleListItem
+                    key={`${m.mentor.id}-${m.mentorRole}`}
+                    left={<span>{m.mentor.displayName} <span className="text-fg-muted">· {label(m.mentorRole)}</span></span>}
+                    right={can(me, 'mentor.assign') ? <Button variant="ghost" tone="danger" className="!py-1" onClick={() => run(() => api(`/admin/batches/${id}/mentors/${m.mentor.id}/${m.mentorRole}`, { method: 'DELETE' }))}>Remove</Button> : undefined}
+                  />
+                ))}
+              </SimpleList>
+            )}
+            {can(me, 'mentor.assign') && (
+              <div className="mt-4 flex flex-wrap items-end gap-2">
+                <Field label="Teacher">{(p) => <Select {...p} value={mentorId} onChange={(e) => setMentorId(e.target.value)}><option value="">Select…</option>{mentors.data?.filter((m) => m.status === 'ACTIVE').map((m) => <option key={m.id} value={m.id}>{m.displayName}</option>)}</Select>}</Field>
+                <Field label="Role">{(p) => <Select {...p} value={role} onChange={(e) => setRole(e.target.value)}><option value="MAIN">Main</option><option value="WRITING">Writing</option><option value="SPEAKING">Speaking</option></Select>}</Field>
+                <Button disabled={!mentorId} onClick={() => run(() => api(`/admin/batches/${id}/mentors`, { method: 'POST', body: { mentorId, mentorRole: role } }))}>Assign</Button>
+              </div>
+            )}
+          </Card>
+        </Section>
       </div>
 
       {students.data && (
-        <div className="mt-6">
-          <h2 className="mb-3 font-semibold">Enrolled students ({students.data.length})</h2>
-          {students.data.length === 0 ? <Alert kind="info">No enrolled students yet.</Alert> : (
-            <Table head={['Student', 'Current → target', 'Progress', 'Status']}>
+        <Section title={`Enrolled students (${students.data.length})`} className="mt-6">
+          {students.data.length === 0 ? <Empty>No enrolled students yet.</Empty> : (
+            <Table head={['Student', 'Current → target', 'Progress', 'Status']} sticky>
               {students.data.map((s) => (
                 <tr key={s.enrollmentId}>
                   <Td>{s.student.firstName} {s.student.lastName}</Td>
@@ -108,7 +111,7 @@ export default function BatchDetailPage() {
               ))}
             </Table>
           )}
-        </div>
+        </Section>
       )}
     </>
   );

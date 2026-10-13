@@ -5,7 +5,7 @@ import { SkeletonTable } from '@/components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
-import { Alert, Badge, Button, Card, Loading, PageHeader, Select, Textarea } from '@/components/ui';
+import { Alert, Badge, Button, Card, Checkbox, Empty, Field, Loading, PageHeader, Section, Select, Textarea } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useMe } from '@/lib/auth';
 import { errorMessage } from '@/lib/errors';
@@ -38,33 +38,44 @@ export default function TicketDetailPage() {
       <PageHeader title={t.subject} subtitle={name + ' · ' + t.user.email + ' · ' + label(t.category) + ' · ' + date(t.createdAt, true)} actions={<Badge status={t.status} />} />
       {error && <div className="mb-4"><Alert>{error}</Alert></div>}
       <div className="grid gap-6 lg:grid-cols-[1fr_18rem]">
-        <div className="space-y-3">
-          <Card><p className="mb-1 text-xs text-fg-muted">Original request</p><p className="whitespace-pre-wrap text-sm">{t.description}</p></Card>
-          {t.messages.map((m) => (
-            <Card key={m.id} className={m.internal ? 'bg-amber-50 ring-amber-200' : ''}>
-              <p className="mb-1 text-xs text-fg-muted">{date(m.createdAt, true)}{m.internal && ' · internal note (not visible to the student)'}</p>
-              <p className="whitespace-pre-wrap text-sm">{m.body}</p>
-            </Card>
-          ))}
-          <Card className="space-y-3">
-            <Textarea aria-label="Reply" rows={4} placeholder="Write a reply…" value={body} onChange={(e) => setBody(e.target.value)} />
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={internal} onChange={(e) => setInternal(e.target.checked)} /> Internal note (only staff can see it)</label>
-            <Button busy={busy} disabled={!body.trim()} onClick={() => run(async () => { await api('/admin/tickets/' + id + '/messages', { method: 'POST', body: { body, internal } }); setBody(''); })}>{internal ? 'Add note' : 'Send reply'}</Button>
-          </Card>
+        <div className="min-w-0 space-y-6">
+          <Section title="Conversation">
+            <div className="space-y-3">
+              <Card><p className="mb-1 text-xs text-fg-muted">Original request</p><p className="whitespace-pre-wrap text-sm">{t.description}</p></Card>
+              {t.messages.map((m) => (
+                <Card key={m.id} className={m.internal ? 'bg-amber-50 ring-amber-200' : ''}>
+                  <p className="mb-1 text-xs text-fg-muted">{date(m.createdAt, true)}{m.internal && ' · internal note (not visible to the student)'}</p>
+                  <p className="whitespace-pre-wrap text-sm">{m.body}</p>
+                </Card>
+              ))}
+              <Card className="space-y-3">
+                <Textarea aria-label="Reply" rows={4} placeholder="Write a reply…" value={body} onChange={(e) => setBody(e.target.value)} />
+                <Checkbox label="Internal note (only staff can see it)" checked={internal} onChange={(e) => setInternal(e.target.checked)} />
+                <Button busy={busy} disabled={!body.trim()} onClick={() => run(async () => { await api('/admin/tickets/' + id + '/messages', { method: 'POST', body: { body, internal } }); setBody(''); })}>{internal ? 'Add note' : 'Send reply'}</Button>
+              </Card>
+            </div>
+          </Section>
         </div>
-        <div className="space-y-4">
-          <Card className="space-y-3">
-            <h2 className="font-semibold">Ticket</h2>
-            <label className="block text-sm"><span className="mb-1 block text-fg-muted">Status</span>
-              <Select value={t.status} onChange={(e) => run(() => api('/admin/tickets/' + id, { method: 'PATCH', body: { status: e.target.value } }))}>{['OPEN', 'IN_PROGRESS', 'WAITING_FOR_STUDENT', 'RESOLVED', 'CLOSED'].map((s) => <option key={s} value={s}>{label(s)}</option>)}</Select></label>
-            <label className="block text-sm"><span className="mb-1 block text-fg-muted">Priority</span>
-              <Select value={t.priority} onChange={(e) => run(() => api('/admin/tickets/' + id, { method: 'PATCH', body: { priority: e.target.value } }))}>{['LOW', 'NORMAL', 'HIGH', 'URGENT'].map((s) => <option key={s} value={s}>{label(s)}</option>)}</Select></label>
-            {me && <Button variant="secondary" className="w-full" disabled={t.assignedTo === me.id} onClick={() => run(() => api('/admin/tickets/' + id, { method: 'PATCH', body: { assignedTo: me.id, status: t.status === 'OPEN' ? 'IN_PROGRESS' : undefined } }))}>{t.assignedTo === me.id ? 'Assigned to you' : 'Assign to me'}</Button>}
-          </Card>
-          <Card>
-            <h2 className="mb-2 font-semibold">Enrollments</h2>
-            {t.user.student?.enrollments.length ? <ul className="space-y-2 text-sm">{t.user.student.enrollments.map((e, i) => <li key={i}>{e.course.title}<span className="block text-xs text-fg-muted">{e.batch.name} · {label(e.status)}</span></li>)}</ul> : <p className="text-sm text-fg-muted">None.</p>}
-          </Card>
+        <div className="space-y-6">
+          <Section title="Ticket details">
+            <Card className="space-y-3">
+              <Field label="Status">{(p) => <Select {...p} value={t.status} onChange={(e) => run(() => api('/admin/tickets/' + id, { method: 'PATCH', body: { status: e.target.value } }))}>{['OPEN', 'IN_PROGRESS', 'WAITING_FOR_STUDENT', 'RESOLVED', 'CLOSED'].map((s) => <option key={s} value={s}>{label(s)}</option>)}</Select>}</Field>
+              <Field label="Priority">{(p) => <Select {...p} value={t.priority} onChange={(e) => run(() => api('/admin/tickets/' + id, { method: 'PATCH', body: { priority: e.target.value } }))}>{['LOW', 'NORMAL', 'HIGH', 'URGENT'].map((s) => <option key={s} value={s}>{label(s)}</option>)}</Select>}</Field>
+              {me && <Button variant="secondary" className="w-full" disabled={t.assignedTo === me.id} onClick={() => run(() => api('/admin/tickets/' + id, { method: 'PATCH', body: { assignedTo: me.id, status: t.status === 'OPEN' ? 'IN_PROGRESS' : undefined } }))}>{t.assignedTo === me.id ? 'Assigned to you' : 'Assign to me'}</Button>}
+            </Card>
+          </Section>
+          <Section title="Enrollments">
+            {t.user.student?.enrollments.length ? (
+              <ul className="space-y-2 text-sm">
+                {t.user.student.enrollments.map((e, i) => (
+                  <li key={i} className="flex items-center justify-between gap-2 rounded-md bg-canvas px-3 py-2">
+                    <span>{e.course.title}<span className="block text-xs text-fg-muted">{e.batch.name}</span></span>
+                    <Badge status={e.status} />
+                  </li>
+                ))}
+              </ul>
+            ) : <Empty>No enrollments for this student.</Empty>}
+          </Section>
         </div>
       </div>
     </>

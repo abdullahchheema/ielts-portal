@@ -5,7 +5,7 @@ import { useConfirm } from '@/components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState } from 'react';
-import { Alert, Badge, Button, ClickableRow, Empty, Input, Loading, PageHeader, Select, Table, Td } from '@/components/ui';
+import { Alert, Badge, Button, ClickableRow, Empty, FilterBar, Loading, PageHeader, Pagination, SearchInput, Select, Table, Td } from '@/components/ui';
 import { IeltsBadge, IeltsSummaryLike } from '@/components/IeltsSummary';
 import { StudentDetailDialog } from '@/components/StudentDetailDialog';
 import { api } from '@/lib/api';
@@ -42,22 +42,22 @@ export default function StudentsPage() {
 
   return (
     <>
-      <PageHeader title="Students" />
-      <div className="mb-4 flex flex-wrap gap-3">
-        <div className="w-full max-w-xs"><Input aria-label="Search students" placeholder="Search name or email…" value={search} onChange={(e) => { setSearch(e.target.value); setSkip(0); }} /></div>
+      <PageHeader title="Students" subtitle="Everyone with a student account, across every batch." />
+      <FilterBar count={data?.total}>
+        <SearchInput label="Search students" placeholder="Search name or email…" value={search} onDebounced={(v) => { setSearch(v); setSkip(0); }} />
         <div className="w-44"><Select aria-label="Filter by status" value={status} onChange={(e) => { setStatus(e.target.value); setSkip(0); }}>
           <option value="">All statuses</option><option value="ACTIVE">Active</option><option value="PENDING_VERIFICATION">Pending verification</option><option value="SUSPENDED">Suspended</option><option value="BLOCKED">Blocked</option>
         </Select></div>
         <div className="w-44"><Select aria-label="Filter by IELTS history" value={ieltsFilter} onChange={(e) => setIeltsFilter(e.target.value as typeof ieltsFilter)}>
           <option value="">IELTS: All</option><option value="NOT_TAKEN">Not taken</option><option value="TAKEN">Taken</option>
         </Select></div>
-      </div>
+      </FilterBar>
       {error && <div className="mb-3"><Alert>{error}</Alert></div>}
       {isLoading && <Loading />}
       {isError && <Alert>Could not load students.</Alert>}
-      {data && (items.length === 0 ? <Empty>No students match.</Empty> : (
+      {data && (items.length === 0 ? <Empty title="No students match">Try a different search or clear the filters.</Empty> : (
         <>
-          <Table head={['Student', 'IELTS', 'Exam', 'Enrollments', 'Joined', 'Status', '']}>
+          <Table head={['Student', 'IELTS', 'Exam', 'Enrollments', 'Joined', 'Status', '']} sticky>
             {items.map((u) => (
               <ClickableRow key={u.id} onClick={() => setOpenId(u.student.id)}>
                 <Td>
@@ -75,10 +75,8 @@ export default function StudentsPage() {
               </ClickableRow>
             ))}
           </Table>
-          <div className="mt-3 flex items-center justify-between text-sm text-fg-muted">
-            <span>{skip + 1}–{Math.min(skip + PAGE, data.total)} of {data.total}{ieltsFilter ? ' (IELTS filter applies to this page only)' : ''}</span>
-            <div className="flex gap-2"><Button variant="secondary" disabled={skip === 0} onClick={() => setSkip(Math.max(0, skip - PAGE))}>Previous</Button><Button variant="secondary" disabled={skip + PAGE >= data.total} onClick={() => setSkip(skip + PAGE)}>Next</Button></div>
-          </div>
+          {ieltsFilter && <p className="mt-2 text-xs text-fg-subtle">The IELTS filter only narrows the students already on this page.</p>}
+          <Pagination skip={skip} take={PAGE} total={data.total} onSkip={setSkip} />
         </>
       ))}
       <StudentDetailDialog studentId={openId} onClose={() => setOpenId(null)} />

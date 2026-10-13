@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Alert, Card, CardList, Empty, Loading, PageHeader, Section, Select, StatCard, Table, Td } from '@/components/ui';
+import { Alert, Card, CardList, Empty, Loading, PageHeader, Section, StatCard, Table, Tabs, Td } from '@/components/ui';
 import { api } from '@/lib/api';
 import { date, label } from '@/lib/format';
 
@@ -35,9 +35,12 @@ export default function FeedbackPage() {
         title="Student feedback"
         subtitle="How students rate the academy, and what they say. Scores are withheld below the minimum sample."
         actions={
-          <Select aria-label="Time window" value={days} onChange={(e) => setDays(Number(e.target.value) as (typeof WINDOWS)[number])}>
-            {WINDOWS.map((d) => <option key={d} value={d}>Last {d} days</option>)}
-          </Select>
+          <Tabs
+            aria-label="Time window"
+            items={WINDOWS.map((d) => ({ key: String(d), label: `${d}d` }))}
+            value={String(days)}
+            onChange={(k) => setDays(Number(k) as (typeof WINDOWS)[number])}
+          />
         }
       />
       {q.isLoading && <Loading />}
@@ -53,7 +56,7 @@ export default function FeedbackPage() {
           {s.overall.suppressed && <p className="mt-2 text-xs text-fg-subtle">A score appears once there are {s.minimumResponses} responses in the period.</p>}
 
           <Section title="By survey">
-            <Table head={['Survey', 'Responses', 'Promoters', 'Detractors', 'NPS']}>
+            <Table sticky head={['Survey', 'Responses', 'Promoters', 'Detractors', 'NPS']}>
               {s.triggers.map((t) => (
                 <tr key={t.trigger}>
                   <Td>{label(t.trigger)}</Td>
@@ -68,7 +71,7 @@ export default function FeedbackPage() {
 
           <Section title="By batch">
             {s.byBatch.length === 0 ? <Empty title="No batch responses in this period" /> : (
-              <Table head={['Batch', 'Responses', 'NPS']}>
+              <Table sticky head={['Batch', 'Responses', 'NPS']}>
                 {s.byBatch.map((b) => (
                   <tr key={b.batchName}>
                     <Td>{b.batchName}</Td>
@@ -82,7 +85,7 @@ export default function FeedbackPage() {
 
           <Section title="Trend by month">
             {s.trend.length === 0 ? <Empty title="No responses yet" /> : (
-              <Table head={['Month', 'Responses', 'NPS']}>
+              <Table sticky head={['Month', 'Responses', 'NPS']}>
                 {s.trend.map((m) => (
                   <tr key={m.month}>
                     <Td>{m.month}</Td>

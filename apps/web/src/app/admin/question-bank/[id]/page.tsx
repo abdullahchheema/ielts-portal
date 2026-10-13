@@ -3,7 +3,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
-import { Alert, Badge, Button, Card, Dialog, Empty, Field, Input, Loading, PageHeader, Select, Textarea, useConfirm } from '@/components/ui';
+import { Accordion, Alert, Badge, Button, Card, Dialog, Empty, Field, Input, Loading, PageHeader, Section, Select, Textarea, useConfirm } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 
@@ -72,33 +72,33 @@ export default function QuestionSetPage() {
       />
       {error && <Alert>{error}</Alert>}
       {data.stimulus?.passage && (
-        <Card className="mb-4"><h3 className="mb-2 font-semibold">Passage</h3><p className="whitespace-pre-wrap text-sm text-fg">{data.stimulus.passage}</p></Card>
+        <Section className="mb-4">
+          <Accordion items={[{ key: 'passage', title: 'Passage', content: <p className="whitespace-pre-wrap text-sm text-fg">{data.stimulus.passage}</p> }]} defaultOpen="passage" />
+        </Section>
       )}
 
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="font-semibold text-fg">Questions ({data.questions.length})</h2>
-        {editable && <Button onClick={() => setAdding(true)}>Add question</Button>}
-      </div>
-      {data.questions.length === 0 ? <Empty title="No questions yet">Add questions before approving or publishing this set.</Empty> : (
-        <ol className="space-y-3">
-          {data.questions.map((q, i) => {
-            const v = q.versions[0];
-            return (
-              <Card key={q.id} className="space-y-2">
-                <div className="flex items-start justify-between gap-3">
-                  <p className="text-sm"><span className="mr-2 font-medium text-fg-muted">{i + 1}.</span>{v?.prompt.text}</p>
-                  {editable && <Button variant="ghost" className="!py-1" onClick={() => removeQuestion(q.id)}>Remove</Button>}
-                </div>
-                <p className="text-xs text-fg-subtle">{q.ieltsType?.replace(/_/g, ' ').toLowerCase()} · {v?.marks} mark(s) · version {v?.version}</p>
-                {v?.options.length > 0 && (
-                  <ul className="text-sm text-fg-muted">{v.options.map((o) => <li key={o.label} className={o.isCorrect ? 'font-medium text-success' : ''}>{o.isCorrect ? '✓ ' : '• '}{o.label}</li>)}</ul>
-                )}
-                {v?.answerKey && <p className="text-xs text-fg-muted">Answer: {v.answerKey.value ?? (v.answerKey.accepted ?? []).join(' / ')}</p>}
-              </Card>
-            );
-          })}
-        </ol>
-      )}
+      <Section title={`Questions (${data.questions.length})`} actions={editable && <Button onClick={() => setAdding(true)}>Add question</Button>}>
+        {data.questions.length === 0 ? <Empty title="No questions yet">Add questions before approving or publishing this set.</Empty> : (
+          <ol className="space-y-3">
+            {data.questions.map((q, i) => {
+              const v = q.versions[0];
+              return (
+                <Card key={q.id} className="space-y-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-sm"><span className="mr-2 font-medium text-fg-muted">{i + 1}.</span>{v?.prompt.text}</p>
+                    {editable && <Button variant="ghost" className="!py-1" onClick={() => removeQuestion(q.id)}>Remove</Button>}
+                  </div>
+                  <p className="text-xs text-fg-subtle">{q.ieltsType?.replace(/_/g, ' ').toLowerCase()} · {v?.marks} mark(s) · version {v?.version}</p>
+                  {v?.options.length > 0 && (
+                    <ul className="text-sm text-fg-muted">{v.options.map((o) => <li key={o.label} className={o.isCorrect ? 'font-medium text-success' : ''}>{o.isCorrect ? '✓ ' : '• '}{o.label}</li>)}</ul>
+                  )}
+                  {v?.answerKey && <p className="text-xs text-fg-muted">Answer: {v.answerKey.value ?? (v.answerKey.accepted ?? []).join(' / ')}</p>}
+                </Card>
+              );
+            })}
+          </ol>
+        )}
+      </Section>
 
       {adding && <AddQuestion setId={id} onDone={async () => { setAdding(false); await refresh(); }} onClose={() => setAdding(false)} />}
     </>

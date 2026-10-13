@@ -2,7 +2,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Alert, Badge, Button, Dialog, Empty, Field, Input, Loading, PageHeader, Select, Table, Td, Textarea } from '@/components/ui';
+import { Alert, Badge, Button, Dialog, Empty, Field, FilterBar, Input, Loading, PageHeader, ProgressBar, SearchInput, Select, Table, Td, Textarea } from '@/components/ui';
 import { api } from '@/lib/api';
 import { can, useMe } from '@/lib/auth';
 import { errorMessage } from '@/lib/errors';
@@ -84,23 +84,33 @@ export default function EnrollmentsPage() {
   const [manage, setManage] = useState<Row | null>(null);
   const { data: me } = useMe();
   const [status, setStatus] = useState('');
+  const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
   const { data, isLoading, isError } = useQuery({ queryKey: ['admin-enrollments', status], queryFn: () => api<Row[]>(`/admin/enrollments${status ? `?status=${status}` : ''}`) });
+  const q = search.trim().toLowerCase();
+  const items = (data ?? []).filter((e) => !q || `${e.student.firstName} ${e.student.lastName} ${e.student.user.email}`.toLowerCase().includes(q));
   return (
     <>
-      <PageHeader title="Enrollments" actions={can(me, 'enrollment.create') ? <Button onClick={() => setOpen(true)}>Manual enrollment</Button> : undefined} />
-      <div className="mb-4 max-w-xs"><Select aria-label="Filter by status" value={status} onChange={(e) => setStatus(e.target.value)}>
-        <option value="">All</option>{['ACTIVE', 'COMPLETED', 'PAUSED', 'EXPIRED', 'CANCELLED', 'SUSPENDED'].map((s) => <option key={s} value={s}>{label(s)}</option>)}
-      </Select></div>
+      <PageHeader title="Enrollments" subtitle="Every student's access to a course, with where they stand." actions={can(me, 'enrollment.create') ? <Button onClick={() => setOpen(true)}>Manual enrollment</Button> : undefined} />
+      <FilterBar count={data && items.length}>
+        <SearchInput label="Search enrollments" placeholder="Search student name or email…" value={search} onDebounced={setSearch} />
+        <div className="w-44">
+          <Select aria-label="Filter by status" value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="">All</option>{['ACTIVE', 'COMPLETED', 'PAUSED', 'EXPIRED', 'CANCELLED', 'SUSPENDED'].map((s) => <option key={s} value={s}>{label(s)}</option>)}
+          </Select>
+        </div>
+      </FilterBar>
       {isLoading && <Loading />}
       {isError && <Alert>Could not load enrollments.</Alert>}
-      {data && (data.length === 0 ? <Empty>No enrollments.</Empty> : (
-        <Table head={['Student', 'Course / batch', 'Source', 'Enrolled', 'Access until', 'Progress', 'Status', '']}>
-          {data.map((e) => (
+      {data && (items.length === 0 ? <Empty title="No enrollments match">Try a different search or clear the filters.</Empty> : (
+        <Table head={['Student', 'Course / batch', 'Source', 'Enrolled', 'Access until', 'Progress', 'Status', '']} sticky>
+          {items.map((e) => (
             <tr key={e.id}>
               <Td>{e.student.firstName} {e.student.lastName}<span className="block text-xs text-fg-muted">{e.student.user.email}</span></Td>
               <Td>{e.course.title}<span className="block text-xs text-fg-muted">{e.batch.name}</span></Td>
-              <Td>{label(e.source)}</Td><Td>{date(e.enrolledAt)}</Td><Td>{date(e.accessEndsAt)}</Td><Td>{Math.round(Number(e.progressPercent))}%</Td><Td><Badge status={e.status} /></Td>
+              <Td>{label(e.source)}</Td><Td>{date(e.enrolledAt)}</Td><Td>{date(e.accessEndsAt)}</Td>
+              <Td><div className="w-24"><ProgressBar value={Math.round(Number(e.progressPercent))} /></div></Td>
+              <Td><Badge status={e.status} /></Td>
               <Td>{can(me, 'enrollment.create') && <Button variant="ghost" className="!py-1" onClick={() => setManage(e)}>Manage</Button>}</Td>
             </tr>
           ))}

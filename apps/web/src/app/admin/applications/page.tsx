@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { EnrollmentBadge, METHOD_TEXT } from '@/components/student';
-import { Alert, Badge, Button, Card, ClickableRow, DefinitionList, Dialog, DetailDialog, Empty, Field, Loading, PageHeader, Section, Skeleton, Table, Td, Tabs, Textarea } from '@/components/ui';
+import { Alert, Badge, Button, Card, Checkbox, ClickableRow, DefinitionList, Dialog, DetailDialog, Empty, Field, Loading, PageHeader, Section, Skeleton, Table, Td, Tabs, Textarea } from '@/components/ui';
 import { label } from '@/lib/format';
 import { ReceiptViewer } from '@/components/ReceiptViewer';
 import { SurveyDoc, SurveySummary } from '@/components/survey/SurveySummary';
@@ -189,10 +189,7 @@ function ApplicationCard({ a, onChanged }: { a: Application; onChanged: () => vo
       <Dialog open={reject} onClose={() => setReject(false)} title="Reject application">
         <div className="space-y-4">
           <Field label="Reason (shown to the student)" hint="Be specific so the student knows what to correct.">{(f) => <Textarea {...f} rows={3} value={reason} onChange={(e) => setReason(e.target.value)} />}</Field>
-          <label className="flex items-start gap-2.5 text-sm text-fg">
-            <input type="checkbox" className="mt-0.5 size-4 rounded border-border-strong accent-primary" checked={allowResubmit} onChange={(e) => setAllowResubmit(e.target.checked)} />
-            <span>Let the student upload a corrected proof</span>
-          </label>
+          <Checkbox label="Let the student upload a corrected proof" checked={allowResubmit} onChange={(e) => setAllowResubmit(e.target.checked)} />
           {!allowResubmit && <Alert kind="warning">The application will be closed as rejected.</Alert>}
           {error && <Alert>{error}</Alert>}
           <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
@@ -269,7 +266,7 @@ function TeacherApplications({ openId }: { openId: string | null }) {
       {isLoading && <Loading />}
       {isError && <Alert>{error instanceof ApiError && error.status === 403 ? 'Your role cannot review teacher applications. A super admin can grant Teacher management in Staff & roles.' : `Could not load teacher applications. ${errorMessage(error)}`}</Alert>}
       {data && (data.items.length === 0 ? <Empty title="Nothing here">No teacher applications match this filter.</Empty> : (
-        <Table head={['Name', 'Email', 'Phone', 'City', 'Subjects', 'Status', 'Submitted']}>
+        <Table sticky head={['Name', 'Email', 'Phone', 'City', 'Subjects', 'Status', 'Submitted']}>
           {data.items.map((a) => (
             <ClickableRow key={a.id} onClick={() => setViewId(a.id)} className={a.id === openId ? 'bg-primary-soft/50 ring-2 ring-inset ring-primary' : undefined}>
               <Td className="font-medium">{a.fullName}</Td><Td>{a.email}</Td><Td>{a.phone}</Td><Td>{a.city ?? '—'}</Td>

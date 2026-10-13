@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState } from 'react';
 import { DAY_TEXT } from '@/components/student';
-import { Alert, Badge, Button, Dialog, Empty, Field, Input, Loading, PageHeader, Select, Table, Td, Textarea } from '@/components/ui';
+import { Alert, Badge, Button, Dialog, Empty, Field, FilterBar, Input, Loading, PageHeader, Select, Separator, Table, Td, Textarea } from '@/components/ui';
 import { api } from '@/lib/api';
 import { can, useMe } from '@/lib/auth';
 import { errorMessage } from '@/lib/errors';
@@ -51,6 +51,8 @@ function CreateBatch({ open, onClose }: { open: boolean; onClose: () => void }) 
         {error && <Alert>{error}</Alert>}
         <Field label="Batch name">{(p) => <Input {...p} placeholder="IELTS January 2027" value={f.name} onChange={(e) => set('name', e.target.value)} />}</Field>
         <Field label="Description (optional)">{(p) => <Textarea {...p} rows={2} value={f.description} onChange={(e) => set('description', e.target.value)} />}</Field>
+
+        <Separator label="Schedule" />
         <div className="grid grid-cols-2 gap-3">
           <Field label="Starts">{(p) => <Input {...p} type="datetime-local" value={f.startAt} onChange={(e) => set('startAt', e.target.value)} />}</Field>
           <Field label="Ends (optional)">{(p) => <Input {...p} type="datetime-local" value={f.endAt} onChange={(e) => set('endAt', e.target.value)} />}</Field>
@@ -67,6 +69,8 @@ function CreateBatch({ open, onClose }: { open: boolean; onClose: () => void }) 
             ))}
           </div>
         </fieldset>
+
+        <Separator label="Staffing" />
         <div className="grid grid-cols-2 gap-3">
           <Field label="Teacher (optional)" hint="You can assign one later. Students can apply either way.">{(p) => <Select {...p} value={f.mentorId} onChange={(e) => set('mentorId', e.target.value)}><option value="">Not assigned yet</option>{teachers.data?.filter((t) => t.status === 'ACTIVE').map((t) => <option key={t.id} value={t.id}>{t.displayName}</option>)}</Select>}</Field>
           <Field label="Enrollment">{(p) => <Select {...p} value={f.status} onChange={(e) => set('status', e.target.value)}><option value="OPEN">Open now</option><option value="DRAFT">Keep as draft</option></Select>}</Field>
@@ -85,21 +89,23 @@ export default function BatchesPage() {
   return (
     <>
       <PageHeader title="Batches" subtitle="Batches have no size limit. A batch without a teacher can still take applications." actions={can(me, 'batch.create') ? <Button onClick={() => setOpen(true)}>New batch</Button> : undefined} />
-      <div className="mb-4 max-w-xs">
-        <Select aria-label="Filter batches" value={scope} onChange={(e) => setScope(e.target.value)}>
-          <option value="">All batches</option><option value="active">Active</option><option value="upcoming">Upcoming</option><option value="completed">Completed / closed</option>
-        </Select>
-      </div>
+      <FilterBar count={data?.length}>
+        <div className="w-48">
+          <Select aria-label="Filter batches" value={scope} onChange={(e) => setScope(e.target.value)}>
+            <option value="">All batches</option><option value="active">Active</option><option value="upcoming">Upcoming</option><option value="completed">Completed / closed</option>
+          </Select>
+        </div>
+      </FilterBar>
       {isLoading && <Loading />}
       {isError && <Alert>Could not load batches.</Alert>}
-      {data && (data.length === 0 ? <Empty>No batches yet.</Empty> : (
-        <Table head={['Batch', 'Starts', 'Schedule', 'Students', 'Teacher', 'Status', '']}>
+      {data && (data.length === 0 ? <Empty title="No batches yet">Create a batch to start taking applications.</Empty> : (
+        <Table head={['Batch', 'Starts', 'Schedule', 'Students', 'Teacher', 'Status', '']} sticky>
           {data.map((b) => (
             <tr key={b.id}>
               <Td className="font-medium">{b.name}<span className="block text-xs font-normal text-fg-muted">{label(b.deliveryMode)}</span></Td>
               <Td>{date(b.startAt)}</Td>
               <Td>{b.days.length ? b.days.map((d) => DAY_TEXT[d]).join(', ') : '—'}{b.classTime ? ` · ${b.classTime}` : ''}</Td>
-              <Td>{b.counts.enrolled} enrolled{b.counts.pending > 0 && <span className="block text-xs text-amber-700">{b.counts.pending} pending</span>}</Td>
+              <Td>{b.counts.enrolled} enrolled{b.counts.pending > 0 && <span className="mt-1 block w-fit"><Badge status="PENDING" text={`${b.counts.pending} pending`} /></span>}</Td>
               <Td>{b.mentorAssigned ? b.mentors.map((m) => m.mentor.displayName).join(', ') : <Badge status="DRAFT" tone="amber" text="Not assigned" />}</Td>
               <Td><Badge status={b.status} /></Td>
               <Td><Link href={`/admin/batches/${b.id}`} className="text-primary hover:underline">Manage</Link></Td>

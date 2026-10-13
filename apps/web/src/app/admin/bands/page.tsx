@@ -4,7 +4,7 @@ import { SkeletonTable } from '@/components/ui';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { Alert, Button, Card, Loading, PageHeader, Select, Table, Td } from '@/components/ui';
+import { Alert, Button, Card, FilterBar, PageHeader, Section, Select, Table, Td } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { date, label } from '@/lib/format';
@@ -40,20 +40,28 @@ export default function BandConversionsPage() {
   return (
     <>
       <PageHeader title="Band conversion" subtitle="Raw score (out of 40) → band. Shorter tests are scaled to 40 first. Publishing creates a new version; past scores are never changed." />
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <Select aria-label="Test type" className="!w-56" value={type} onChange={(e) => setType(e.target.value)}>{['LISTENING', 'READING_ACADEMIC', 'READING_GENERAL'].map((t) => <option key={t} value={t}>{label(t)}</option>)}</Select>
-        {latest && <span className="text-sm text-fg-muted">Current: version {latest.version}, effective {date(latest.effectiveDate)}</span>}
-      </div>
       {msg && <div className="mb-4"><Alert kind={msg.kind}>{msg.text}</Alert></div>}
-      <Card className="mb-4"><p className="text-sm text-fg-muted">The defaults are the commonly published IELTS tables. Check them against the tables your academy uses before relying on them.</p></Card>
-      <Table head={['Raw score', 'Band']}>
-        {rows.map((r, i) => (
-          <tr key={r.rawMin + '-' + r.rawMax}><Td>{r.rawMin === r.rawMax ? r.rawMin : r.rawMin + ' – ' + r.rawMax}</Td>
-            <Td><Select aria-label={'Band for raw ' + r.rawMin + ' to ' + r.rawMax} className="!w-28" value={Number(r.band).toFixed(1)} onChange={(e) => edit(i, e.target.value)}>{BANDS.map((b) => <option key={b}>{b}</option>)}</Select></Td></tr>
-        ))}
-      </Table>
-      <div className="mt-4 flex items-center gap-3"><Button busy={busy} disabled={!draft} onClick={save}>Publish new version</Button>{draft && <Button variant="secondary" onClick={() => setDraft(null)}>Discard changes</Button>}</div>
-      {(data[type]?.length ?? 0) > 1 && <p className="mt-4 text-sm text-fg-muted">Earlier versions: {data[type].slice(1).map((v) => 'v' + v.version + ' (' + date(v.effectiveDate) + ')').join(', ')}</p>}
+      <Card className="mb-6"><p className="text-sm text-fg-muted">The defaults are the commonly published IELTS tables. Check them against the tables your academy uses before relying on them.</p></Card>
+
+      <Section
+        title="Conversion table"
+        description={latest ? `Current: version ${latest.version}, effective ${date(latest.effectiveDate)}` : undefined}
+        actions={<div className="flex items-center gap-2">
+          <Button busy={busy} disabled={!draft} onClick={save}>Publish new version</Button>
+          {draft && <Button variant="secondary" onClick={() => setDraft(null)}>Discard changes</Button>}
+        </div>}
+      >
+        <FilterBar>
+          <Select aria-label="Test type" className="!w-56" value={type} onChange={(e) => setType(e.target.value)}>{['LISTENING', 'READING_ACADEMIC', 'READING_GENERAL'].map((t) => <option key={t} value={t}>{label(t)}</option>)}</Select>
+        </FilterBar>
+        <Table head={['Raw score', 'Band']} sticky>
+          {rows.map((r, i) => (
+            <tr key={r.rawMin + '-' + r.rawMax}><Td>{r.rawMin === r.rawMax ? r.rawMin : r.rawMin + ' – ' + r.rawMax}</Td>
+              <Td><Select aria-label={'Band for raw ' + r.rawMin + ' to ' + r.rawMax} className="!w-28" value={Number(r.band).toFixed(1)} onChange={(e) => edit(i, e.target.value)}>{BANDS.map((b) => <option key={b}>{b}</option>)}</Select></Td></tr>
+          ))}
+        </Table>
+        {(data[type]?.length ?? 0) > 1 && <p className="mt-4 text-sm text-fg-muted">Earlier versions: {data[type].slice(1).map((v) => 'v' + v.version + ' (' + date(v.effectiveDate) + ')').join(', ')}</p>}
+      </Section>
     </>
   );
 }

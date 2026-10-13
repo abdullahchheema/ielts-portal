@@ -5,7 +5,7 @@ import { useConfirm } from '@/components/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Alert, Badge, Button, Card, Dialog, Field, Input, Loading, PageHeader, Select, Textarea } from '@/components/ui';
+import { Alert, Badge, Button, Card, Checkbox, Dialog, Field, Input, Loading, PageHeader, Radio, Section, Select, Textarea } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { label } from '@/lib/format';
@@ -87,7 +87,9 @@ function QuestionDialog({ open, onClose, sectionId, question, onSaved }: { open:
           <fieldset className="space-y-2"><legend className="mb-1 text-sm font-medium text-fg">Options — mark the correct {single ? 'one' : 'ones'}</legend>
             {options.map((o, i) => (
               <div key={i} className="flex items-center gap-2">
-                <input aria-label={`Option ${i + 1} is correct`} type={single ? 'radio' : 'checkbox'} name="correct" checked={o.isCorrect} onChange={(e) => setCorrect(i, e.target.checked)} />
+                {single
+                  ? <Radio aria-label={`Option ${i + 1} is correct`} name="correct" checked={o.isCorrect} onChange={(e) => setCorrect(i, e.target.checked)} />
+                  : <Checkbox aria-label={`Option ${i + 1} is correct`} checked={o.isCorrect} onChange={(e) => setCorrect(i, e.target.checked)} />}
                 <Input aria-label={`Option ${i + 1} text`} value={o.label} onChange={(e) => setOptions(options.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} />
                 <button type="button" className="text-sm text-danger disabled:opacity-40" disabled={options.length <= 2} onClick={() => setOptions(options.filter((_, j) => j !== i))} aria-label={`Remove option ${i + 1}`}>✕</button>
               </div>
@@ -146,8 +148,7 @@ export default function AssessmentBuilderPage() {
 
       {v.isLoading && <Loading />}
       {v.data && (
-        <>
-          {draft && <div className="mb-4"><Button variant="secondary" onClick={() => setSecDlg({ open: true, section: null })}>+ Section</Button></div>}
+        <Section title="Sections" actions={draft && <Button variant="secondary" onClick={() => setSecDlg({ open: true, section: null })}>+ Section</Button>}>
           <div className="space-y-4">
             {v.data.sections.map((s) => (
               <Card key={s.id}>
@@ -178,7 +179,7 @@ export default function AssessmentBuilderPage() {
             ))}
             {v.data.sections.length === 0 && <Alert kind="info">Add a section (for example “Part 1” or “Passage 1”), then add questions to it.</Alert>}
           </div>
-        </>
+        </Section>
       )}
       {current && <SectionDialog open={secDlg.open} onClose={() => setSecDlg({ open: false, section: null })} versionId={current} section={secDlg.section} onSaved={refresh} />}
       <QuestionDialog open={qDlg.open} onClose={() => setQDlg((d) => ({ ...d, open: false }))} sectionId={qDlg.sectionId} question={qDlg.question} onSaved={refresh} />

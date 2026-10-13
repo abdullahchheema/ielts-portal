@@ -3,7 +3,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useRef, useState } from 'react';
-import { Alert, Badge, Button, Dialog, Empty, Field, Input, Loading, PageHeader, Select, Table, Td, Textarea } from '@/components/ui';
+import { Alert, Badge, Button, Dialog, Empty, Field, FilterBar, Input, Loading, PageHeader, Section, Select, Table, Td, Textarea } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { date, money } from '@/lib/format';
@@ -46,23 +46,27 @@ function RefundsPageInner() {
   return (
     <>
       <PageHeader title="Refunds" subtitle="Send the money back from your bank first, then record the bank reference here. A full refund ends the student’s access and frees the seat." />
-      <div className="mb-4 max-w-xs"><Select aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value)}><option value="REQUESTED">Awaiting decision</option><option value="PROCESSED">Refunded</option><option value="REJECTED">Declined</option><option value="">All</option></Select></div>
-      {isLoading && <Loading />}
-      {isError && <Alert>Could not load refunds.</Alert>}
-      {data && (data.length === 0 ? <Empty>Nothing here.</Empty> : (
-        <Table head={['Order', 'Student', 'Amount', 'Reason', 'Requested', 'Status', '']}>
-          {data.map((r) => (
-            <tr key={r.id} ref={(el) => { refs.current[r.id] = el; }} className={r.id === openId ? 'bg-primary-soft' : undefined}>
-              <Td className="font-mono text-xs">{r.payment.order.reference}</Td>
-              <Td>{r.payment.order.student.firstName} {r.payment.order.student.lastName}<span className="block text-xs text-fg-muted">{r.payment.order.student.user.email}</span></Td>
-              <Td>{money(r.amount, r.payment.currency)}<span className="block text-xs text-fg-muted">of {money(r.payment.amount, r.payment.currency)}</span></Td>
-              <Td className="max-w-xs">{r.reason}{r.decisionNote && <span className="block text-xs text-fg-muted">Note: {r.decisionNote}</span>}{r.providerReference && <span className="block font-mono text-xs text-fg-muted">{r.providerReference}</span>}</Td>
-              <Td>{date(r.createdAt)}</Td><Td><Badge status={r.status} /></Td>
-              <Td>{r.status === 'REQUESTED' && <span className="flex gap-1"><Button className="!py-1" onClick={() => { setError(null); setTarget({ r, mode: 'process' }); }}>Mark refunded</Button><Button variant="ghost" tone="danger" className="!py-1" onClick={() => { setError(null); setTarget({ r, mode: 'reject' }); }}>Decline</Button></span>}</Td>
-            </tr>
-          ))}
-        </Table>
-      ))}
+      <Section title="Refund requests">
+        <FilterBar count={data?.length}>
+          <Select aria-label="Status" className="!w-auto" value={status} onChange={(e) => setStatus(e.target.value)}><option value="REQUESTED">Awaiting decision</option><option value="PROCESSED">Refunded</option><option value="REJECTED">Declined</option><option value="">All</option></Select>
+        </FilterBar>
+        {isLoading && <Loading />}
+        {isError && <Alert>Could not load refunds.</Alert>}
+        {data && (data.length === 0 ? <Empty title="Nothing here">No refund requests match this filter.</Empty> : (
+          <Table sticky head={['Order', 'Student', 'Amount', 'Reason', 'Requested', 'Status', '']}>
+            {data.map((r) => (
+              <tr key={r.id} ref={(el) => { refs.current[r.id] = el; }} className={r.id === openId ? 'bg-primary-soft' : undefined}>
+                <Td className="font-mono text-xs">{r.payment.order.reference}</Td>
+                <Td>{r.payment.order.student.firstName} {r.payment.order.student.lastName}<span className="block text-xs text-fg-muted">{r.payment.order.student.user.email}</span></Td>
+                <Td>{money(r.amount, r.payment.currency)}<span className="block text-xs text-fg-muted">of {money(r.payment.amount, r.payment.currency)}</span></Td>
+                <Td className="max-w-xs">{r.reason}{r.decisionNote && <span className="block text-xs text-fg-muted">Note: {r.decisionNote}</span>}{r.providerReference && <span className="block font-mono text-xs text-fg-muted">{r.providerReference}</span>}</Td>
+                <Td>{date(r.createdAt)}</Td><Td><Badge status={r.status} /></Td>
+                <Td>{r.status === 'REQUESTED' && <span className="flex gap-1"><Button className="!py-1" onClick={() => { setError(null); setTarget({ r, mode: 'process' }); }}>Mark refunded</Button><Button variant="ghost" tone="danger" className="!py-1" onClick={() => { setError(null); setTarget({ r, mode: 'reject' }); }}>Decline</Button></span>}</Td>
+              </tr>
+            ))}
+          </Table>
+        ))}
+      </Section>
       <Dialog open={!!target} onClose={() => setTarget(null)} title={target?.mode === 'process' ? 'Record refund payout' : 'Decline refund request'}>
         <div className="space-y-3">
           {error && <Alert>{error}</Alert>}

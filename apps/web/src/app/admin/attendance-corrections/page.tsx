@@ -2,7 +2,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Alert, Badge, Button, Empty, Loading, PageHeader, Select, Table, Td } from '@/components/ui';
+import { Alert, Badge, Button, DropdownMenu, Empty, Loading, PageHeader, Section, Table, Tabs, Td } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { date } from '@/lib/format';
@@ -31,37 +31,47 @@ export default function AttendanceCorrectionsPage() {
   return (
     <>
       <PageHeader title="Attendance corrections" subtitle="Changes requested to attendance that is past its edit window." />
-      <div className="mb-4">
-        <Select aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value)}>
-          <option value="PENDING">Waiting for a decision</option>
-          <option value="APPROVED">Approved</option>
-          <option value="REJECTED">Rejected</option>
-        </Select>
-      </div>
+      <Tabs
+        aria-label="Status"
+        items={[
+          { key: 'PENDING', label: 'Waiting for a decision' },
+          { key: 'APPROVED', label: 'Approved' },
+          { key: 'REJECTED', label: 'Rejected' },
+        ]}
+        value={status}
+        onChange={setStatus}
+      />
       {error && <Alert>{error}</Alert>}
       {isLoading && <Loading />}
       {isError && <Alert>Could not load corrections.</Alert>}
-      {data && (data.length === 0 ? <Empty title="Nothing here" /> : (
-        <Table head={['Student', 'Class', 'Change', 'Reason', 'Status', '']}>
-          {data.map((r) => (
-            <tr key={r.id}>
-              <Td>{r.student.firstName} {r.student.lastName}</Td>
-              <Td>{r.session.topic}<span className="block text-xs text-fg-subtle">{date(r.session.startsAt)}</span></Td>
-              <Td>{r.fromStatus ?? 'none'} → {r.toStatus}</Td>
-              <Td className="max-w-sm text-sm text-fg-muted">{r.reason}</Td>
-              <Td><Badge status={r.status} />{r.decisionNote && <span className="block text-xs text-fg-muted">{r.decisionNote}</span>}</Td>
-              <Td>
-                {r.status === 'PENDING' && (
-                  <div className="flex gap-2">
-                    <Button className="!py-1" onClick={() => decide(r, true)}>Approve</Button>
-                    <Button variant="ghost" className="!py-1" onClick={() => decide(r, false)}>Reject</Button>
-                  </div>
-                )}
-              </Td>
-            </tr>
-          ))}
-        </Table>
-      ))}
+      {data && (
+        <Section title="Corrections" className="mt-4">
+          {data.length === 0 ? <Empty title="Nothing here" /> : (
+            <Table sticky head={['Student', 'Class', 'Change', 'Reason', 'Status', '']}>
+              {data.map((r) => (
+                <tr key={r.id}>
+                  <Td>{r.student.firstName} {r.student.lastName}</Td>
+                  <Td>{r.session.topic}<span className="block text-xs text-fg-subtle">{date(r.session.startsAt)}</span></Td>
+                  <Td>{r.fromStatus ?? 'none'} → {r.toStatus}</Td>
+                  <Td className="max-w-sm text-sm text-fg-muted">{r.reason}</Td>
+                  <Td><Badge status={r.status} />{r.decisionNote && <span className="block text-xs text-fg-muted">{r.decisionNote}</span>}</Td>
+                  <Td>
+                    {r.status === 'PENDING' && (
+                      <DropdownMenu
+                        trigger={<Button variant="ghost" className="!py-1">Decide</Button>}
+                        items={[
+                          { key: 'approve', label: 'Approve', onSelect: () => decide(r, true) },
+                          { key: 'reject', label: 'Reject', danger: true, onSelect: () => decide(r, false) },
+                        ]}
+                      />
+                    )}
+                  </Td>
+                </tr>
+              ))}
+            </Table>
+          )}
+        </Section>
+      )}
     </>
   );
 }

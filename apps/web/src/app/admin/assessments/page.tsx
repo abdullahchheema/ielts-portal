@@ -5,7 +5,7 @@ import { SkeletonTable } from '@/components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState } from 'react';
-import { Alert, Badge, Button, Dialog, Empty, Field, Input, Loading, PageHeader, Select, Table, Td } from '@/components/ui';
+import { Alert, Badge, Button, Dialog, Empty, Field, Input, PageHeader, Select, Switch, Table, Td, Tooltip } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { label } from '@/lib/format';
@@ -35,14 +35,18 @@ export default function AssessmentsPage() {
   return (
     <>
       <PageHeader title="Assessments" subtitle="Quizzes, listening and reading tests, mocks and diagnostics. Link one to a lesson from the course builder." actions={<Button onClick={() => setOpen(true)}>New assessment</Button>} />
-      {data.length === 0 ? <Empty>No assessments yet.</Empty> : (
-        <Table head={['Title', 'Type', 'Skill', 'Limits', 'Versions', 'Attempts', '']}>
+      {data.length === 0 ? <Empty title="No assessments yet">Create one to start building quizzes, tests or mocks.</Empty> : (
+        <Table head={['Title', 'Type', 'Skill', 'Limits', 'Versions', 'Attempts', '']} sticky>
           {data.map((a) => (
             <tr key={a.id}>
               <Td className="font-medium">{a.title}</Td><Td>{label(a.type)}</Td><Td>{a.skill ? label(a.skill) : '—'}</Td>
               <Td>{a.timeLimitMin ? `${a.timeLimitMin} min` : 'untimed'}{a.maxAttempts ? ` · ${a.maxAttempts} tries` : ''}{a.passPercent ? ` · pass ${a.passPercent}%` : ''}</Td>
-              <Td>{a.versions.map((v) => <span key={v.id} className="mr-1 inline-flex items-center gap-1"><Badge status={v.publishedAt ? 'PUBLISHED' : 'DRAFT'} />v{v.version}</span>)}</Td>
-              <Td>{a._count.attempts}</Td>
+              <Td>
+                <Tooltip content={a.versions.map((v) => `v${v.version} — ${v.publishedAt ? 'Published' : 'Draft'}`).join(', ')}>
+                  <span className="inline-flex cursor-default items-center gap-1">{a.versions.map((v) => <span key={v.id} className="mr-1 inline-flex items-center gap-1"><Badge status={v.publishedAt ? 'PUBLISHED' : 'DRAFT'} />v{v.version}</span>)}</span>
+                </Tooltip>
+              </Td>
+              <Td className="tabular-nums">{a._count.attempts}</Td>
               <Td><Link href={`/admin/assessments/${a.id}`} className="text-primary hover:underline">Build</Link></Td>
             </tr>
           ))}
@@ -59,7 +63,7 @@ export default function AssessmentsPage() {
             <Field label="Max attempts" hint="Blank = unlimited">{(p) => <Input {...p} type="number" min={1} value={f.maxAttempts} onChange={(e) => setF({ ...f, maxAttempts: e.target.value })} />}</Field>
             <Field label="Pass mark %" hint="Needed to complete the lesson">{(p) => <Input {...p} type="number" min={0} max={100} value={f.passPercent} onChange={(e) => setF({ ...f, passPercent: e.target.value })} />}</Field>
           </div>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.showAnswers} onChange={(e) => setF({ ...f, showAnswers: e.target.checked })} /> Show correct answers after submission</label>
+          <Switch checked={f.showAnswers} onChange={(v) => setF({ ...f, showAnswers: v })} label="Show correct answers after submission" />
           <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button><Button busy={busy} disabled={f.title.trim().length < 2} onClick={create}>Create</Button></div>
         </div>
       </Dialog>

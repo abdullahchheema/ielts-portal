@@ -3,7 +3,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState } from 'react';
-import { Alert, Badge, Button, Dialog, Empty, Field, Input, Loading, PageHeader, Select, Table, Td, Textarea } from '@/components/ui';
+import { Alert, Badge, Button, Dialog, Empty, Field, Input, Loading, PageHeader, Section, Table, Tabs, Td, Textarea } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { date } from '@/lib/format';
@@ -39,28 +39,32 @@ export default function EngagementPage() {
   return (
     <>
       <PageHeader title="Engagement" subtitle="Students who have gone quiet, and why. Assign a follow-up so someone takes it on." />
-      <div className="mb-4">
-        <Select aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value)}>
-          <option value="">At risk, inactive and returned</option>
-          {STATUSES.slice(1).map((s) => <option key={s} value={s}>{s.replace('_', ' ').toLowerCase()}</option>)}
-        </Select>
-      </div>
+      <Tabs
+        aria-label="Status"
+        items={[{ key: '', label: 'At risk, inactive and returned' }, ...STATUSES.slice(1).map((s) => ({ key: s, label: s.replace('_', ' ').toLowerCase() }))]}
+        value={status}
+        onChange={setStatus}
+      />
       {error && <Alert>{error}</Alert>}
       {isLoading && <Loading />}
       {isError && <Alert>Could not load engagement.</Alert>}
-      {data && (data.length === 0 ? <Empty title="Nobody needs follow-up">Engagement is healthy for now.</Empty> : (
-        <Table head={['Student', 'Status', 'Last activity', 'Reasons', '']}>
-          {data.map((r) => (
-            <tr key={r.studentId}>
-              <Td><Link href={`/admin/students/${r.studentId}`} className="font-medium text-primary hover:underline">{r.student.firstName} {r.student.lastName}</Link></Td>
-              <Td><Badge status={r.status} /></Td>
-              <Td>{r.lastActivityLabel ?? '—'}<span className="block text-xs text-fg-subtle">{date(r.lastActivityAt)}</span></Td>
-              <Td className="max-w-md text-sm text-fg-muted">{r.reasons.join(' ')}</Td>
-              <Td><Button variant="secondary" className="!py-1" onClick={() => setTarget(r)}>Assign follow-up</Button></Td>
-            </tr>
-          ))}
-        </Table>
-      ))}
+      {data && (
+        <Section title="Students" className="mt-4">
+          {data.length === 0 ? <Empty title="Nobody needs follow-up">Engagement is healthy for now.</Empty> : (
+            <Table sticky head={['Student', 'Status', 'Last activity', 'Reasons', '']}>
+              {data.map((r) => (
+                <tr key={r.studentId}>
+                  <Td><Link href={`/admin/students/${r.studentId}`} className="font-medium text-primary hover:underline">{r.student.firstName} {r.student.lastName}</Link></Td>
+                  <Td><Badge status={r.status} /></Td>
+                  <Td>{r.lastActivityLabel ?? '—'}<span className="block text-xs text-fg-subtle">{date(r.lastActivityAt)}</span></Td>
+                  <Td className="max-w-md text-sm text-fg-muted">{r.reasons.join(' ')}</Td>
+                  <Td><Button variant="secondary" className="!py-1" onClick={() => setTarget(r)}>Assign follow-up</Button></Td>
+                </tr>
+              ))}
+            </Table>
+          )}
+        </Section>
+      )}
 
       <Dialog open={!!target} onClose={() => setTarget(null)} title="Assign follow-up">
         <div className="space-y-3">

@@ -6,7 +6,7 @@ import { TeacherApplicationInput } from '@ielts/validation';
 import { TeacherApplicationForm } from '@/components/TeacherApplicationForm';
 import { TeacherDetailDialog } from '@/components/TeacherDetailDialog';
 import { TeacherDocumentsUploader } from '@/components/TeacherDocumentsUploader';
-import { Alert, Badge, Button, ClickableRow, DetailDialog, Empty, Loading, PageHeader, Table, Td, useConfirm } from '@/components/ui';
+import { Alert, Badge, Button, ClickableRow, DetailDialog, DropdownMenu, Empty, FilterBar, Loading, PageHeader, SearchInput, Section, Table, Td, useConfirm } from '@/components/ui';
 import { api } from '@/lib/api';
 import { can, useMe } from '@/lib/auth';
 import { errorMessage } from '@/lib/errors';
@@ -46,6 +46,12 @@ export default function TeachersPage() {
   const [removeError, setRemoveError] = useState<string | null>(null);
   const me = useMe();
   const confirm = useConfirm();
+  const [query, setQuery] = useState('');
+  const filtered = (data ?? []).filter((m) => {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return m.displayName.toLowerCase().includes(q) || m.user.email.toLowerCase().includes(q);
+  });
 
   async function removeTeacher(m: Mentor) {
     const ok = await confirm({
@@ -104,20 +110,30 @@ export default function TeachersPage() {
       {isLoading && <Loading />}
       {isError && <Alert>Could not load teachers.</Alert>}
       {removeError && <div className="mb-4"><Alert>{removeError}</Alert></div>}
-      {data && (data.length === 0 ? <Empty>No teachers yet.</Empty> : (
-        <Table head={['Name', 'Email', 'Specializations', 'Batches', 'Status', '']}>
-          {data.map((m) => (
-            <ClickableRow key={m.id} onClick={() => setViewId(m.id)}>
-              <Td className="font-medium">{m.displayName}</Td><Td>{m.user.email}</Td><Td>{m.specializations.join(', ') || '—'}</Td><Td>{m._count.batches}</Td><Td><Badge status={m.status} /></Td>
-              <Td>
-                <div className="flex flex-wrap gap-1">
-                  <Button variant="ghost" className="!py-1" onClick={(e) => { e.stopPropagation(); startEdit(m); }}>Edit</Button>
-                  {can(me.data, 'teacher.manage') && <Button variant="ghost" tone="danger" className="!py-1" onClick={(e) => { e.stopPropagation(); removeTeacher(m); }}>Remove</Button>}
-                </div>
-              </Td>
-            </ClickableRow>
-          ))}
-        </Table>
+      {data && (data.length === 0 ? <Empty title="No teachers yet">Add your first teacher to get started.</Empty> : (
+        <Section title="All teachers">
+          <FilterBar count={filtered.length}>
+            <SearchInput label="Search teachers" placeholder="Search by name or email" value={query} onDebounced={setQuery} />
+          </FilterBar>
+          {filtered.length === 0 ? <Empty title="No matches">No teachers match “{query}”.</Empty> : (
+            <Table sticky head={['Name', 'Email', 'Specializations', 'Batches', 'Status', '']}>
+              {filtered.map((m) => (
+                <ClickableRow key={m.id} onClick={() => setViewId(m.id)}>
+                  <Td className="font-medium">{m.displayName}</Td><Td>{m.user.email}</Td><Td>{m.specializations.join(', ') || '—'}</Td><Td>{m._count.batches}</Td><Td><Badge status={m.status} /></Td>
+                  <Td>
+                    <DropdownMenu
+                      trigger={<Button variant="ghost" className="!py-1" onClick={(e) => e.stopPropagation()}>Actions</Button>}
+                      items={[
+                        { key: 'edit', label: 'Edit', onSelect: () => startEdit(m) },
+                        ...(can(me.data, 'teacher.manage') ? [{ key: 'remove', label: 'Remove', danger: true, onSelect: () => removeTeacher(m) }] : []),
+                      ]}
+                    />
+                  </Td>
+                </ClickableRow>
+              ))}
+            </Table>
+          )}
+        </Section>
       ))}
 
       <DetailDialog open={open} onClose={closeCreate} title="Add teacher" subtitle={stage === 'documents' ? 'Attach supporting documents (optional)' : undefined}>

@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { Alert, Badge, Card, PageHeader, Section, SkeletonCards, StatCard, Table, Td } from '@/components/ui';
+import { Alert, Badge, Empty, PageHeader, Section, SimpleList, SimpleListItem, SkeletonCards, StatCard, Table, Td } from '@/components/ui';
 import { api } from '@/lib/api';
 import { date } from '@/lib/format';
 
@@ -47,40 +47,44 @@ export default function AdminHome() {
           <div className="grid gap-6 lg:grid-cols-2">
             {data.batchHealth && (
               <Section title="Batch health">
-                <Card className="space-y-3">
-                  {data.batchHealth.length === 0 ? <p className="text-sm text-fg-muted">No open batches.</p> : data.batchHealth.map((b) => (
-                    <div key={b.batch} className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-medium text-fg">{b.batch}</p>
-                        {b.reasons.length > 0 && <p className="text-xs text-fg-muted">{b.reasons.join(' · ')}</p>}
-                      </div>
-                      <Badge status={b.status === 'RED' ? 'RED' : b.status === 'YELLOW' ? 'AMBER' : 'GREEN'} text={b.status.toLowerCase()} />
-                    </div>
-                  ))}
-                </Card>
+                {data.batchHealth.length === 0 ? <Empty>No open batches.</Empty> : (
+                  <SimpleList>
+                    {data.batchHealth.map((b) => (
+                      <SimpleListItem
+                        key={b.batch}
+                        left={
+                          <div className="min-w-0">
+                            <p className="font-medium text-fg">{b.batch}</p>
+                            {b.reasons.length > 0 && <p className="text-xs text-fg-muted">{b.reasons.join(' · ')}</p>}
+                          </div>
+                        }
+                        right={<Badge status={b.status === 'RED' ? 'RED' : b.status === 'YELLOW' ? 'AMBER' : 'GREEN'} text={b.status.toLowerCase()} />}
+                      />
+                    ))}
+                  </SimpleList>
+                )}
               </Section>
             )}
             {data.riskDistribution && (
-              <Section title="Student risk">
-                <Card>
-                  <ul className="grid grid-cols-2 gap-3 text-sm">
-                    {Object.entries(data.riskDistribution).map(([k, v]) => (
-                      <li key={k} className="flex justify-between"><span className="text-fg-muted">{k.replace('_', ' ').toLowerCase()}</span><span className="font-medium tabular-nums text-fg">{v}</span></li>
-                    ))}
-                  </ul>
-                  <Link href="/admin/engagement" className="mt-3 inline-block text-sm font-medium text-primary hover:underline">Open engagement</Link>
-                </Card>
+              <Section title="Student risk" actions={<Link href="/admin/engagement" className="text-sm font-medium text-primary hover:underline">Open engagement</Link>}>
+                <SimpleList>
+                  {Object.entries(data.riskDistribution).map(([k, v]) => (
+                    <SimpleListItem key={k} left={<span className="text-fg-muted">{k.replace('_', ' ').toLowerCase()}</span>} right={<span className="font-medium tabular-nums text-fg">{v}</span>} />
+                  ))}
+                </SimpleList>
               </Section>
             )}
           </div>
 
           {data.recentActivity && (
             <Section title="Recent activity">
-              <Table head={['When', 'Action', 'Record']}>
-                {data.recentActivity.map((a, i) => (
-                  <tr key={i}><Td>{date(a.createdAt)}</Td><Td className="font-mono text-xs">{a.action}</Td><Td>{a.entityType}</Td></tr>
-                ))}
-              </Table>
+              {data.recentActivity.length === 0 ? <Empty>Nothing recorded yet.</Empty> : (
+                <Table head={['When', 'Action', 'Record']} sticky>
+                  {data.recentActivity.map((a, i) => (
+                    <tr key={i}><Td>{date(a.createdAt)}</Td><Td className="font-mono text-xs">{a.action}</Td><Td>{a.entityType}</Td></tr>
+                  ))}
+                </Table>
+              )}
             </Section>
           )}
         </div>

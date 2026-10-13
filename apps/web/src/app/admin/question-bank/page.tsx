@@ -3,7 +3,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState } from 'react';
-import { Alert, Badge, Button, Dialog, Empty, Field, Input, Loading, PageHeader, Select, Table, Td } from '@/components/ui';
+import { Alert, Badge, Button, Dialog, Empty, Field, FilterBar, Input, Loading, PageHeader, Pagination, SearchInput, Select, Table, Td } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 
@@ -13,13 +13,16 @@ interface SetRow {
 }
 
 const SKILLS = ['LISTENING', 'READING', 'WRITING', 'SPEAKING'] as const;
+const TAKE = 25;
 
 export default function QuestionBankPage() {
   const qc = useQueryClient();
   const [skill, setSkill] = useState('');
   const [status, setStatus] = useState('');
-  const params = new URLSearchParams({ take: '100', ...(skill ? { skill } : {}), ...(status ? { status } : {}) });
-  const { data, isLoading, isError } = useQuery({ queryKey: ['question-sets', skill, status], queryFn: () => api<{ total: number; items: SetRow[] }>(`/admin/question-sets?${params}`) });
+  const [topic, setTopic] = useState('');
+  const [skip, setSkip] = useState(0);
+  const params = new URLSearchParams({ take: String(TAKE), skip: String(skip), ...(skill ? { skill } : {}), ...(status ? { status } : {}), ...(topic ? { topic } : {}) });
+  const { data, isLoading, isError } = useQuery({ queryKey: ['question-sets', skill, status, topic, skip], queryFn: () => api<{ total: number; items: SetRow[] }>(`/admin/question-sets?${params}`) });
   const [open, setOpen] = useState(false);
   const [f, setF] = useState({ title: '', skill: 'READING', topic: '', difficulty: '3', module: 'ACADEMIC', source: '' });
   const [error, setError] = useState<string | null>(null);
@@ -45,32 +48,36 @@ export default function QuestionBankPage() {
         subtitle="Reusable questions and passages. Only published, student-facing sets reach students."
         actions={<Button onClick={() => setOpen(true)}>New set</Button>}
       />
-      <div className="mb-4 flex flex-wrap gap-3">
-        <Select aria-label="Skill" value={skill} onChange={(e) => setSkill(e.target.value)}>
+      <FilterBar count={data?.total}>
+        <SearchInput label="Search by topic" placeholder="Search by topic" value={topic} onDebounced={(v) => { setTopic(v); setSkip(0); }} />
+        <Select aria-label="Skill" value={skill} onChange={(e) => { setSkill(e.target.value); setSkip(0); }}>
           <option value="">All skills</option>
           {SKILLS.map((s) => <option key={s} value={s}>{s[0] + s.slice(1).toLowerCase()}</option>)}
         </Select>
-        <Select aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value)}>
+        <Select aria-label="Status" value={status} onChange={(e) => { setStatus(e.target.value); setSkip(0); }}>
           <option value="">Any status</option>
           {['DRAFT', 'APPROVED', 'PUBLISHED', 'ARCHIVED'].map((s) => <option key={s} value={s}>{s[0] + s.slice(1).toLowerCase()}</option>)}
         </Select>
-      </div>
+      </FilterBar>
       {isLoading && <Loading />}
       {isError && <Alert>Could not load the question bank.</Alert>}
       {data && (data.items.length === 0 ? <Empty title="No sets yet">Create a set to start building the bank.</Empty> : (
-        <Table head={['Title', 'Skill', 'Topic', 'Difficulty', 'Questions', 'Status', 'Version']}>
-          {data.items.map((s) => (
-            <tr key={s.id} className="hover:bg-surface-muted">
-              <Td><Link href={`/admin/question-bank/${s.id}`} className="font-medium text-primary hover:underline">{s.title}</Link></Td>
-              <Td>{s.skill}</Td>
-              <Td>{s.topic ?? '—'}</Td>
-              <Td>{s.difficulty}/5</Td>
-              <Td>{s.questionCount}</Td>
-              <Td><Badge status={s.status} />{s.studentFacing && <span className="ml-2 text-xs text-success">Student-facing</span>}</Td>
-              <Td>v{s.version}</Td>
-            </tr>
-          ))}
-        </Table>
+        <>
+          <Table head={['Title', 'Skill', 'Topic', 'Difficulty', 'Questions', 'Status', 'Version']} sticky>
+            {data.items.map((s) => (
+              <tr key={s.id} className="hover:bg-surface-muted">
+                <Td><Link href={`/admin/question-bank/${s.id}`} className="font-medium text-primary hover:underline">{s.title}</Link></Td>
+                <Td>{s.skill}</Td>
+                <Td>{s.topic ?? '—'}</Td>
+                <Td>{s.difficulty}/5</Td>
+                <Td>{s.questionCount}</Td>
+                <Td><Badge status={s.status} />{s.studentFacing && <span className="ml-2 text-xs text-success">Student-facing</span>}</Td>
+                <Td>v{s.version}</Td>
+              </tr>
+            ))}
+          </Table>
+          <Pagination skip={skip} take={TAKE} total={data.total} onSkip={setSkip} />
+        </>
       ))}
 
       <Dialog open={open} onClose={() => setOpen(false)} title="New question set">
