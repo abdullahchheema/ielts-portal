@@ -1,7 +1,7 @@
 'use client';
 
-import { ModulePage } from '@/components/student';
+import { IeltsModulePage } from '@/components/student';
 
 export default function Page() {
-  return <ModulePage match="reading" title="Reading" blurb="Skimming, scanning and every IELTS reading question type." />;
+  return <IeltsModulePage moduleKey="READING" title="Reading" blurb="Shared foundations, plus your track's own question types and skill labs (Academic or General Training)." />;
 }

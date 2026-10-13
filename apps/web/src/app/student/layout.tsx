@@ -3,32 +3,52 @@
 import { ReactNode } from 'react';
 import { Shell } from '@/components/Shell';
 import { RequireAuth, useMe } from '@/lib/auth';
+import { primaryApplication, useApplications } from '@/components/student';
 
 function StudentShell({ children }: { children: ReactNode }) {
   const { data: me } = useMe();
+  const apps = useApplications();
   if (!me) return null;
+  const app = primaryApplication(apps.data);
+  const inBatch = !!app && ['ACTIVE', 'COMPLETED'].includes(app.status);
+
   return (
     <Shell
       title="Student Portal"
       me={me}
       groups={[
-        { items: [{ href: '/student', label: 'Dashboard' }] },
-        { title: 'My course', items: [
-          { href: '/student/course', label: 'My Course' },
-          { href: '/student/batch', label: 'My Batch' },
-          { href: '/student/schedule', label: 'Class Schedule' },
-          { href: '/student/mock-tests', label: 'Mock Tests' },
+        { title: 'Home', items: [
+          { href: '/student', label: 'Dashboard' },
+          { href: '/student/today', label: 'Today' },
         ] },
-        { title: 'Modules', items: [
+        { title: 'My Learning', items: [
+          { href: '/student/course', label: 'My Course' },
+          { href: '/student/study-plan', label: 'Study Plan' },
+        ] },
+        { title: 'My Batch', items: [
+          { href: '/student/batch', label: 'My Batch', show: inBatch },
+          { href: '/student/schedule', label: 'Class Schedule', show: inBatch },
+          { href: '/student/recordings', label: 'Class Recordings', show: inBatch },
+        ] },
+        { title: 'IELTS Modules', items: [
           { href: '/student/listening', label: 'Listening' },
           { href: '/student/reading', label: 'Reading' },
           { href: '/student/writing', label: 'Writing' },
           { href: '/student/speaking', label: 'Speaking' },
-          { href: '/student/ai-practice', label: 'AI Practice' },
+          { href: '/student/practice', label: 'Practice' },
         ] },
-        { title: 'Me', items: [
+        { title: 'Assessments', items: [
+          { href: '/student/diagnostic', label: 'Diagnostic' },
+          { href: '/student/mock-tests', label: 'Mock Tests' },
+        ] },
+        { title: 'Progress & Feedback', items: [
           { href: '/student/progress', label: 'Progress' },
-          { href: '/student/diagnostic', label: 'Diagnostic Test' },
+          { href: '/student/insights', label: 'Insights' },
+          { href: '/student/feedback', label: 'Feedback & History' },
+          { href: '/student/grammar', label: 'Grammar Tracker' },
+          { href: '/student/vocabulary', label: 'Vocabulary' },
+        ] },
+        { title: 'Account', items: [
           { href: '/student/application', label: 'Application & Payment' },
           { href: '/student/support', label: 'Support' },
           { href: '/student/profile', label: 'Profile' },
