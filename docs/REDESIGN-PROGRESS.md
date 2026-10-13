@@ -82,4 +82,11 @@ All 86 routes are now 🔶 (repainted via tokens). None are ✅ yet — that req
 - [x] Public data caching (`publicGet` honouring `_revalidate`, `/` on ISR) was already done in Phase C; re-confirmed still in place, not re-touched
 - [x] No live database was available in this environment to measure real wall-clock timings — the before/after numbers recorded in `docs/PERFORMANCE.md` are round-trip counts read from the code, not timed benchmarks. The full `npm test -w @ielts/api` integration suite also could not be run (hangs with no DB reachable); flagged for Phase J to re-attempt against a real database
 - [x] `npm run typecheck`, `npm run test:unit -w @ielts/api` (256/256), `npm run build -w @ielts/api`, `npm run build -w @ielts/web` all clean, independently re-run before commit
-## Phase J — Regression + final report — not started
+## Phase J — Regression + final report — done
+- [x] `npm run typecheck` (API `tsc --noEmit` + web) — clean
+- [x] `npm test -w @ielts/web` — 16/16
+- [x] `npm run test:unit -w @ielts/api` — 256/256
+- [x] `npm test -w @ielts/api` (full integration suite, isolated `test` schema, live database reachable in this run unlike Phase I) — 512/512 across 53 spec files
+- [x] `npm run build` (full monorepo, API + web) — clean, 6/6 Turborepo tasks
+- [ ] Playwright smoke (`E2E_BASE_URL`) — not run. It requires a running API+web stack with demo data seeded against the real (non-isolated) database; standing up that stack and seeding it was judged out of scope for an unattended session given the "surgical, low-risk" principle governing this whole plan. Run manually before a release: see `docs/DEPLOYMENT.md`.
+- [ ] Owner has still not supplied `public/brand/{logo,logo-dark,mark}.svg` — components fall back to the glyph, as they have since Phase A
