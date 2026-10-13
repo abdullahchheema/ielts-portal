@@ -100,7 +100,7 @@ export function Shell({ title, groups, me, children, width = 'default' }: { titl
     <div className={cx('flex items-center gap-3 px-5 pb-4 pt-5', iconOnly && 'lg:justify-center lg:px-0')}>
       <BrandLogo variant="mark" />
       <div className={cx('min-w-0', iconOnly && 'lg:sr-only')}>
-        <p className="font-display text-sm font-semibold leading-tight text-fg">IELTS Academy</p>
+        <p className="font-display text-sm font-semibold leading-tight text-fg">Connect IELTS Academy</p>
         <p className="truncate text-xs text-fg-muted">{title}</p>
       </div>
     </div>

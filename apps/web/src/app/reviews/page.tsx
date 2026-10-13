@@ -2,7 +2,7 @@ import { Star } from 'lucide-react';
 import { PublicFooter } from '@/components/PublicFooter';
 import { PublicHeader } from '@/components/PublicHeader';
 
-export const metadata = { title: 'Student reviews — IELTS Academy' };
+export const metadata = { title: 'Student reviews — Connect IELTS Academy' };
 
 /**
  * Placeholder reviews. Replace every entry here with a real, permissioned student testimonial

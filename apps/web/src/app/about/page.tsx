@@ -2,7 +2,7 @@ import { BookOpen, GraduationCap, HeartHandshake, ShieldCheck } from 'lucide-rea
 import { PublicFooter } from '@/components/PublicFooter';
 import { PublicHeader } from '@/components/PublicHeader';
 
-export const metadata = { title: 'About — IELTS Academy' };
+export const metadata = { title: 'About — Connect IELTS Academy' };
 
 const VALUES = [
   { icon: GraduationCap, title: 'Teachers, not just software', text: 'Every essay and speaking recording is graded by a person who knows the band descriptors, with AI as a second opinion — never the only one.' },
@@ -22,7 +22,7 @@ export default function AboutPage() {
             Built by people who actually teach IELTS.
           </h1>
           <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-fg-muted">
-            IELTS Academy exists because most prep either costs too much for a cohort that needs weekly accountability, or is a pile of recorded videos nobody finishes. We built the thing in between: a live, teacher-led course with the practice tools to back it up.
+            Connect IELTS Academy exists because most prep either costs too much for a cohort that needs weekly accountability, or is a pile of recorded videos nobody finishes. We built the thing in between: a live, teacher-led course with the practice tools to back it up.
           </p>
         </section>
 

@@ -6,7 +6,7 @@ import { money } from '@/lib/format';
 import { PublicCourse, publicGet } from '@/lib/server-api';
 
 export const revalidate = 120;
-export const metadata = { title: 'Pricing — IELTS Academy' };
+export const metadata = { title: 'Pricing — Connect IELTS Academy' };
 
 const PAYMENT_METHODS = ['Bank transfer', 'JazzCash', 'Easypaisa'];
 

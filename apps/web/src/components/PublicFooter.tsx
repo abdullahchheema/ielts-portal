@@ -50,7 +50,7 @@ export function PublicFooter() {
         </div>
       </div>
       <div className="border-t border-border py-6 text-center text-xs text-fg-subtle">
-        © {new Date().getFullYear()} IELTS Academy. All rights reserved.
+        © {new Date().getFullYear()} Connect IELTS Academy. All rights reserved.
       </div>
     </footer>
   );

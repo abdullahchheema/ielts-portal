@@ -2,7 +2,7 @@ import { BandScoreCalculator } from '@/components/BandScoreCalculator';
 import { PublicFooter } from '@/components/PublicFooter';
 import { PublicHeader } from '@/components/PublicHeader';
 
-export const metadata = { title: 'Free IELTS tools — IELTS Academy' };
+export const metadata = { title: 'Free IELTS tools — Connect IELTS Academy' };
 
 export default function FreeToolsPage() {
   return (

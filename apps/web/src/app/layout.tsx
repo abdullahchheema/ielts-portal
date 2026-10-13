@@ -9,7 +9,7 @@ const body = Inter({ subsets: ['latin'], display: 'swap', variable: '--font-body
 const display = Plus_Jakarta_Sans({ subsets: ['latin'], display: 'swap', variable: '--font-display-face' });
 
 export const metadata: Metadata = {
-  title: { default: 'IELTS Academy', template: '%s · IELTS Academy' },
+  title: { default: 'Connect IELTS Academy', template: '%s · Connect IELTS Academy' },
   description: 'Complete IELTS Preparation: live teacher-led batches, daily mock tests and graded practice.',
   // Points at the same /brand/mark.svg that <BrandLogo> looks for. Until that file exists this 404s
   // harmlessly (browsers fall back to no favicon) rather than shipping an invented mark. A raster
