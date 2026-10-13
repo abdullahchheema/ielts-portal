@@ -94,7 +94,7 @@ function QuestionDialog({ open, onClose, sectionId, question, onSaved }: { open:
                 <button type="button" className="text-sm text-danger disabled:opacity-40" disabled={options.length <= 2} onClick={() => setOptions(options.filter((_, j) => j !== i))} aria-label={`Remove option ${i + 1}`}>✕</button>
               </div>
             ))}
-            {options.length < 12 && <Button type="button" variant="ghost" className="!py-1" onClick={() => setOptions([...options, { label: '', isCorrect: false }])}>+ Add option</Button>}
+            {options.length < 12 && <Button type="button" variant="ghost" size="xs" onClick={() => setOptions([...options, { label: '', isCorrect: false }])}>+ Add option</Button>}
           </fieldset>
         )}
         {(type === 'TFNG' || type === 'YNNG') && (
@@ -159,9 +159,9 @@ export default function AssessmentBuilderPage() {
                       <label className="cursor-pointer rounded-md px-2 py-1 text-primary hover:bg-surface-muted">{s.content?.audioKey ? 'Replace audio' : 'Upload audio (MP3)'}
                         <input type="file" accept="audio/mpeg" className="sr-only" onChange={(e) => { const file = e.target.files?.[0]; if (!file) return; const fd = new FormData(); fd.append('file', file); run(() => api('/admin/assessment-sections/' + s.id + '/audio', { method: 'POST', form: fd })); e.target.value = ''; }} />
                       </label>
-                      <Button variant="ghost" className="!px-2 !py-1" onClick={() => setSecDlg({ open: true, section: s })}>Edit</Button>
-                      <Button variant="ghost" className="!px-2 !py-1" onClick={() => setQDlg({ open: true, sectionId: s.id, question: null })}>+ Question</Button>
-                      <Button variant="ghost" tone="danger" className="!px-2 !py-1" onClick={() => confirm({ message: 'Delete this section and its questions?', tone: 'danger', confirmLabel: 'Delete section' }).then((ok) => { if (ok) { run(() => api('/admin/assessment-sections/' + s.id, { method: 'DELETE' })); } })}>Delete</Button>
+                      <Button variant="ghost" size="xs" onClick={() => setSecDlg({ open: true, section: s })}>Edit</Button>
+                      <Button variant="ghost" size="xs" onClick={() => setQDlg({ open: true, sectionId: s.id, question: null })}>+ Question</Button>
+                      <Button variant="ghost" tone="danger" size="xs" onClick={() => confirm({ message: 'Delete this section and its questions?', tone: 'danger', confirmLabel: 'Delete section' }).then((ok) => { if (ok) { run(() => api('/admin/assessment-sections/' + s.id, { method: 'DELETE' })); } })}>Delete</Button>
                     </div>
                   )}
                 </div>
@@ -170,7 +170,7 @@ export default function AssessmentBuilderPage() {
                     <li key={q.id} className="flex flex-wrap items-start justify-between gap-2 py-2">
                       <div><p><span className="mr-2 text-fg-subtle">{i + 1}.</span>{q.prompt.text} <span className="text-xs text-fg-muted">· {label(q.type)} · {Number(q.marks)} mark{Number(q.marks) === 1 ? '' : 's'}</span></p>
                         <p className="ml-5 text-xs text-green-700">Answer: {q.options.length ? q.options.filter((o) => o.isCorrect).map((o) => o.label).join(', ') : q.answerKey?.value ? label(q.answerKey.value) : q.answerKey?.accepted?.join(' / ')}</p></div>
-                      {draft && <span className="flex gap-1 text-xs"><Button variant="ghost" className="!px-2 !py-1" onClick={() => setQDlg({ open: true, sectionId: s.id, question: q })}>Edit</Button><Button variant="ghost" tone="danger" className="!px-2 !py-1" onClick={() => confirm({ message: 'Delete this question?', tone: 'danger', confirmLabel: 'Delete question' }).then((ok) => { if (ok) { run(() => api('/admin/assessment-questions/' + q.id, { method: 'DELETE' })); } })}>Delete</Button></span>}
+                      {draft && <span className="flex gap-1 text-xs"><Button variant="ghost" size="xs" onClick={() => setQDlg({ open: true, sectionId: s.id, question: q })}>Edit</Button><Button variant="ghost" tone="danger" size="xs" onClick={() => confirm({ message: 'Delete this question?', tone: 'danger', confirmLabel: 'Delete question' }).then((ok) => { if (ok) { run(() => api('/admin/assessment-questions/' + q.id, { method: 'DELETE' })); } })}>Delete</Button></span>}
                     </li>
                   ))}
                   {s.questions.length === 0 && <li className="py-2 text-fg-muted">No questions yet.</li>}

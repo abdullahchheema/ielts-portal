@@ -66,12 +66,12 @@ function ConfirmDialog({ pending, onSettle }: { pending: Pending | null; onSettl
       onClose={() => onSettle(false)}
       aria-labelledby="confirm-title"
       aria-describedby="confirm-body"
-      className="w-[calc(100%-2rem)] max-w-md rounded-lg bg-surface p-0 text-fg shadow-xl ring-1 ring-border backdrop:bg-overlay"
+      className="w-[calc(100%-2rem)] max-w-md rounded-2xl bg-surface p-0 text-fg shadow-xl ring-1 ring-border backdrop:bg-overlay"
     >
-      <div className="p-6">
-        <h2 id="confirm-title" className="font-display text-lg font-semibold text-fg">{pending?.o.title ?? (danger ? 'Please confirm' : 'Confirm action')}</h2>
-        <p id="confirm-body" className="mt-2 whitespace-pre-line text-sm leading-relaxed text-fg-muted">{pending?.o.message}</p>
-        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+      <div className="p-7">
+        <h2 id="confirm-title" className="font-display text-h3 font-bold text-fg">{pending?.o.title ?? (danger ? 'Please confirm' : 'Confirm action')}</h2>
+        <p id="confirm-body" className="mt-2.5 whitespace-pre-line text-sm leading-relaxed text-fg-muted">{pending?.o.message}</p>
+        <div className="mt-7 flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">
           <Button ref={cancelRef} variant="secondary" onClick={() => onSettle(false)}>Cancel</Button>
           <Button variant={danger ? 'danger' : 'primary'} onClick={() => onSettle(true)}>{pending?.o.confirmLabel ?? (danger ? 'Delete' : 'Confirm')}</Button>
         </div>

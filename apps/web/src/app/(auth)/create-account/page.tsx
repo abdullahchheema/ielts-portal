@@ -72,8 +72,11 @@ function CreateAccount() {
       <Field label="Phone / WhatsApp" hint="Optional" error={errors.phone?.message}>{(p) => <Input {...p} type="tel" autoComplete="tel" {...register('phone')} />}</Field>
       <Field label="Password" hint="At least 10 characters, with a letter and a number." error={errors.password?.message}>{(p) => <Input {...p} type="password" autoComplete="new-password" {...register('password')} />}</Field>
       <Button type="submit" busy={isSubmitting} className="w-full">Create account</Button>
+      <p className="text-xs text-fg-subtle">
+        By creating an account you agree to our <Link href="/terms" className="underline underline-offset-2 hover:text-fg">Terms of Service</Link> and <Link href="/privacy" className="underline underline-offset-2 hover:text-fg">Privacy Policy</Link>.
+      </p>
       <p className="text-sm text-fg-muted">
-        Already have an account? <Link href={loginHref} className="font-medium text-primary underline underline-offset-2">Log in</Link>
+        Already have an account? <Link href={loginHref} className="font-semibold text-primary underline underline-offset-2">Log in</Link>
       </p>
     </form>
   );

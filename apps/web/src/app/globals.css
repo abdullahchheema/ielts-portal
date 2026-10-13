@@ -1,61 +1,73 @@
 @import "tailwindcss";
 
 /* ============================================================================
-   IELTS Academy design system.
+   Connect IELTS Academy design system.
 
    Four layers, in order: (1) @theme static values that emit Tailwind utilities,
    (2) :root semantic tokens, (3) @theme inline re-exposing them as utilities,
    (4) base element styles.
 
-   The identity is deliberately its own: warm paper neutrals rather than cool
-   slate, a deep ink-indigo primary, and a jade accent reserved for progress and
-   achievement. Every colour in the app resolves through these tokens, so this
-   file is the single place the brand changes.
+   Identity: pure-white canvas, a deep navy primary pulled straight from the
+   logo, and one vivid amber accent reserved for conversion CTAs. Every colour
+   in the app resolves through these tokens, so this file is the single place
+   the brand changes.
    ========================================================================= */
 
 /* LAYER 1: static paint.
-   The indigo ramp is repointed at the brand ink so any stray `indigo-*` class
+   The indigo ramp is repointed at the brand navy so any stray `indigo-*` class
    stays on-brand instead of reverting to Tailwind's default blue-violet. */
 @theme {
-  --color-indigo-50:  #EDF0FA;  --color-indigo-100: #DDE3F5;
-  --color-indigo-200: #BFC9EB;  --color-indigo-300: #94A5DC;
-  --color-indigo-400: #6479C2;  --color-indigo-500: #3F57A8;
-  --color-indigo-600: #2A4494;
-  --color-indigo-700: #1F3474;  --color-indigo-800: #1A2B5E;
-  --color-indigo-900: #161F45;  --color-indigo-950: #0E1430;
+  --color-indigo-50:  #EEF1F8;  --color-indigo-100: #DDE3EF;
+  --color-indigo-200: #BCC5D9;  --color-indigo-300: #94A1BE;
+  --color-indigo-400: #65749B;  --color-indigo-500: #3C4C76;
+  --color-indigo-600: #243356;
+  --color-indigo-700: #1C2845;  --color-indigo-800: #161F36;
+  --color-indigo-900: #111828;  --color-indigo-950: #0B1020;
 
   /* Deliberate dark surfaces (auth promo panel, closing bands). */
-  --color-ink-700: #232736;  --color-ink-800: #1B1E2B;  --color-ink-900: #12141D;
+  --color-ink-700: #333A4C;  --color-ink-800: #1C2133;  --color-ink-900: #101322;
 
-  /* Shadows are warm-tinted to sit on paper neutrals, not slate-blue. */
+  /* Radius ramp: bigger, rounder, more confident than the previous single token. */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
   --radius-lg: 0.875rem;
-  --shadow-xs: 0 1px 2px 0 rgb(43 38 31 / .05);
-  --shadow-sm: 0 1px 2px 0 rgb(43 38 31 / .06), 0 1px 3px 0 rgb(43 38 31 / .07);
-  --shadow-md: 0 2px 4px -1px rgb(43 38 31 / .07), 0 4px 12px -2px rgb(43 38 31 / .09);
-  --shadow-lg: 0 4px 8px -2px rgb(43 38 31 / .07), 0 12px 28px -6px rgb(43 38 31 / .13);
-  --shadow-xl: 0 8px 16px -4px rgb(43 38 31 / .09), 0 24px 48px -12px rgb(43 38 31 / .19);
+  --radius-xl: 1.125rem;
+  --radius-2xl: 1.375rem;
+  --radius-3xl: 1.75rem;
+
+  /* Shadows are cool-tinted to sit on a pure-white canvas, not the old warm paper. */
+  --shadow-xs: 0 1px 2px 0 rgb(16 19 34 / .05);
+  --shadow-sm: 0 1px 2px 0 rgb(16 19 34 / .05), 0 1px 3px 0 rgb(16 19 34 / .07);
+  --shadow-md: 0 2px 4px -1px rgb(16 19 34 / .06), 0 6px 14px -3px rgb(16 19 34 / .09);
+  --shadow-lg: 0 4px 8px -2px rgb(16 19 34 / .06), 0 16px 32px -8px rgb(16 19 34 / .12);
+  --shadow-xl: 0 8px 16px -4px rgb(16 19 34 / .08), 0 32px 64px -16px rgb(16 19 34 / .18);
+  --shadow-cta: 0 2px 6px -1px rgb(194 120 12 / .3), 0 12px 24px -8px rgb(194 120 12 / .3);
 
   /* Type scale. Each size carries its own line-height and tracking so headings
-     never need per-page overrides. */
-  --text-display: clamp(2.5rem, 1.8rem + 3vw, 3.75rem);
-  --text-display--line-height: 1.04;
-  --text-display--letter-spacing: -0.03em;
+     never need per-page overrides. Sized for an 18px root (see LAYER 4). */
+  --text-display: clamp(2.75rem, 1.9rem + 3.4vw, 4.25rem);
+  --text-display--line-height: 1.03;
+  --text-display--letter-spacing: -0.032em;
 
-  --text-h1: 2rem;
-  --text-h1--line-height: 1.15;
-  --text-h1--letter-spacing: -0.022em;
+  --text-h1: 2.375rem;
+  --text-h1--line-height: 1.12;
+  --text-h1--letter-spacing: -0.024em;
 
-  --text-h2: 1.5rem;
-  --text-h2--line-height: 1.22;
-  --text-h2--letter-spacing: -0.016em;
+  --text-h2: 1.75rem;
+  --text-h2--line-height: 1.2;
+  --text-h2--letter-spacing: -0.018em;
 
-  --text-h3: 1.1875rem;
-  --text-h3--line-height: 1.3;
-  --text-h3--letter-spacing: -0.01em;
+  --text-h3: 1.375rem;
+  --text-h3--line-height: 1.28;
+  --text-h3--letter-spacing: -0.012em;
 
-  --text-overline: 0.75rem;
+  --text-lead: 1.1875rem;
+  --text-lead--line-height: 1.6;
+  --text-lead--letter-spacing: -0.005em;
+
+  --text-overline: 0.8125rem;
   --text-overline--line-height: 1.1;
-  --text-overline--letter-spacing: 0.08em;
+  --text-overline--letter-spacing: 0.09em;
 
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
@@ -66,34 +78,37 @@
    :root/:host only, and ::backdrop sits outside that inheritance chain on
    older Safari and Chrome. This is what makes the dialog scrim render. */
 :root, ::backdrop {
-  --canvas: #F7F6F3;  --surface: #FFFFFF;  --surface-muted: #F1EFEA;
-  --fg: #1A1A1F;      --fg-muted: #5F5E66; --fg-subtle: #7A7881;
-  --border: #E5E1D9;  --border-strong: #CFC9BD;
+  --canvas: #FFFFFF;  --surface: #FFFFFF;  --surface-muted: #F4F5F7;
+  --fg: #101322;      --fg-muted: #434A5C; --fg-subtle: #646B7D;
+  --border: #E3E6EC;  --border-strong: #C6CBD6;
 
-  --primary: #2A4494;  --primary-hover: #1F3474;
-  --primary-fg: #FFFFFF; --primary-soft: #EDF0FA;
+  --primary: #243356;  --primary-hover: #1A2642;
+  --primary-fg: #FFFFFF; --primary-soft: #EEF1F8;
+  --primary-ring: #2F4C8F;
 
-  --accent: #12A594;          /* fills, graphics, rails */
-  --accent-strong: #0A7268;   /* accent text: the lighter jade fails AA on white */
-  --accent-soft: #E9F7F4;
+  --accent: #F59E0B;           /* CTA fills */
+  --accent-fg: #101322;        /* text on the amber fill — 6.1:1 */
+  --accent-hover: #D97706;
+  --accent-strong: #B45309;    /* accent text on white — 5.0:1 */
+  --accent-soft: #FEF3E2;
 
-  /* Deliberate dark surfaces. */
-  --ink: #12141D; --ink-soft: #232736; --ink-fg: #F7F6F3;
+  /* Deliberate dark surfaces. --ink-soft is the exact logo navy. */
+  --ink: #101322; --ink-soft: #333A4C; --ink-fg: #F5F6F8;
 
-  --success: #1A7F4B; --success-soft: #E8F6EE;
-  --warning: #B45309; --warning-soft: #FDF3E7;
-  --danger:  #C0392B; --danger-soft:  #FCEDEB;
-  --info:    #0E7490; --info-soft:    #E7F4F8;
+  --success: #15803D; --success-soft: #ECF7F0;
+  --warning: #B45309; --warning-soft: #FDF4E8;
+  --danger:  #B42318; --danger-soft:  #FDECEA;
+  --info:    #0E6FA8; --info-soft:    #EAF3FB;
 
-  --ring: #2A4494;
-  --overlay: rgb(26 26 31 / .55);
+  --ring: var(--primary-ring);
+  --overlay: rgb(16 19 34 / .62);
 
   /* Chart series. Distinguishable in order and without relying on hue alone. */
-  --chart-1: #2A4494; --chart-2: #12A594; --chart-3: #B45309;
-  --chart-4: #6B4FA8; --chart-5: #0E7490; --chart-6: #A3576B;
+  --chart-1: #243356; --chart-2: #2F6FD0; --chart-3: #C2410C;
+  --chart-4: #15803D; --chart-5: #6D45CF; --chart-6: #0E7490;
 
   /* Motion. One scale, used by components and custom CSS alike. */
-  --dur-fast: 120ms; --dur: 180ms; --dur-slow: 280ms;
+  --dur-fast: 120ms; --dur: 200ms; --dur-slow: 320ms; --dur-hero: 700ms;
 }
 
 /* LAYER 3: expose as utilities. `inline` lets ::backdrop resolve per element. */
@@ -105,7 +120,9 @@
   --color-border: var(--border);   --color-border-strong: var(--border-strong);
   --color-primary: var(--primary); --color-primary-hover: var(--primary-hover);
   --color-primary-fg: var(--primary-fg); --color-primary-soft: var(--primary-soft);
-  --color-accent: var(--accent);   --color-accent-strong: var(--accent-strong);
+  --color-primary-ring: var(--primary-ring);
+  --color-accent: var(--accent);   --color-accent-fg: var(--accent-fg);
+  --color-accent-hover: var(--accent-hover); --color-accent-strong: var(--accent-strong);
   --color-accent-soft: var(--accent-soft);
   --color-ink: var(--ink);         --color-ink-soft: var(--ink-soft);
   --color-ink-fg: var(--ink-fg);
@@ -118,9 +135,12 @@
   --color-chart-3: var(--chart-3); --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5); --color-chart-6: var(--chart-6);
 
-  /* Font bridge. The next/font class must sit on <html>; see layout.tsx. */
+  /* Font bridge. The next/font class must sit on <html>; see layout.tsx.
+     Both utilities resolve to the same Plus Jakarta Sans variable font — one
+     typeface, used everywhere, bold weights available without a second
+     download — distinguished only by the font-weight rules in LAYER 4. */
   --font-sans:    var(--font-body), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-display-face), var(--font-body), ui-sans-serif, sans-serif;
+  --font-display: var(--font-body), ui-sans-serif, system-ui, sans-serif;
 }
 
 /* LAYER 4: base. */
@@ -129,10 +149,24 @@
   dialog:modal { margin: auto; }
   :focus-visible { outline-color: var(--ring); }
   th, td { font-variant-numeric: tabular-nums; }
-  /* Headings carry the display face by default so pages stop re-declaring it. */
-  h1, h2, h3 { font-family: var(--font-display); }
+
+  /* Root scale-up: 16px -> 18px. A percentage (not px) so it still compounds
+     with the browser's own zoom/font-size preference. Tailwind's breakpoints
+     are media queries, which always resolve `rem` against the browser's
+     initial 16px regardless of this rule — container widths in Shell.tsx and
+     the public pages are intentionally stepped down one notch to compensate. */
+  html { font-size: 112.5%; }
+  body { font-weight: 450; letter-spacing: -0.011em; }
+
+  /* Headings carry the display face and a real weight by default so pages
+     stop re-declaring both. */
+  h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 700; }
 }
 
+/* Scoped to plain CSS transitions/animations only. Framer Motion doesn't use
+   the `animation`/`transition` CSS properties (it drives the Web Animations
+   API directly), so this never touches it — Motion is told separately via
+   <MotionConfig reducedMotion="user"> in app/layout.tsx. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: .01ms !important; animation-iteration-count: 1 !important;
@@ -140,20 +174,30 @@
   }
 }
 
-/* Data tables: columns from lg up; below that each row stacks as a labelled card (see components/ui/table.tsx). */
-@media (max-width: 1023.98px) {
+/* Data tables: columns from lg up; below that each row stacks as a labelled card (see components/ui/table.tsx).
+   Breakpoint raised from 1023.98px to clear the 18px root scale-up before columns start clipping. */
+@media (max-width: 1151.98px) {
   .data-table thead { display: none; }
   .data-table, .data-table tbody, .data-table tr, .data-table td { display: block; width: 100%; }
-  .data-table tr { padding: 0.875rem 1rem; }
+  .data-table tr { padding: 1rem 1.125rem; }
   .data-table td {
     display: flex; align-items: baseline; justify-content: space-between; gap: 1rem;
     padding: 0.3rem 0; text-align: right; overflow-wrap: anywhere;
   }
   .data-table td::before {
     content: attr(data-label); flex-shrink: 0; text-align: left;
-    font-size: 0.75rem; font-weight: 500; color: var(--fg-muted);
+    font-size: 0.8125rem; font-weight: 500; color: var(--fg-muted);
   }
   .data-table td:first-child { display: block; text-align: left; padding-bottom: 0.5rem; font-weight: 600; }
   .data-table td:first-child::before, .data-table td:not([data-label])::before { content: none; }
   .data-table td:empty { display: none; }
 }
+
+/* Long-form legal/content prose (Terms, Privacy). */
+.legal-prose h2 { font-size: var(--text-h3); margin-top: 2.25rem; margin-bottom: 0.75rem; }
+.legal-prose h2:first-child { margin-top: 0; }
+.legal-prose p, .legal-prose li { color: var(--fg-muted); line-height: 1.7; }
+.legal-prose p { margin-bottom: 1rem; }
+.legal-prose ul { list-style: disc; padding-left: 1.5rem; margin-bottom: 1rem; }
+.legal-prose li { margin-bottom: 0.375rem; }
+.legal-prose strong { color: var(--fg); font-weight: 600; }

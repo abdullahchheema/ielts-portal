@@ -74,8 +74,8 @@ export default function AdminReferralsPage() {
                     <Td>{r.rewardType ? `${r.rewardType.replace('_', ' ').toLowerCase()} ${r.rewardAmount ?? ''}` : '—'}</Td>
                     <Td>
                       <div className="flex gap-2">
-                        {r.status === 'QUALIFIED' && <Button variant="secondary" className="!py-1" onClick={() => reward(r)}>Reward</Button>}
-                        {r.status !== 'REWARDED' && r.status !== 'REJECTED' && <Button variant="ghost" className="!py-1" onClick={() => setRejecting(r)}>Reject</Button>}
+                        {r.status === 'QUALIFIED' && <Button variant="secondary" size="xs" onClick={() => reward(r)}>Reward</Button>}
+                        {r.status !== 'REWARDED' && r.status !== 'REJECTED' && <Button variant="ghost" size="xs" onClick={() => setRejecting(r)}>Reject</Button>}
                       </div>
                     </Td>
                   </tr>

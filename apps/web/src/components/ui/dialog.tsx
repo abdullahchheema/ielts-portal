@@ -7,7 +7,7 @@ import { Tabs } from './tabs';
 
 // Native <dialog> gives focus trap and Esc. Centring comes from the base layer in globals.css.
 // Width is set in calc() rather than w-full, which fights the UA max-width on dialog:modal.
-const SHELL = 'w-[calc(100%-2rem)] rounded-lg bg-surface p-0 text-fg shadow-xl ring-1 ring-border backdrop:bg-overlay';
+const SHELL = 'w-[calc(100%-2rem)] rounded-2xl bg-surface p-0 text-fg shadow-xl ring-1 ring-border backdrop:bg-overlay';
 
 export function Dialog({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -19,8 +19,8 @@ export function Dialog({ open, onClose, title, children }: { open: boolean; onCl
   }, [open]);
   return (
     <dialog ref={ref} onClose={onClose} aria-labelledby="dlg-title" className={cx(SHELL, 'max-w-lg')}>
-      <div className="p-6">
-        <h2 id="dlg-title" className="mb-4 font-display text-lg font-semibold text-fg">{title}</h2>
+      <div className="p-7">
+        <h2 id="dlg-title" className="mb-5 font-display text-h3 font-bold text-fg">{title}</h2>
         {children}
       </div>
     </dialog>
@@ -46,10 +46,10 @@ export function DetailDialog({
   return (
     <dialog ref={ref} onClose={onClose} aria-labelledby="detail-dlg-title" className={cx(SHELL, 'max-w-4xl')}>
       <div className="flex max-h-[85vh] flex-col">
-        <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-border bg-surface px-6 py-4">
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-border bg-surface px-7 py-5">
           <div className="min-w-0">
-            <h2 id="detail-dlg-title" className="truncate font-display text-lg font-semibold text-fg">{title}</h2>
-            {subtitle && <p className="mt-0.5 truncate text-sm text-fg-muted">{subtitle}</p>}
+            <h2 id="detail-dlg-title" className="truncate font-display text-h3 font-bold text-fg">{title}</h2>
+            {subtitle && <p className="mt-1 truncate text-sm text-fg-muted">{subtitle}</p>}
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {actions}
@@ -69,7 +69,7 @@ export function DetailDialog({
             />
           </div>
         )}
-        <div className="overflow-y-auto px-6 py-5">{children}</div>
+        <div className="overflow-y-auto px-7 py-6">{children}</div>
       </div>
     </dialog>
   );

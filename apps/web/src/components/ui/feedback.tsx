@@ -17,7 +17,7 @@ export function Alert({ kind = 'error', children }: { kind?: 'error' | 'success'
   const s = ALERT[kind];
   const Icon = s.icon;
   return (
-    <div role={kind === 'error' ? 'alert' : 'status'} className={cx('flex gap-3 rounded-md px-4 py-3 text-sm text-fg ring-1 ring-inset', s.box)}>
+    <div role={kind === 'error' ? 'alert' : 'status'} className={cx('flex gap-3 rounded-xl px-4 py-3.5 text-sm text-fg ring-1 ring-inset', s.box)}>
       <Icon aria-hidden className={cx('mt-0.5 size-4 shrink-0', s.iconCls)} />
       <div className="min-w-0">{children}</div>
     </div>
@@ -27,7 +27,7 @@ export function Alert({ kind = 'error', children }: { kind?: 'error' | 'success'
 /** Dashed placeholder. Plain children still work; icon, title and action are optional. */
 export function Empty({ icon: Icon, title, children, action }: { icon?: LucideIcon; title?: string; children?: ReactNode; action?: ReactNode }) {
   return (
-    <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border-strong bg-surface px-6 py-10 text-center">
+    <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border-strong bg-surface px-6 py-12 text-center">
       {Icon && <span className="mb-1 grid size-10 place-items-center rounded-full bg-surface-muted text-fg-muted"><Icon aria-hidden className="size-5" /></span>}
       {title && <p className="font-semibold text-fg">{title}</p>}
       {children && <div className="max-w-md text-sm text-fg-muted">{children}</div>}

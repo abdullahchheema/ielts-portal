@@ -253,7 +253,7 @@ function ExplainButton({ attemptId, questionVersionId }: { attemptId: string; qu
   }
   return (
     <div className="mt-2 space-y-2">
-      {text === null && <Button variant="ghost" className="!py-1 text-sm" onClick={explain} busy={busy}>Explain this question</Button>}
+      {text === null && <Button variant="ghost" size="xs" onClick={explain} busy={busy}>Explain this question</Button>}
       {text !== null && <p className="rounded-md bg-accent-soft p-3 text-sm text-fg">{text}</p>}
       {error && <Alert>{error}</Alert>}
     </div>

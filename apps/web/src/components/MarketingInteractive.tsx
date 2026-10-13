@@ -33,7 +33,7 @@ export function FeatureShowcase() {
       <div className="flex justify-center">
         <Tabs aria-label="Course modules" variant="segment" value={active} onChange={setActive} items={MODULE_TABS.map((t) => ({ key: t.key, label: t.name }))} />
       </div>
-      <div className="mt-7 overflow-hidden rounded-xl border border-border bg-surface shadow-sm">
+      <div className="mt-7 overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
         <div className="grid gap-6 p-7 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] sm:p-10">
           <div>
             <span aria-hidden className="grid size-11 place-items-center rounded-lg bg-primary text-primary-fg shadow-xs">

@@ -9,6 +9,7 @@ import { AccountGate } from '@/components/AccountGate';
 import { PaymentSection, PaymentValues, METHOD_LABEL, emptyPayment, paymentFormData, validatePayment } from '@/components/PaymentSection';
 import { SurveyWizard, SurveyComplete } from '@/components/survey/SurveyWizard';
 import { PublicBatch } from '@/components/BatchCard';
+import { PublicFooter } from '@/components/PublicFooter';
 import { PublicHeader } from '@/components/PublicHeader';
 import { Alert, Button, Card, DefinitionList, Field, Input, Loading, Section, Select, Stepper } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
@@ -46,19 +47,23 @@ export default function EnrollPage() {
   const batch = batches.data?.find((b) => b.id === batchId);
   if (!batch || !course.data) {
     return (
-      <><PublicHeader /><main className="mx-auto max-w-xl px-4 py-16 text-center">
-        <h1 className="mb-2 text-2xl font-semibold">This batch is not open for enrollment</h1>
-        <p className="mb-6 text-fg-muted">It may have closed or been removed. Pick another batch.</p>
-        <Link href="/register" className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">See open batches</Link>
-      </main></>
+      <>
+        <PublicHeader />
+        <main className="mx-auto max-w-xl px-5 py-20 text-center sm:px-8">
+          <h1 className="mb-2 text-h2 font-extrabold text-fg">This batch is not open for enrollment</h1>
+          <p className="mb-7 text-fg-muted">It may have closed or been removed. Pick another batch.</p>
+          <Link href="/register" className="inline-flex items-center justify-center rounded-xl bg-primary px-6 py-3.5 text-sm font-bold text-white shadow-sm hover:bg-primary-hover">See open batches</Link>
+        </main>
+        <PublicFooter />
+      </>
     );
   }
 
   const header = (
     <>
-      <Link href="/register" className="text-sm text-primary hover:underline">← Choose a different batch</Link>
-      <h1 className="mb-1 mt-3 text-2xl font-bold text-fg">Enroll in {batch.name}</h1>
-      <p className="mb-6 text-sm text-fg-muted">
+      <Link href="/register" className="text-sm font-semibold text-primary hover:underline">← Choose a different batch</Link>
+      <h1 className="mb-2 mt-4 text-h2 font-extrabold text-fg">Enroll in {batch.name}</h1>
+      <p className="mb-7 text-base text-fg-muted">
         Starts {date(batch.startAt)} · {batch.days.map((x) => DAY[x] ?? x).join(', ') || 'schedule to be announced'}{batch.classTime ? ` at ${batch.classTime}` : ''} · Teacher: {batch.mentorAssigned ? batch.mentors.map((m) => m.name).join(', ') : 'not assigned yet'}
       </p>
     </>
@@ -68,7 +73,7 @@ export default function EnrollPage() {
     return (
       <>
         <PublicHeader />
-        <main className="mx-auto max-w-3xl px-4 py-8">
+        <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8">
           {header}
           <Card>
             <AccountGate
@@ -78,6 +83,7 @@ export default function EnrollPage() {
             />
           </Card>
         </main>
+        <PublicFooter />
       </>
     );
   }
@@ -85,10 +91,11 @@ export default function EnrollPage() {
     return (
       <>
         <PublicHeader />
-        <main className="mx-auto max-w-3xl px-4 py-8">
+        <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8">
           {header}
           <Alert kind="info">You are signed in with a staff or teacher account. Log in with a student account to apply for a batch.</Alert>
         </main>
+        <PublicFooter />
       </>
     );
   }
@@ -147,9 +154,9 @@ export default function EnrollPage() {
   return (
     <>
       <PublicHeader />
-      <main className="mx-auto max-w-3xl px-4 py-8">
+      <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8">
         {header}
-        <div className="mb-6"><Stepper steps={STEP_DEFS} activeIndex={step} /></div>
+        <div className="mb-7"><Stepper steps={STEP_DEFS} activeIndex={step} /></div>
 
         <Card>
           {formError && <div className="mb-4"><Alert>{formError}</Alert></div>}
@@ -204,6 +211,7 @@ export default function EnrollPage() {
           )}
         </Card>
       </main>
+      <PublicFooter />
     </>
   );
 }

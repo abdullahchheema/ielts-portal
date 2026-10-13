@@ -126,8 +126,8 @@ export default function ReconciliationPage() {
                 <Td className="max-w-md text-sm text-fg-muted">{x.reasons.join(' ')}</Td>
                 <Td>
                   <div className="flex gap-2">
-                    <Button variant="secondary" className="!py-1" onClick={() => resolve(x.id, 'ACCEPTED')}>Accept</Button>
-                    <Button variant="ghost" className="!py-1" onClick={() => resolve(x.id, 'REJECTED_EXCEPTION')}>Flag</Button>
+                    <Button variant="secondary" size="xs" onClick={() => resolve(x.id, 'ACCEPTED')}>Accept</Button>
+                    <Button variant="ghost" size="xs" onClick={() => resolve(x.id, 'REJECTED_EXCEPTION')}>Flag</Button>
                   </div>
                 </Td>
               </tr>
@@ -158,8 +158,8 @@ export default function ReconciliationPage() {
                       <li key={f.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
                         <span className="text-fg-muted">{f.reason}</span>
                         <span className="flex gap-2">
-                          <Button variant="secondary" className="!py-1" onClick={() => review(f.id, 'DISMISS')}>Dismiss</Button>
-                          <Button variant="ghost" className="!py-1" onClick={() => review(f.id, 'CONFIRM')}>Confirm concern</Button>
+                          <Button variant="secondary" size="xs" onClick={() => review(f.id, 'DISMISS')}>Dismiss</Button>
+                          <Button variant="ghost" size="xs" onClick={() => review(f.id, 'CONFIRM')}>Confirm concern</Button>
                         </span>
                       </li>
                     ))}

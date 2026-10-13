@@ -22,7 +22,9 @@ function portalLabel(roles: string[]): string {
 export interface NavGroup { title?: string; items: NavItem[] }
 
 const COLLAPSE_KEY = 'ui:sidebar-collapsed';
-const WIDTH = { default: 'max-w-6xl', wide: 'max-w-7xl', narrow: 'max-w-4xl' } as const;
+// Stepped down one notch from the pre-18px values: the root font-size bump already grew every
+// rem-based max-w-* utility ~12.5%, so holding the old notch would widen these containers further.
+const WIDTH = { default: 'max-w-5xl', wide: 'max-w-6xl', narrow: 'max-w-3xl' } as const;
 
 /**
  * Sidebar and top bar shared by the student, teacher and admin areas.
@@ -83,7 +85,7 @@ export function Shell({ title, groups, me, children, width = 'default' }: { titl
                     )}
                   >
                     {active && <span aria-hidden className="absolute inset-y-1.5 left-0 w-[3px] rounded-full bg-primary" />}
-                    {Icon ? <Icon aria-hidden className="size-4.5 shrink-0" strokeWidth={1.75} /> : <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-current opacity-40" />}
+                    {Icon ? <Icon aria-hidden className="size-5 shrink-0" strokeWidth={1.75} /> : <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-current opacity-40" />}
                     <span className={cx('min-w-0 flex-1 truncate', iconOnly && 'lg:sr-only')}>{it.label}</span>
                     {!!it.badge && <span className={cx('rounded-full bg-primary px-1.5 text-[11px] font-semibold tabular-nums text-primary-fg', iconOnly && 'lg:hidden')}>{it.badge}</span>}
                   </Link>
@@ -100,7 +102,7 @@ export function Shell({ title, groups, me, children, width = 'default' }: { titl
     <div className={cx('flex items-center gap-3 px-5 pb-4 pt-5', iconOnly && 'lg:justify-center lg:px-0')}>
       <BrandLogo variant="mark" />
       <div className={cx('min-w-0', iconOnly && 'lg:sr-only')}>
-        <p className="font-display text-sm font-semibold leading-tight text-fg">Connect IELTS Academy</p>
+        <p className="font-display text-sm font-bold leading-tight text-fg">Connect IELTS Academy</p>
         <p className="truncate text-xs text-fg-muted">{title}</p>
       </div>
     </div>
@@ -120,7 +122,7 @@ export function Shell({ title, groups, me, children, width = 'default' }: { titl
   );
 
   return (
-    <div className={cx('min-h-dvh bg-canvas lg:grid lg:transition-[grid-template-columns] lg:duration-[var(--dur)] lg:ease-out-soft', collapsed ? 'lg:grid-cols-[4.5rem_1fr]' : 'lg:grid-cols-[16rem_1fr]')}>
+    <div className={cx('min-h-dvh bg-canvas lg:grid lg:transition-[grid-template-columns] lg:duration-[var(--dur)] lg:ease-out-soft', collapsed ? 'lg:grid-cols-[4rem_1fr]' : 'lg:grid-cols-[15rem_1fr]')}>
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[60] focus:rounded-md focus:bg-surface focus:px-3 focus:py-2 focus:shadow-md">Skip to content</a>
 
       {/* Desktop sidebar */}
@@ -160,7 +162,7 @@ export function Shell({ title, groups, me, children, width = 'default' }: { titl
       </aside>
 
       <div className="flex min-w-0 flex-col">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-surface/90 px-4 backdrop-blur supports-[backdrop-filter]:bg-surface/75 sm:px-6">
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-surface/90 px-4 backdrop-blur supports-[backdrop-filter]:bg-surface/75 sm:px-6">
           <button
             type="button"
             className="grid size-11 place-items-center rounded-md text-fg-muted hover:bg-surface-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-ring lg:hidden"
@@ -176,7 +178,7 @@ export function Shell({ title, groups, me, children, width = 'default' }: { titl
             <NotificationBell />
           </div>
         </header>
-        <main id="main" className={cx('mx-auto w-full flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10', WIDTH[width])}>
+        <main id="main" className={cx('mx-auto w-full flex-1 px-4 py-7 sm:px-6 sm:py-9 lg:px-10 lg:py-12', WIDTH[width])}>
           {children}
         </main>
       </div>

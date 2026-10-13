@@ -123,7 +123,7 @@ export function TeacherApplicationForm({
               <Field label="Degree" error={errors.educations?.[i]?.degree?.message}>{(p) => <Select {...p} {...register(`educations.${i}.degree`)}><option value="">Select</option>{options(DEGREES)}</Select>}</Field>
               <div className="sm:col-span-2"><Field label="Institution" error={errors.educations?.[i]?.institution?.message}>{(p) => <Input {...p} {...register(`educations.${i}.institution`)} />}</Field></div>
               <Field label="Year completed" error={errors.educations?.[i]?.endYear?.message}>{(p) => <Select {...p} {...register(`educations.${i}.endYear`)}><option value="">Select</option>{YEARS.map((y) => <option key={y} value={y}>{y}</option>)}</Select>}</Field>
-              {educations.fields.length > 1 && <div className="flex items-end sm:col-span-4"><Button type="button" variant="danger" className="!py-1.5" onClick={() => educations.remove(i)}>Remove</Button></div>}
+              {educations.fields.length > 1 && <div className="flex items-end sm:col-span-4"><Button type="button" variant="danger" size="sm" onClick={() => educations.remove(i)}>Remove</Button></div>}
             </div>
           ))}
           <Button type="button" variant="secondary" onClick={() => educations.append({ degree: undefined as unknown as Form['educations'][number]['degree'], institution: '', endYear: undefined as unknown as number })}>Add education</Button>
@@ -139,7 +139,7 @@ export function TeacherApplicationForm({
               <label className="flex items-center gap-2 self-end text-sm"><input type="checkbox" {...register(`experiences.${i}.current`)} /> Current role</label>
               <Field label="Start date" error={errors.experiences?.[i]?.startDate?.message}>{(p) => <Input {...p} type="date" {...register(`experiences.${i}.startDate`)} />}</Field>
               <Field label="End date" error={errors.experiences?.[i]?.endDate?.message}>{(p) => <Input {...p} type="date" {...register(`experiences.${i}.endDate`)} />}</Field>
-              {experiences.fields.length > 1 && <div className="flex items-end"><Button type="button" variant="danger" className="!py-1.5" onClick={() => experiences.remove(i)}>Remove</Button></div>}
+              {experiences.fields.length > 1 && <div className="flex items-end"><Button type="button" variant="danger" size="sm" onClick={() => experiences.remove(i)}>Remove</Button></div>}
             </div>
           ))}
           <Button type="button" variant="secondary" onClick={() => experiences.append({ organization: '', jobTitle: '', startDate: '', current: false, endDate: '' })}>Add work experience</Button>
@@ -152,7 +152,7 @@ export function TeacherApplicationForm({
           {certifications.fields.map((f, i) => (
             <div key={f.id} className="grid gap-3 rounded-md bg-canvas p-3 sm:grid-cols-3">
               <div className="sm:col-span-2"><Field label="Certificate" error={errors.certifications?.[i]?.name?.message}>{(p) => <Select {...p} {...register(`certifications.${i}.name`)}><option value="">Select</option>{options(TEACHER_CERTIFICATIONS)}</Select>}</Field></div>
-              <div className="flex items-end"><Button type="button" variant="danger" className="!py-1.5" onClick={() => certifications.remove(i)}>Remove</Button></div>
+              <div className="flex items-end"><Button type="button" variant="danger" size="sm" onClick={() => certifications.remove(i)}>Remove</Button></div>
             </div>
           ))}
           <Button type="button" variant="secondary" onClick={() => certifications.append({ name: undefined as unknown as Form['certifications'][number]['name'] })}>Add certificate</Button>
@@ -180,7 +180,7 @@ export function TeacherApplicationForm({
               <Field label="Organization" error={errors.references?.[i]?.organization?.message}>{(p) => <Input {...p} {...register(`references.${i}.organization`)} />}</Field>
               <Field label="How do you know them?" error={errors.references?.[i]?.relationship?.message}>{(p) => <Select {...p} {...register(`references.${i}.relationship`)}><option value="">Select</option>{options(REFERENCE_RELATIONSHIPS)}</Select>}</Field>
               <Field label="Phone" error={errors.references?.[i]?.phone?.message}>{(p) => <Input {...p} type="tel" {...register(`references.${i}.phone`)} />}</Field>
-              {references.fields.length > 2 && <div className="flex items-end"><Button type="button" variant="danger" className="!py-1.5" onClick={() => references.remove(i)}>Remove</Button></div>}
+              {references.fields.length > 2 && <div className="flex items-end"><Button type="button" variant="danger" size="sm" onClick={() => references.remove(i)}>Remove</Button></div>}
             </div>
           ))}
           <Button type="button" variant="secondary" onClick={() => references.append({ name: '', organization: '', relationship: undefined as unknown as Form['references'][number]['relationship'], phone: '' })}>Add another reference</Button>

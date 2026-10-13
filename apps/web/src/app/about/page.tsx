@@ -1,4 +1,6 @@
 import { BookOpen, GraduationCap, HeartHandshake, ShieldCheck } from 'lucide-react';
+import { Reveal, Stagger, StaggerItem } from '@/components/motion/primitives';
+import { PageHero } from '@/components/public/page-hero';
 import { PublicFooter } from '@/components/PublicFooter';
 import { PublicHeader } from '@/components/PublicHeader';
 
@@ -16,41 +18,40 @@ export default function AboutPage() {
     <div className="bg-canvas">
       <PublicHeader />
       <main>
-        <section className="px-6 pt-14 pb-16 text-center sm:pb-20">
-          <p className="text-xs font-semibold tracking-wide text-primary uppercase">About</p>
-          <h1 className="mx-auto mt-3 max-w-2xl font-display text-display text-fg">
-            Built by people who actually teach IELTS.
-          </h1>
-          <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-fg-muted">
-            Connect IELTS Academy exists because most prep either costs too much for a cohort that needs weekly accountability, or is a pile of recorded videos nobody finishes. We built the thing in between: a live, teacher-led course with the practice tools to back it up.
-          </p>
-        </section>
+        <PageHero
+          size="standard"
+          eyebrow="About"
+          title="Built by people who actually teach IELTS."
+          subtitle="Connect IELTS Academy exists because most prep either costs too much for a cohort that needs weekly accountability, or is a pile of recorded videos nobody finishes. We built the thing in between: a live, teacher-led course with the practice tools to back it up."
+        />
 
-        <section className="border-y border-border bg-surface py-16 sm:py-20">
-          <div className="mx-auto max-w-5xl px-6">
-            <h2 className="text-center font-display text-h1 text-fg">What we hold ourselves to</h2>
-            <div className="mt-10 grid gap-5 sm:grid-cols-2">
+        <section className="border-y border-border bg-surface py-20 sm:py-24">
+          <div className="mx-auto max-w-5xl px-5 sm:px-8">
+            <Reveal>
+              <h2 className="text-center font-display text-h1 text-fg">What we hold ourselves to</h2>
+            </Reveal>
+            <Stagger className="mt-12 grid gap-6 sm:grid-cols-2">
               {VALUES.map((v) => (
-                <div key={v.title} className="rounded-lg bg-canvas p-6 shadow-xs ring-1 ring-border">
-                  <span aria-hidden className="grid size-10 place-items-center rounded-full bg-primary-soft text-primary">
-                    <v.icon className="size-4.5" strokeWidth={1.75} />
+                <StaggerItem key={v.title} className="rounded-2xl bg-canvas p-7 shadow-sm ring-1 ring-border">
+                  <span aria-hidden className="grid size-11 place-items-center rounded-xl bg-primary-soft text-primary">
+                    <v.icon className="size-5" strokeWidth={1.75} />
                   </span>
-                  <h3 className="mt-4 text-base font-bold text-fg">{v.title}</h3>
-                  <p className="mt-1.5 text-sm leading-relaxed text-fg-muted">{v.text}</p>
-                </div>
+                  <h3 className="mt-5 text-base font-bold text-fg">{v.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-fg-muted">{v.text}</p>
+                </StaggerItem>
               ))}
-            </div>
+            </Stagger>
           </div>
         </section>
 
-        <section className="px-6 py-16 sm:py-20">
-          <div className="mx-auto flex max-w-5xl flex-col items-start justify-between gap-6 rounded-2xl bg-ink px-8 py-12 text-ink-fg sm:flex-row sm:items-center sm:px-12">
+        <section className="px-5 py-20 sm:px-8 sm:py-24">
+          <Reveal className="mx-auto flex max-w-5xl flex-col items-start justify-between gap-7 rounded-3xl bg-ink px-8 py-14 text-ink-fg sm:flex-row sm:items-center sm:px-14">
             <div className="min-w-0">
               <h2 className="font-display text-h2 text-white">Want to teach with us instead?</h2>
-              <p className="mt-2 max-w-xl text-ink-fg/70">We are always open to hearing from experienced IELTS teachers.</p>
+              <p className="mt-2 max-w-xl text-base text-ink-fg/70">We are always open to hearing from experienced IELTS teachers.</p>
             </div>
-            <a href="/apply-teacher" className="inline-flex shrink-0 items-center justify-center rounded-full bg-accent px-6 py-3 text-sm font-semibold text-white shadow-md transition-colors hover:bg-accent-strong">Apply to teach →</a>
-          </div>
+            <a href="/apply-teacher" className="inline-flex shrink-0 items-center justify-center rounded-xl bg-accent px-7 py-4 text-base font-bold text-accent-fg shadow-[var(--shadow-cta)] transition-[background-color,box-shadow,transform] duration-[--dur] ease-[--ease-out-soft] hover:bg-accent-hover hover:-translate-y-0.5">Apply to teach →</a>
+          </Reveal>
         </section>
       </main>
       <PublicFooter />

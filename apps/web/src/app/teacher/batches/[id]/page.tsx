@@ -42,7 +42,7 @@ function AttendanceDialog({ sessionId, onClose }: { sessionId: string | null; on
         {error && <Alert>{error}</Alert>}
         {data && (
           <>
-            <div className="flex justify-end"><Button variant="ghost" className="!py-1 text-xs" onClick={() => setMarks(Object.fromEntries(data.roster.map((r) => [r.studentId, 'PRESENT'])))}>Mark everyone present</Button></div>
+            <div className="flex justify-end"><Button variant="ghost" size="xs" onClick={() => setMarks(Object.fromEntries(data.roster.map((r) => [r.studentId, 'PRESENT'])))}>Mark everyone present</Button></div>
             <div className="max-h-80 overflow-auto">
               <SimpleList>
                 {data.roster.map((r) => (
@@ -157,7 +157,7 @@ export default function MentorBatchPage() {
               <tr key={s.id}>
                 <Td className="font-medium">{s.topic}</Td><Td>{date(s.startsAt, true)}</Td><Td>{s.provider ? label(s.provider) : '—'}</Td>
                 <Td>{s._count.attendance ? <Badge status="COMPLETED" tone="green" /> : past ? <Badge status="PENDING" tone="amber" /> : '—'}{s._count.attendance ? ` ${s._count.attendance} marked` : ''}</Td>
-                <Td><Button variant="secondary" className="!py-1" onClick={() => setSheet(s.id)}>Attendance</Button></Td>
+                <Td><Button variant="secondary" size="xs" onClick={() => setSheet(s.id)}>Attendance</Button></Td>
               </tr>
             );
           })}

@@ -28,7 +28,7 @@ export function DropdownMenu({ trigger, items, align = 'end' }: { trigger: React
         <div
           role="menu"
           className={cx(
-            'absolute top-full z-30 mt-1.5 min-w-40 overflow-hidden rounded-lg border border-border bg-surface py-1 shadow-lg',
+            'absolute top-full z-30 mt-1.5 min-w-40 overflow-hidden rounded-xl border border-border bg-surface py-1.5 shadow-lg',
             align === 'end' ? 'right-0' : 'left-0',
           )}
         >

@@ -86,7 +86,7 @@ export default function QuestionSetPage() {
                 <Card key={q.id} className="space-y-2">
                   <div className="flex items-start justify-between gap-3">
                     <p className="text-sm"><span className="mr-2 font-medium text-fg-muted">{i + 1}.</span>{v?.prompt.text}</p>
-                    {editable && <Button variant="ghost" className="!py-1" onClick={() => removeQuestion(q.id)}>Remove</Button>}
+                    {editable && <Button variant="ghost" size="xs" onClick={() => removeQuestion(q.id)}>Remove</Button>}
                   </div>
                   <p className="text-xs text-fg-subtle">{q.ieltsType?.replace(/_/g, ' ').toLowerCase()} · {v?.marks} mark(s) · version {v?.version}</p>
                   {v?.options.length > 0 && (

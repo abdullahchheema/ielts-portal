@@ -1,5 +1,7 @@
 import { CheckCircle2, Clock, CreditCard, ShieldCheck } from 'lucide-react';
 import { FaqAccordion } from '@/components/MarketingInteractive';
+import { Reveal } from '@/components/motion/primitives';
+import { PageHero } from '@/components/public/page-hero';
 import { PublicFooter } from '@/components/PublicFooter';
 import { PublicHeader } from '@/components/PublicHeader';
 import { money } from '@/lib/format';
@@ -25,24 +27,23 @@ export default async function PricingPage() {
     <div className="bg-canvas">
       <PublicHeader />
       <main>
-        <section className="px-6 pt-14 pb-10 text-center">
-          <p className="text-xs font-semibold tracking-wide text-primary uppercase">Pricing</p>
-          <h1 className="mx-auto mt-3 max-w-2xl font-display text-display text-fg">One course. One price. No tiers to compare.</h1>
-          <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-fg-muted">
-            We do not split Listening, Reading, Writing and Speaking into separate paid plans. Every student gets the complete course.
-          </p>
-        </section>
+        <PageHero
+          size="standard"
+          eyebrow="Pricing"
+          title="One course. One price. No tiers to compare."
+          subtitle="We do not split Listening, Reading, Writing and Speaking into separate paid plans. Every student gets the complete course."
+        />
 
-        <section className="px-6 pb-16 sm:pb-20">
-          <div className="mx-auto max-w-2xl overflow-hidden rounded-2xl bg-surface shadow-lg ring-1 ring-border">
-            <div className="bg-ink px-8 py-8 text-center text-white">
-              <p className="text-xs font-semibold tracking-wide text-white/70 uppercase">{course?.title ?? 'Complete IELTS Preparation'}</p>
-              <p className="mt-3 font-display text-5xl font-bold">{course ? money(course.price, course.currency) : '—'}</p>
-              <p className="mt-1 text-sm text-white/70">one-time, full access{course?.durationWeeks ? ` for ${course.durationWeeks} weeks` : ''}</p>
+        <Reveal as="section" className="px-5 pb-20 sm:px-8 sm:pb-24">
+          <div className="mx-auto max-w-2xl overflow-hidden rounded-3xl bg-surface shadow-xl ring-1 ring-border">
+            <div className="bg-ink px-8 py-10 text-center text-white">
+              <p className="text-overline font-bold uppercase text-white/70">{course?.title ?? 'Complete IELTS Preparation'}</p>
+              <p className="mt-4 font-display text-5xl font-extrabold">{course ? money(course.price, course.currency) : '—'}</p>
+              <p className="mt-2 text-sm text-white/70">one-time, full access{course?.durationWeeks ? ` for ${course.durationWeeks} weeks` : ''}</p>
             </div>
-            <div className="p-8">
-              {course?.description && <p className="text-sm leading-relaxed text-fg-muted">{course.description}</p>}
-              <ul className="mt-6 space-y-3">
+            <div className="p-8 sm:p-9">
+              {course?.description && <p className="text-base leading-relaxed text-fg-muted">{course.description}</p>}
+              <ul className="mt-7 space-y-3.5">
                 {(course?.includes?.length ? course.includes : [
                   'Teacher-led classes every week',
                   'All four modules: Listening, Reading, Writing, Speaking',
@@ -51,45 +52,45 @@ export default async function PricingPage() {
                   'Progress dashboard and score history',
                 ]).map((i) => (
                   <li key={i} className="flex gap-3 text-sm text-fg">
-                    <CheckCircle2 aria-hidden className="mt-0.5 size-4.5 shrink-0 text-accent-strong" strokeWidth={2} />
+                    <CheckCircle2 aria-hidden className="mt-0.5 size-5 shrink-0 text-accent-strong" strokeWidth={2} />
                     <span>{i}</span>
                   </li>
                 ))}
               </ul>
-              <a href="/register" className="mt-8 inline-flex w-full items-center justify-center rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-fg shadow-md transition-colors hover:bg-primary-hover">Join the next batch →</a>
+              <a href="/register" className="mt-9 inline-flex w-full items-center justify-center rounded-xl bg-accent px-6 py-4 text-lead font-bold text-accent-fg shadow-[var(--shadow-cta)] transition-[background-color,box-shadow,transform] duration-[--dur] ease-[--ease-out-soft] hover:bg-accent-hover hover:-translate-y-0.5">Join the next batch →</a>
 
-              <div className="mt-8 grid gap-4 border-t border-border pt-6 sm:grid-cols-3">
+              <div className="mt-9 grid gap-5 border-t border-border pt-7 sm:grid-cols-3">
                 <div className="flex items-start gap-2.5">
-                  <CreditCard aria-hidden className="mt-0.5 size-4.5 shrink-0 text-primary" strokeWidth={1.75} />
+                  <CreditCard aria-hidden className="mt-0.5 size-5 shrink-0 text-primary" strokeWidth={1.75} />
                   <div>
-                    <p className="text-sm font-semibold text-fg">Pay your way</p>
+                    <p className="text-sm font-bold text-fg">Pay your way</p>
                     <p className="text-xs text-fg-muted">{PAYMENT_METHODS.join(' · ')}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-2.5">
-                  <ShieldCheck aria-hidden className="mt-0.5 size-4.5 shrink-0 text-primary" strokeWidth={1.75} />
+                  <ShieldCheck aria-hidden className="mt-0.5 size-5 shrink-0 text-primary" strokeWidth={1.75} />
                   <div>
-                    <p className="text-sm font-semibold text-fg">Verified by a person</p>
+                    <p className="text-sm font-bold text-fg">Verified by a person</p>
                     <p className="text-xs text-fg-muted">No automated billing</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-2.5">
-                  <Clock aria-hidden className="mt-0.5 size-4.5 shrink-0 text-primary" strokeWidth={1.75} />
+                  <Clock aria-hidden className="mt-0.5 size-5 shrink-0 text-primary" strokeWidth={1.75} />
                   <div>
-                    <p className="text-sm font-semibold text-fg">No seat limit</p>
+                    <p className="text-sm font-bold text-fg">No seat limit</p>
                     <p className="text-xs text-fg-muted">Join any open batch</p>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </section>
+        </Reveal>
 
-        <section className="border-t border-border bg-surface px-6 py-16 sm:py-20">
-          <div className="mx-auto max-w-3xl">
+        <section className="border-t border-border bg-surface px-5 py-20 sm:px-8 sm:py-24">
+          <Reveal className="mx-auto max-w-3xl">
             <h2 className="text-center font-display text-h1 text-fg">Pricing questions, answered.</h2>
-            <div className="mt-8"><FaqAccordion items={PRICING_FAQ} /></div>
-          </div>
+            <div className="mt-10"><FaqAccordion items={PRICING_FAQ} /></div>
+          </Reveal>
         </section>
       </main>
       <PublicFooter />

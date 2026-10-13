@@ -28,24 +28,24 @@ export function BrandLogo({ variant = 'full', tone = 'light', className, markCla
   if (!failed) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={src} alt="Connect IELTS Academy" className={cx(variant === 'mark' ? 'size-9' : 'h-8', className)} onError={() => setFailed(true)} />
+      <img src={src} alt="Connect IELTS Academy" className={cx(variant === 'mark' ? 'size-11' : 'h-11 sm:h-12', className)} onError={() => setFailed(true)} />
     );
   }
 
   if (variant === 'mark') {
     return (
-      <span aria-hidden className={cx('grid size-9 shrink-0 place-items-center rounded-lg bg-primary text-primary-fg shadow-xs', markClassName)}>
-        <GraduationCap className="size-5" strokeWidth={1.75} />
+      <span aria-hidden className={cx('grid size-11 shrink-0 place-items-center rounded-xl bg-primary text-primary-fg shadow-sm', markClassName)}>
+        <GraduationCap className="size-6" strokeWidth={1.75} />
       </span>
     );
   }
 
   return (
-    <span className={cx('inline-flex items-center gap-2.5', className)}>
-      <span aria-hidden className={cx('grid size-9 shrink-0 place-items-center rounded-lg text-primary-fg shadow-xs', tone === 'dark' ? 'bg-white/15' : 'bg-primary')}>
-        <GraduationCap className="size-5" strokeWidth={1.75} />
+    <span className={cx('inline-flex items-center gap-3', className)}>
+      <span aria-hidden className={cx('grid size-11 shrink-0 place-items-center rounded-xl text-primary-fg shadow-sm', tone === 'dark' ? 'bg-white/15' : 'bg-primary')}>
+        <GraduationCap className="size-6" strokeWidth={1.75} />
       </span>
-      <span className={cx('text-base font-extrabold', tone === 'dark' ? 'text-white' : 'text-fg')}>Connect IELTS Academy</span>
+      <span className={cx('text-lg font-extrabold', tone === 'dark' ? 'text-white' : 'text-fg')}>Connect IELTS Academy</span>
     </span>
   );
 }

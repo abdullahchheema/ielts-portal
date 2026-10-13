@@ -58,7 +58,7 @@ export default function EngagementPage() {
                   <Td><Badge status={r.status} /></Td>
                   <Td>{r.lastActivityLabel ?? '—'}<span className="block text-xs text-fg-subtle">{date(r.lastActivityAt)}</span></Td>
                   <Td className="max-w-md text-sm text-fg-muted">{r.reasons.join(' ')}</Td>
-                  <Td><Button variant="secondary" className="!py-1" onClick={() => setTarget(r)}>Assign follow-up</Button></Td>
+                  <Td><Button variant="secondary" size="xs" onClick={() => setTarget(r)}>Assign follow-up</Button></Td>
                 </tr>
               ))}
             </Table>

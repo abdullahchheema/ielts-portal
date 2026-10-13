@@ -82,7 +82,7 @@ export function TodaysPlan() {
                   <p className="text-sm font-medium text-fg">{t.title}</p>
                   <p className="text-xs text-fg-muted">{t.skill.toLowerCase()} · {t.minutes} min · {t.rationale}</p>
                 </div>
-                <Button variant="secondary" className="!py-1" onClick={() => done(t.id)}>Done</Button>
+                <Button variant="secondary" size="xs" onClick={() => done(t.id)}>Done</Button>
               </li>
             ))}
           </ul>

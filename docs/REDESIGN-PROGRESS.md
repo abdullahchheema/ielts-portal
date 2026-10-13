@@ -92,3 +92,51 @@ All 86 routes are now 🔶 (repainted via tokens). None are ✅ yet — that req
 - [x] `npm run build` (full monorepo, API + web) — clean, 6/6 Turborepo tasks
 - [ ] Playwright smoke (`E2E_BASE_URL`) — not run. It requires a running API+web stack with demo data seeded against the real (non-isolated) database; standing up that stack and seeding it was judged out of scope for an unattended session given the "surgical, low-risk" principle governing this whole plan. Run manually before a release: see `docs/DEPLOYMENT.md`.
 - [ ] Owner has still not supplied `public/brand/{logo,logo-dark,mark}.svg` — components fall back to the glyph, as they have since Phase A
+
+## Phase K — Visual identity overhaul: token foundation
+- [x] Owner supplied the real logo (JPEG, navy `#333A4C`); `BrandLogo` repointed from the never-supplied `.svg` paths to `/brand/{logo,logo-dark}.jpeg` + a cropped `/brand/mark.png`, sized up (`h-8`→`h-11 sm:h-12`, `size-9`→`size-11`). Root metadata's stale `mark.svg` icon reference fixed to `mark.png`
+- [x] `globals.css` full token rewrite: pure-white canvas (`--canvas`/`--surface` both `#FFFFFF`, warm beige neutrals re-neutralized cool), primary repointed to the logo's navy (`#243356`, 12.5:1 on white), new vivid amber CTA accent (`#F59E0B` fill / `#101322` text, 6.1:1), status colors re-tuned ≥5:1, `--color-indigo-*` ramp re-derived off the new navy, new `--radius-sm…3xl` ramp, shadow ramp re-tinted neutral + deepened, new `--text-lead` token and raised `--text-display/h1/h2/h3/overline` sizes
+- [x] Typography unified on Plus Jakarta Sans everywhere (Inter dropped); `h1-h4` get a real `font-weight: 700` (previously family-only); `html { font-size: 112.5% }` (16px→18px) with public/Shell container widths stepped down one notch to compensate for Tailwind's breakpoints staying fixed at the browser's native 16px
+- [x] `npm run lint -w @ielts/web`, `npm test -w @ielts/web` (16/16) clean
+
+## Phase L — Motion infrastructure
+- [x] Installed `motion@14.1.0` (confirmed React 19 / Next 16 peer-compatible); `components/motion/{variants,primitives,hero-backdrop,provider}` — `Reveal`/`Stagger`/`StaggerItem`/`Lift`/`CountUp` wrap server-rendered children so marketing pages stay server components; `MotionConfig reducedMotion="user"` mounted in `app/layout.tsx`, confirmed independent of the existing CSS `prefers-reduced-motion` kill-switch (Motion doesn't drive the `animation`/`transition` CSS properties that switch touches)
+- [x] `npm run lint -w @ielts/web` clean
+
+## Phase M — Shared primitives + 18px rollout
+- [x] `ui/button.tsx`: new `size="xs"` and `variant="cta"` (amber); ~49 `!py-1`/`!px-2 !py-1`/`!py-1.5` overrides across 22 files replaced with real `size` props — the override pattern itself is gone, not just hidden
+- [x] `ui/field.tsx`, `ui/display.tsx` (`Card`/`Badge`/`StatCard`/`Section`/`SimpleList`/`CardList`), `ui/table.tsx`, `ui/layout.tsx` (`PageHeader` gained an `eyebrow` slot, dropped its hardcoded `sm:text-[1.7rem]`), `ui/feedback.tsx`, `ui/interactive.tsx`, `ui/dialog.tsx`, `ui/confirm.tsx`, `ui/menu.tsx`, `ui/toast.tsx` all moved to the new radius/shadow/padding scale
+- [x] `Shell.tsx`: `WIDTH` stepped down (`6xl/7xl/4xl`→`5xl/6xl/3xl`), sidebar grid `16rem/4.5rem`→`15rem/4rem`, topbar `h-14`→`h-16`, nav icons `size-4.5`→`size-5`
+- [x] `.data-table` CSS stacking breakpoint raised `1023.98px`→`1151.98px` so tables stack before the 18px scale clips them
+- [x] `useChartColors` fallback palette and the one remaining hardcoded gradient (`(auth)/layout.tsx`) repointed off the old indigo/jade hex values
+- [x] `npm run lint -w @ielts/web`, `npm test -w @ielts/web` (16/16) clean
+
+## Phase N — Shared hero + public chrome
+- [x] `components/public/page-hero.tsx`: one `PageHero` (`size: 'full'|'standard'|'compact'`) used by every public page — eyebrow → headline → subtitle → CTA, with an animated `HeroBackdrop` (static gradient only on `compact`, so forms don't jitter)
+- [x] `PublicHeader`: `h-16`→`h-20`, logo enlarged, **real mobile menu added** (previously nav links just vanished below `sm` with no replacement), vertical separator before the auth cluster
+- [x] `PublicFooter`: logo enlarged, new **Legal** column + bottom-bar links to `/terms` and `/privacy`
+- [x] `(auth)/layout.tsx`: palette-driven gradient fixed, panel enlarged (`rounded-2xl`→`rounded-3xl`), wrapped in `Reveal` for an entrance animation
+
+## Phase O — Marketing pages recomposed on PageHero
+- [x] `/`, `/pricing`, `/reviews`, `/free-tools`, `/about` — all five adopt `PageHero` + `Reveal`/`Stagger` scroll animations + the amber `cta` button variant, replacing six different ad-hoc container widths with one standard
+- [x] Homepage: payment removed from the top-of-funnel story (`STEPS` cut from 5 to 3 — "Pay and upload proof" / "We verify your payment" dropped; hero stat row dropped "Course fee"); CTA copy made more action-first ("Start preparing today")
+- [x] `BatchCard`, `MarketingInteractive`, `BandScoreCalculator` bumped to the new radius/shadow scale
+
+## Phase P — Transactional + auth routes
+- [x] `/register`, `/apply-teacher`, `/verify/[code]` adopted `PageHero size="compact"` + `PublicFooter` — previously had neither and used raw `text-2xl`/`text-3xl` headings
+- [x] `/enroll/[batchId]`: chrome-only pass (footer added to all branches, heading/container sizing bumped) — the Stepper/payment/survey submission logic was not touched, consistent with this route's existing high-risk treatment in prior phases
+- [x] `(auth)/create-account`: added a Terms/Privacy consent line (text + links only, no new required field/validation change)
+- [x] `npm run lint -w @ielts/web`, `npm test -w @ielts/web` (16/16) clean
+
+## Phase Q — Terms of Service + Privacy Policy
+- [x] New `/terms` and `/privacy` routes sharing `components/public/legal-layout.tsx` (`PageHero` + a `.legal-prose` block in `globals.css`); content drafted from what the codebase actually does (payment methods, manual payment verification, onboarding survey, speaking recordings, certificate verification) with `[PLACEHOLDER: ...]` markers for legal entity name, address, support email, and governing jurisdiction — owner must fill these before the pages are legally load-bearing
+- [x] Linked from `PublicFooter`'s new Legal column and the create-account consent line
+
+## Phase K–Q verification
+- [x] `npm run lint -w @ielts/web` (tsc --noEmit) clean
+- [x] `npm test -w @ielts/web` — 16/16
+- [x] `npm run build -w @ielts/web` — clean, 78/78 routes (includes new `/terms`, `/privacy`), zero errors
+- [x] Live `next dev` smoke test: `/`, `/pricing`, `/terms`, `/privacy`, `/register` all returned 200 and rendered the new hero/CTA content, confirmed by grepping the actual response HTML (not just HTTP status)
+- [x] `admin/analytics/page.tsx` (pre-existing uncommitted owner edit) and `test-results/` confirmed untouched and excluded from this change set
+- [ ] Portal pages (student/teacher/admin, ~73 routes) were NOT individually recomposed in this pass — they inherit the new identity automatically through the Phase M primitive changes (67/74 already use the shared `PageHeader`, which now carries the bigger/bolder/eyebrow treatment), but a dedicated per-route sweep (as Phases E–G did for the previous redesign) was out of scope for this session and should follow as a later phase if a fully hand-tuned portal pass is wanted
+- [ ] Visual/manual QA (contrast on real screens, mobile menu keyboard nav, reduced-motion toggle, cross-browser) not performed — flagged honestly rather than claimed

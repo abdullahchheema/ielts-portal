@@ -11,7 +11,7 @@ interface TdProps { children?: ReactNode; className?: string; label?: string }
 
 /** Cell. `label` is filled in by Table from the header, and drives the stacked mobile layout. */
 export const Td = ({ children, className, label }: TdProps) => (
-  <td data-label={label} className={cx('px-4 py-3 align-middle text-fg', className)}>{children}</td>
+  <td data-label={label} className={cx('px-5 py-3.5 align-middle text-fg', className)}>{children}</td>
 );
 
 /** Copies header names onto each cell so they can be shown as labels when the table stacks. */
@@ -28,10 +28,10 @@ function labelRow(row: ReactNode, head: string[]): ReactNode {
  */
 export function Table({ head, children, sticky }: { head: string[]; children: ReactNode; sticky?: boolean }) {
   return (
-    <div className="rounded-lg bg-surface shadow-xs ring-1 ring-border">
+    <div className="overflow-hidden rounded-2xl bg-surface shadow-sm ring-1 ring-border">
       <table className="data-table w-full text-sm">
         <thead className={cx('bg-surface-muted', sticky && 'sticky top-0 z-[1]')}>
-          <tr>{head.map((h) => <th key={h} scope="col" className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-fg-muted">{h}</th>)}</tr>
+          <tr>{head.map((h) => <th key={h} scope="col" className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wide text-fg-muted">{h}</th>)}</tr>
         </thead>
         <tbody className="divide-y divide-border">{Children.map(children, (row) => labelRow(row, head))}</tbody>
       </table>

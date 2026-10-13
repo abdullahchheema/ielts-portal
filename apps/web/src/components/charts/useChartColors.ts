@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
  */
 export interface ChartColors { primary: string; success: string; warning: string; danger: string; info: string; accent: string; border: string; muted: string }
 
-const FALLBACK: ChartColors = { primary: '#2A4494', success: '#1A7F4B', warning: '#B45309', danger: '#C0392B', info: '#0E7490', accent: '#0A7268', border: '#E5E1D9', muted: '#5F5E66' };
+const FALLBACK: ChartColors = { primary: '#243356', success: '#15803D', warning: '#B45309', danger: '#B42318', info: '#0E6FA8', accent: '#B45309', border: '#E3E6EC', muted: '#434A5C' };
 const NAMES: Record<keyof ChartColors, string> = { primary: '--primary', success: '--success', warning: '--warning', danger: '--danger', info: '--info', accent: '--accent-strong', border: '--border', muted: '--fg-muted' };
 
 export function useChartColors(): ChartColors {

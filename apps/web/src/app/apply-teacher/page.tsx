@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { TeacherApplicationInput } from '@ielts/validation';
 import { AccountGate } from '@/components/AccountGate';
+import { PageHero } from '@/components/public/page-hero';
+import { PublicFooter } from '@/components/PublicFooter';
 import { PublicHeader } from '@/components/PublicHeader';
 import { TeacherApplicationForm } from '@/components/TeacherApplicationForm';
 import { TeacherDocumentsUploader } from '@/components/TeacherDocumentsUploader';
@@ -32,34 +34,37 @@ export default function ApplyTeacherPage() {
   return (
     <>
       <PublicHeader />
-      <main className="mx-auto max-w-4xl px-4 py-10">
-        <h1 className="mb-2 font-display text-2xl font-semibold tracking-tight text-fg">Apply to teach with us</h1>
-        {me.isLoading ? <Loading /> : !me.data ? (
-          <Card>
-            <AccountGate
-              next="/apply-teacher"
-              title="Create your account to apply"
-              intro="Your application is tied to your account. We will contact you at the email address you verify, and approve you there."
-            />
-          </Card>
-        ) : (
-          <>
-            <p className="mb-6 text-sm text-fg-muted">Tell us about your teaching background. Applying as <span className="font-medium text-fg">{me.data.email}</span>. We will review your application and get back to you by email.</p>
+      <main>
+        <PageHero size="compact" eyebrow="Teach with us" title="Apply to teach with us" />
+        <div className="mx-auto max-w-2xl px-5 pb-20 sm:px-8 sm:pb-24">
+          {me.isLoading ? <Loading /> : !me.data ? (
             <Card>
-              {stage === 'form' && <TeacherApplicationForm onSubmit={submit} busy={busy} serverError={error} submitLabel="Submit application" defaultValues={{ email: me.data.email }} />}
-              {stage === 'documents' && applicationId && (
-                <TeacherDocumentsUploader applicationId={applicationId} onDone={() => setStage('done')} />
-              )}
-              {stage === 'done' && (
-                <div className="space-y-3 py-2 text-center">
-                  <h2 className="text-lg font-semibold text-fg">Application submitted</h2>
-                  <Alert kind="success">Thank you. We have received your application and any documents you uploaded. We will reach out by email once it has been reviewed.</Alert>
-                </div>
-              )}
+              <AccountGate
+                next="/apply-teacher"
+                title="Create your account to apply"
+                intro="Your application is tied to your account. We will contact you at the email address you verify, and approve you there."
+              />
             </Card>
-          </>
-        )}
+          ) : (
+            <>
+              <p className="mb-7 text-sm text-fg-muted">Tell us about your teaching background. Applying as <span className="font-semibold text-fg">{me.data.email}</span>. We will review your application and get back to you by email.</p>
+              <Card>
+                {stage === 'form' && <TeacherApplicationForm onSubmit={submit} busy={busy} serverError={error} submitLabel="Submit application" defaultValues={{ email: me.data.email }} />}
+                {stage === 'documents' && applicationId && (
+                  <TeacherDocumentsUploader applicationId={applicationId} onDone={() => setStage('done')} />
+                )}
+                {stage === 'done' && (
+                  <div className="space-y-3 py-2 text-center">
+                    <h2 className="text-lg font-bold text-fg">Application submitted</h2>
+                    <Alert kind="success">Thank you. We have received your application and any documents you uploaded. We will reach out by email once it has been reviewed.</Alert>
+                  </div>
+                )}
+              </Card>
+            </>
+          )}
+        </div>
       </main>
+      <PublicFooter />
     </>
   );
 }

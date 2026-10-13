@@ -21,10 +21,10 @@ export function BatchCard({ batch }: { batch: PublicBatch }) {
     { icon: UserRound, k: 'Teacher', v: batch.mentorAssigned ? batch.mentors.map((m) => m.name).join(', ') : 'Not assigned yet', muted: !batch.mentorAssigned },
   ];
   return (
-    <article className="flex flex-col rounded-lg bg-surface p-6 shadow-xs ring-1 ring-border transition-shadow duration-200 hover:shadow-md">
-      <div className="mb-5 flex items-start justify-between gap-3">
-        <h3 className="font-display text-lg font-semibold leading-snug text-fg">{batch.name}</h3>
-        <span className={cx('shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset', running ? 'bg-info-soft text-info ring-info/20' : 'bg-success-soft text-success ring-success/20')}>
+    <article className="flex flex-col rounded-2xl bg-surface p-7 shadow-sm ring-1 ring-border transition-[box-shadow,transform] duration-[--dur] ease-[--ease-out-soft] hover:shadow-lg hover:-translate-y-0.5">
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <h3 className="font-display text-xl font-bold leading-snug text-fg">{batch.name}</h3>
+        <span className={cx('shrink-0 rounded-full px-3 py-1 text-xs font-bold ring-1 ring-inset', running ? 'bg-info-soft text-info ring-info/20' : 'bg-success-soft text-success ring-success/20')}>
           {running ? 'Running' : 'Open'}
         </span>
       </div>

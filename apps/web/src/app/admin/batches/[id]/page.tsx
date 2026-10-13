@@ -81,7 +81,7 @@ export default function BatchDetailPage() {
                   <SimpleListItem
                     key={`${m.mentor.id}-${m.mentorRole}`}
                     left={<span>{m.mentor.displayName} <span className="text-fg-muted">· {label(m.mentorRole)}</span></span>}
-                    right={can(me, 'mentor.assign') ? <Button variant="ghost" tone="danger" className="!py-1" onClick={() => run(() => api(`/admin/batches/${id}/mentors/${m.mentor.id}/${m.mentorRole}`, { method: 'DELETE' }))}>Remove</Button> : undefined}
+                    right={can(me, 'mentor.assign') ? <Button variant="ghost" tone="danger" size="xs" onClick={() => run(() => api(`/admin/batches/${id}/mentors/${m.mentor.id}/${m.mentorRole}`, { method: 'DELETE' }))}>Remove</Button> : undefined}
                   />
                 ))}
               </SimpleList>

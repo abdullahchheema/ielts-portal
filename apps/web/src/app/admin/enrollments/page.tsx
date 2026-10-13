@@ -111,7 +111,7 @@ export default function EnrollmentsPage() {
               <Td>{label(e.source)}</Td><Td>{date(e.enrolledAt)}</Td><Td>{date(e.accessEndsAt)}</Td>
               <Td><div className="w-24"><ProgressBar value={Math.round(Number(e.progressPercent))} /></div></Td>
               <Td><Badge status={e.status} /></Td>
-              <Td>{can(me, 'enrollment.create') && <Button variant="ghost" className="!py-1" onClick={() => setManage(e)}>Manage</Button>}</Td>
+              <Td>{can(me, 'enrollment.create') && <Button variant="ghost" size="xs" onClick={() => setManage(e)}>Manage</Button>}</Td>
             </tr>
           ))}
         </Table>

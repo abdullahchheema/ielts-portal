@@ -81,7 +81,7 @@ export default function MockExamsPage() {
                 <Td>
                   <div className="flex gap-2">
                     <Link href={`/admin/assessments/${m.id}`} className="inline-flex h-8 items-center rounded-md px-2 text-sm text-primary hover:underline">Open</Link>
-                    <Button variant="ghost" className="!py-1" disabled={!m.published && !m.libraryVisible} onClick={() => toggle(m)}>{m.libraryVisible ? 'Hide from library' : 'Show in library'}</Button>
+                    <Button variant="ghost" size="xs" disabled={!m.published && !m.libraryVisible} onClick={() => toggle(m)}>{m.libraryVisible ? 'Hide from library' : 'Show in library'}</Button>
                   </div>
                 </Td>
               </tr>

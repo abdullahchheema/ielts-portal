@@ -43,7 +43,7 @@ export default function GradingQueuePage() {
                 <Td>{s.batch ?? '—'}</Td>
                 <Td>{date(s.submittedAt, true)}{s.late && <span className="ml-2"><Badge status="LATE" tone="amber" /></span>}</Td>
                 <Td>{status === 'GRADED' ? band(s.finalBand) : s.wordCount ? `${s.wordCount} words` : 'Audio'}</Td>
-                <Td><Link href={`/teacher/grading/${s.id}`}><Button variant={status === 'SUBMITTED' ? 'primary' : 'secondary'} className="!py-1">{status === 'SUBMITTED' ? 'Grade' : 'Open'}</Button></Link></Td>
+                <Td><Link href={`/teacher/grading/${s.id}`}><Button variant={status === 'SUBMITTED' ? 'primary' : 'secondary'} size="xs">{status === 'SUBMITTED' ? 'Grade' : 'Open'}</Button></Link></Td>
               </tr>
             ))}
           </Table>

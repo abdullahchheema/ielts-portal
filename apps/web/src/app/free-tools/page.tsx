@@ -1,4 +1,6 @@
 import { BandScoreCalculator } from '@/components/BandScoreCalculator';
+import { Reveal } from '@/components/motion/primitives';
+import { PageHero } from '@/components/public/page-hero';
 import { PublicFooter } from '@/components/PublicFooter';
 import { PublicHeader } from '@/components/PublicHeader';
 
@@ -9,28 +11,27 @@ export default function FreeToolsPage() {
     <div className="bg-canvas">
       <PublicHeader />
       <main>
-        <section className="px-6 pt-14 pb-10 text-center">
-          <p className="text-xs font-semibold tracking-wide text-primary uppercase">Free, no signup</p>
-          <h1 className="mx-auto mt-3 max-w-2xl font-display text-display text-fg">Free IELTS tools.</h1>
-          <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-fg-muted">
-            No account needed. Start with the band score calculator below.
-          </p>
-        </section>
+        <PageHero
+          size="standard"
+          eyebrow="Free, no signup"
+          title="Free IELTS tools."
+          subtitle="No account needed. Start with the band score calculator below."
+        />
 
-        <section className="px-6 pb-16 sm:pb-20">
-          <div className="mx-auto max-w-2xl">
-            <h2 className="mb-5 text-center text-lg font-bold text-fg">Band score calculator</h2>
+        <section className="px-5 pb-20 sm:px-8 sm:pb-24">
+          <Reveal className="mx-auto max-w-2xl">
+            <h2 className="mb-6 text-center text-xl font-bold text-fg">Band score calculator</h2>
             <BandScoreCalculator />
-          </div>
+          </Reveal>
         </section>
 
-        <section className="border-t border-border bg-surface px-6 py-16 sm:py-20">
-          <div className="mx-auto max-w-5xl text-center">
-            <p className="text-xs font-semibold tracking-wide text-primary uppercase">Know your target?</p>
+        <section className="border-t border-border bg-surface px-5 py-20 sm:px-8 sm:py-24">
+          <Reveal className="mx-auto max-w-5xl text-center">
+            <p className="text-overline font-bold text-primary uppercase">Know your target?</p>
             <h2 className="mt-2 font-display text-h1 text-fg">Now practice to hit it.</h2>
-            <p className="mx-auto mt-3 max-w-xl text-base text-fg-muted">Join a live batch for teacher-led classes, full mock tests and graded practice across all four modules.</p>
-            <a href="/register" className="mt-6 inline-flex items-center justify-center rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-fg shadow-md transition-colors hover:bg-primary-hover">Join the next batch →</a>
-          </div>
+            <p className="mx-auto mt-3 max-w-xl text-lead text-fg-muted">Join a live batch for teacher-led classes, full mock tests and graded practice across all four modules.</p>
+            <a href="/register" className="mt-7 inline-flex items-center justify-center rounded-xl bg-accent px-8 py-4 text-lead font-bold text-accent-fg shadow-[var(--shadow-cta)] transition-[background-color,box-shadow,transform] duration-[--dur] ease-[--ease-out-soft] hover:bg-accent-hover hover:-translate-y-0.5">Start preparing today →</a>
+          </Reveal>
         </section>
       </main>
       <PublicFooter />

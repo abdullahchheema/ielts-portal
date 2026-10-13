@@ -75,7 +75,7 @@ export default function StaffPage() {
                 <Td>
                   <DropdownMenu
                     align="end"
-                    trigger={<Button variant="ghost" className="!py-1">Actions</Button>}
+                    trigger={<Button variant="ghost" size="xs">Actions</Button>}
                     items={[
                       { key: 'edit', label: 'Edit roles', onSelect: () => { setPicked(s.roles.filter((r) => ASSIGNABLE.includes(r))); setError(null); setEdit(s); } },
                       ...(canRemove(s) ? [{ key: 'remove', label: 'Remove', danger: true, onSelect: () => remove(s) }] : []),

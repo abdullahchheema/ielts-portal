@@ -70,8 +70,8 @@ export default function StudentsPage() {
                 <Td>{date(u.createdAt)}</Td>
                 <Td><Badge status={u.status} /></Td>
                 <Td>{can(me, 'student.edit') && (u.status === 'ACTIVE'
-                  ? <Button variant="ghost" tone="danger" className="!py-1" onClick={(e) => { e.stopPropagation(); confirm({ message: `Suspend ${u.email}? They will be signed out immediately.`, tone: 'danger', confirmLabel: 'Suspend' }).then((ok) => { if (ok) { setUserStatus(u.id, 'SUSPENDED'); } }); }}>Suspend</Button>
-                  : u.status === 'SUSPENDED' || u.status === 'BLOCKED' ? <Button variant="ghost" className="!py-1" onClick={(e) => { e.stopPropagation(); setUserStatus(u.id, 'ACTIVE'); }}>Reactivate</Button> : null)}</Td>
+                  ? <Button variant="ghost" tone="danger" size="xs" onClick={(e) => { e.stopPropagation(); confirm({ message: `Suspend ${u.email}? They will be signed out immediately.`, tone: 'danger', confirmLabel: 'Suspend' }).then((ok) => { if (ok) { setUserStatus(u.id, 'SUSPENDED'); } }); }}>Suspend</Button>
+                  : u.status === 'SUSPENDED' || u.status === 'BLOCKED' ? <Button variant="ghost" size="xs" onClick={(e) => { e.stopPropagation(); setUserStatus(u.id, 'ACTIVE'); }}>Reactivate</Button> : null)}</Td>
               </ClickableRow>
             ))}
           </Table>

@@ -64,7 +64,7 @@ export function OptionCard({ selected, onClick, children, multi }: { selected: b
       role={multi ? 'checkbox' : 'radio'}
       aria-checked={selected}
       className={cx(
-        'flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left text-sm font-medium transition-colors duration-[var(--dur-fast)] ease-out-soft',
+        'flex w-full items-center gap-3 rounded-xl border px-4.5 py-3.5 text-left text-sm font-semibold transition-colors duration-[var(--dur-fast)] ease-out-soft',
         selected ? 'border-primary bg-primary-soft text-primary' : 'border-border bg-surface text-fg hover:bg-surface-muted',
       )}
     >
@@ -110,7 +110,7 @@ export function Tooltip({ content, children }: { content: ReactNode; children: R
     <span className="relative inline-flex" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)} onFocus={() => setOpen(true)} onBlur={() => setOpen(false)}>
       {children}
       {open && (
-        <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 z-40 mb-1.5 -translate-x-1/2 rounded-md bg-ink px-2 py-1 text-xs font-medium whitespace-nowrap text-ink-fg shadow-md">
+        <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 -translate-x-1/2 rounded-lg bg-ink px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap text-ink-fg shadow-md">
           {content}
         </span>
       )}
@@ -124,7 +124,7 @@ export interface AccordionItem { key: string; title: ReactNode; content: ReactNo
 export function Accordion({ items, defaultOpen }: { items: AccordionItem[]; defaultOpen?: string }) {
   const [open, setOpen] = useState<string | null>(defaultOpen ?? null);
   return (
-    <div className="divide-y divide-border rounded-lg border border-border bg-surface">
+    <div className="divide-y divide-border rounded-2xl border border-border bg-surface">
       {items.map((it) => {
         const isOpen = open === it.key;
         return (
@@ -133,12 +133,12 @@ export function Accordion({ items, defaultOpen }: { items: AccordionItem[]; defa
               type="button"
               onClick={() => setOpen(isOpen ? null : it.key)}
               aria-expanded={isOpen}
-              className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-medium text-fg"
+              className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left text-base font-semibold text-fg"
             >
               {it.title}
-              <ChevronDown aria-hidden className={cx('size-4 shrink-0 text-fg-muted transition-transform duration-[var(--dur-fast)] ease-spring', isOpen && 'rotate-180')} />
+              <ChevronDown aria-hidden className={cx('size-5 shrink-0 text-fg-muted transition-transform duration-[var(--dur-fast)] ease-spring', isOpen && 'rotate-180')} />
             </button>
-            {isOpen && <div className="px-4 pb-4 text-sm leading-relaxed text-fg-muted">{it.content}</div>}
+            {isOpen && <div className="px-5 pb-5 text-sm leading-relaxed text-fg-muted">{it.content}</div>}
           </div>
         );
       })}

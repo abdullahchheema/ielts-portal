@@ -61,7 +61,7 @@ function RefundsPageInner() {
                 <Td>{money(r.amount, r.payment.currency)}<span className="block text-xs text-fg-muted">of {money(r.payment.amount, r.payment.currency)}</span></Td>
                 <Td className="max-w-xs">{r.reason}{r.decisionNote && <span className="block text-xs text-fg-muted">Note: {r.decisionNote}</span>}{r.providerReference && <span className="block font-mono text-xs text-fg-muted">{r.providerReference}</span>}</Td>
                 <Td>{date(r.createdAt)}</Td><Td><Badge status={r.status} /></Td>
-                <Td>{r.status === 'REQUESTED' && <span className="flex gap-1"><Button className="!py-1" onClick={() => { setError(null); setTarget({ r, mode: 'process' }); }}>Mark refunded</Button><Button variant="ghost" tone="danger" className="!py-1" onClick={() => { setError(null); setTarget({ r, mode: 'reject' }); }}>Decline</Button></span>}</Td>
+                <Td>{r.status === 'REQUESTED' && <span className="flex gap-1"><Button size="xs" onClick={() => { setError(null); setTarget({ r, mode: 'process' }); }}>Mark refunded</Button><Button variant="ghost" tone="danger" size="xs" onClick={() => { setError(null); setTarget({ r, mode: 'reject' }); }}>Decline</Button></span>}</Td>
               </tr>
             ))}
           </Table>

@@ -1,19 +1,30 @@
 'use client';
 
+import { Menu, X } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { BrandLogo } from '@/components/BrandLogo';
 import { Me, homeFor, useMe } from '@/lib/auth';
 
-const NAV_LINK = 'rounded-md px-3 py-2 text-sm font-medium text-fg-muted transition-colors hover:text-fg';
+const NAV_LINK = 'rounded-lg px-3.5 py-2 text-base font-semibold text-fg-muted transition-colors duration-[--dur-fast] ease-[--ease-out-soft] hover:bg-surface-muted hover:text-fg';
+const NAV_LINKS = [
+  { href: '/#course', label: 'The course' },
+  { href: '/pricing', label: 'Pricing' },
+  { href: '/reviews', label: 'Reviews' },
+  { href: '/free-tools', label: 'Free tools' },
+  { href: '/about', label: 'About' },
+  { href: '/#faq', label: 'FAQ' },
+];
 
 /**
- * Shared header for every public page (home, register, enroll, apply-teacher, verify). Transparent over the
- * hero, swaps to a solid surface with a hairline border once the page scrolls.
+ * Shared header for every public page. Transparent over the hero, swaps to a
+ * solid surface with a hairline border once the page scrolls. Collapses into
+ * a full-screen sheet menu below `lg` — previously links just vanished.
  */
 export function PublicHeader() {
   const { data: me } = useMe();
   const [scrolled, setScrolled] = useState(false);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -22,29 +33,55 @@ export function PublicHeader() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
+  useEffect(() => {
+    if (!open) return;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => { document.body.style.overflow = ''; window.removeEventListener('keydown', onKey); };
+  }, [open]);
+
+  const authCluster = me ? (
+    <Link href={homeFor(me as Me)} onClick={() => setOpen(false)} className="inline-flex items-center justify-center rounded-full bg-primary px-5 py-2.5 text-base font-semibold text-primary-fg shadow-sm transition-[background-color,box-shadow,transform] duration-[--dur] ease-[--ease-out-soft] hover:bg-primary-hover hover:shadow-md hover:-translate-y-px">My portal</Link>
+  ) : (
+    <>
+      <Link href="/login" onClick={() => setOpen(false)} className={`${NAV_LINK} font-bold`}>Log in</Link>
+      <Link href="/register" onClick={() => setOpen(false)} className="inline-flex items-center justify-center rounded-full bg-primary px-5 py-2.5 text-base font-semibold text-primary-fg shadow-sm transition-[background-color,box-shadow,transform] duration-[--dur] ease-[--ease-out-soft] hover:bg-primary-hover hover:shadow-md hover:-translate-y-px">Enroll now</Link>
+    </>
+  );
+
   return (
-    <header className={`sticky top-0 z-30 transition-[background-color,border-color] duration-200 ${scrolled ? 'border-b border-border bg-surface/90 backdrop-blur-sm' : 'border-b border-transparent bg-transparent'}`}>
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-6">
+    <header className={`sticky top-0 z-30 transition-[background-color,border-color] duration-[--dur] ease-[--ease-out-soft] ${scrolled || open ? 'border-b border-border bg-surface/90 backdrop-blur-sm' : 'border-b border-transparent bg-transparent'}`}>
+      <div className="mx-auto flex h-20 max-w-6xl items-center justify-between gap-4 px-5 sm:px-8">
         <Link href="/" className="flex items-center gap-2.5 rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
           <BrandLogo />
         </Link>
-        <nav aria-label="Main" className="flex items-center gap-1">
-          <Link href="/#course" className={`hidden sm:inline-block ${NAV_LINK}`}>The course</Link>
-          <Link href="/pricing" className={`hidden sm:inline-block ${NAV_LINK}`}>Pricing</Link>
-          <Link href="/reviews" className={`hidden md:inline-block ${NAV_LINK}`}>Reviews</Link>
-          <Link href="/free-tools" className={`hidden lg:inline-block ${NAV_LINK}`}>Free tools</Link>
-          <Link href="/about" className={`hidden lg:inline-block ${NAV_LINK}`}>About</Link>
-          <Link href="/#faq" className={`hidden xl:inline-block ${NAV_LINK}`}>FAQ</Link>
-          {me ? (
-            <Link href={homeFor(me as Me)} className="ml-2 inline-flex items-center rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-fg shadow-xs transition-colors hover:bg-primary-hover">My portal</Link>
-          ) : (
-            <>
-              <Link href="/login" className={`${NAV_LINK} font-semibold`}>Log in</Link>
-              <Link href="/register" className="ml-2 inline-flex items-center rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-fg shadow-xs transition-colors hover:bg-primary-hover">Enroll now</Link>
-            </>
-          )}
+
+        <nav aria-label="Main" className="hidden items-center gap-1 lg:flex">
+          {NAV_LINKS.map((l) => <Link key={l.href} href={l.href} className={NAV_LINK}>{l.label}</Link>)}
+          <span aria-hidden className="mx-2 h-6 w-px bg-border" />
+          <div className="flex items-center gap-2">{authCluster}</div>
         </nav>
+
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-label={open ? 'Close menu' : 'Open menu'}
+          className="grid size-11 shrink-0 place-items-center rounded-lg text-fg transition-colors hover:bg-surface-muted lg:hidden"
+        >
+          {open ? <X className="size-6" strokeWidth={1.75} /> : <Menu className="size-6" strokeWidth={1.75} />}
+        </button>
       </div>
+
+      {open && (
+        <div className="border-t border-border bg-surface px-5 pt-2 pb-6 shadow-lg lg:hidden">
+          <nav aria-label="Main (mobile)" className="flex flex-col gap-1">
+            {NAV_LINKS.map((l) => <Link key={l.href} href={l.href} onClick={() => setOpen(false)} className={`${NAV_LINK} w-full`}>{l.label}</Link>)}
+          </nav>
+          <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4">{authCluster}</div>
+        </div>
+      )}
     </header>
   );
 }

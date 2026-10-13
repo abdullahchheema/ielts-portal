@@ -122,7 +122,7 @@ export default function TeachersPage() {
                   <Td className="font-medium">{m.displayName}</Td><Td>{m.user.email}</Td><Td>{m.specializations.join(', ') || '—'}</Td><Td>{m._count.batches}</Td><Td><Badge status={m.status} /></Td>
                   <Td>
                     <DropdownMenu
-                      trigger={<Button variant="ghost" className="!py-1" onClick={(e) => e.stopPropagation()}>Actions</Button>}
+                      trigger={<Button variant="ghost" size="xs" onClick={(e) => e.stopPropagation()}>Actions</Button>}
                       items={[
                         { key: 'edit', label: 'Edit', onSelect: () => startEdit(m) },
                         ...(can(me.data, 'teacher.manage') ? [{ key: 'remove', label: 'Remove', danger: true, onSelect: () => removeTeacher(m) }] : []),

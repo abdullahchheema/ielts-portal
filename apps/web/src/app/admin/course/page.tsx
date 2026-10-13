@@ -159,11 +159,11 @@ function SectionNode({ s, siblings, all, editable, actions }: {
         <h3 className="font-semibold text-fg">{s.title}</h3>
         {editable && (
           <div className="flex flex-wrap gap-1 text-xs">
-            <Button variant="ghost" className="!px-2 !py-1" disabled={idx === 0} aria-label={`Move ${s.title} up`} onClick={() => move(siblings, s.id, -1, `/admin/course-versions/${s.courseVersionId}/sections/reorder`)}>↑</Button>
-            <Button variant="ghost" className="!px-2 !py-1" disabled={idx === siblings.length - 1} aria-label={`Move ${s.title} down`} onClick={() => move(siblings, s.id, 1, `/admin/course-versions/${s.courseVersionId}/sections/reorder`)}>↓</Button>
-            <Button variant="ghost" className="!px-2 !py-1" onClick={() => actions.addItem(s.id)}>+ Item</Button>
-            <Button variant="ghost" className="!px-2 !py-1" onClick={() => actions.addSection(s.id)}>+ Subsection</Button>
-            <Button variant="ghost" tone="danger" className="!px-2 !py-1" onClick={() => confirm({ message: `Delete “${s.title}” and everything in it?`, tone: 'danger', confirmLabel: 'Delete section' }).then((ok) => { if (ok) { run(() => api(`/admin/sections/${s.id}`, { method: 'DELETE' })); } })}>Delete</Button>
+            <Button variant="ghost" size="xs" disabled={idx === 0} aria-label={`Move ${s.title} up`} onClick={() => move(siblings, s.id, -1, `/admin/course-versions/${s.courseVersionId}/sections/reorder`)}>↑</Button>
+            <Button variant="ghost" size="xs" disabled={idx === siblings.length - 1} aria-label={`Move ${s.title} down`} onClick={() => move(siblings, s.id, 1, `/admin/course-versions/${s.courseVersionId}/sections/reorder`)}>↓</Button>
+            <Button variant="ghost" size="xs" onClick={() => actions.addItem(s.id)}>+ Item</Button>
+            <Button variant="ghost" size="xs" onClick={() => actions.addSection(s.id)}>+ Subsection</Button>
+            <Button variant="ghost" tone="danger" size="xs" onClick={() => confirm({ message: `Delete “${s.title}” and everything in it?`, tone: 'danger', confirmLabel: 'Delete section' }).then((ok) => { if (ok) { run(() => api(`/admin/sections/${s.id}`, { method: 'DELETE' })); } })}>Delete</Button>
           </div>
         )}
       </div>
@@ -177,17 +177,17 @@ function SectionNode({ s, siblings, all, editable, actions }: {
               </span>
               {editable && (
                 <span className="flex flex-wrap items-center gap-1 text-xs">
-                  <Button variant="ghost" className="!px-2 !py-1" disabled={n === 0} aria-label={`Move ${i.title} up`} onClick={() => move(s.items, i.id, -1, `/admin/sections/${s.id}/items/reorder`)}>↑</Button>
-                  <Button variant="ghost" className="!px-2 !py-1" disabled={n === s.items.length - 1} aria-label={`Move ${i.title} down`} onClick={() => move(s.items, i.id, 1, `/admin/sections/${s.id}/items/reorder`)}>↓</Button>
+                  <Button variant="ghost" size="xs" disabled={n === 0} aria-label={`Move ${i.title} up`} onClick={() => move(s.items, i.id, -1, `/admin/sections/${s.id}/items/reorder`)}>↑</Button>
+                  <Button variant="ghost" size="xs" disabled={n === s.items.length - 1} aria-label={`Move ${i.title} down`} onClick={() => move(s.items, i.id, 1, `/admin/sections/${s.id}/items/reorder`)}>↓</Button>
                   {['PDF', 'AUDIO', 'DOWNLOAD'].includes(i.contentType) && (
                     <label className="cursor-pointer rounded-md px-2 py-1 text-primary hover:bg-surface-muted">Upload file
                       <input type="file" className="sr-only" accept={i.contentType === 'AUDIO' ? 'audio/mpeg' : 'application/pdf,image/*'}
                         onChange={(e) => { const f = e.target.files?.[0]; if (!f) return; const fd = new FormData(); fd.append('file', f); run(() => api(`/admin/items/${i.id}/file`, { method: 'POST', form: fd })); e.target.value = ''; }} />
                     </label>
                   )}
-                  {TASK_TYPES.includes(i.contentType) && <Button variant="ghost" className="!px-2 !py-1" onClick={() => actions.taskItem(i)}>Task settings</Button>}
-                  <Button variant="ghost" className="!px-2 !py-1" onClick={() => actions.editItem(s.id, i)}>Edit</Button>
-                  <Button variant="ghost" tone="danger" className="!px-2 !py-1" onClick={() => confirm({ message: `Delete “${i.title}”?`, tone: 'danger', confirmLabel: 'Delete item' }).then((ok) => { if (ok) { run(() => api(`/admin/items/${i.id}`, { method: 'DELETE' })); } })}>Delete</Button>
+                  {TASK_TYPES.includes(i.contentType) && <Button variant="ghost" size="xs" onClick={() => actions.taskItem(i)}>Task settings</Button>}
+                  <Button variant="ghost" size="xs" onClick={() => actions.editItem(s.id, i)}>Edit</Button>
+                  <Button variant="ghost" tone="danger" size="xs" onClick={() => confirm({ message: `Delete “${i.title}”?`, tone: 'danger', confirmLabel: 'Delete item' }).then((ok) => { if (ok) { run(() => api(`/admin/items/${i.id}`, { method: 'DELETE' })); } })}>Delete</Button>
                 </span>
               )}
             </li>

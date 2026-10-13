@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ReactNode } from 'react';
+import { cx } from '@/lib/cx';
 
 export interface Crumb { href?: string; label: string }
 
@@ -18,13 +19,14 @@ export function Breadcrumbs({ items }: { items: Crumb[] }) {
   );
 }
 
-export function PageHeader({ title, subtitle, actions, breadcrumbs }: { title: string; subtitle?: string; actions?: ReactNode; breadcrumbs?: Crumb[] }) {
+export function PageHeader({ title, subtitle, actions, breadcrumbs, eyebrow }: { title: string; subtitle?: string; actions?: ReactNode; breadcrumbs?: Crumb[]; eyebrow?: string }) {
   return (
-    <header className="mb-8 flex flex-wrap items-end justify-between gap-x-6 gap-y-4 border-b border-border pb-6">
+    <header className="mb-10 flex flex-wrap items-end justify-between gap-x-6 gap-y-4 border-b border-border pb-7">
       <div className="min-w-0">
         {breadcrumbs && <Breadcrumbs items={breadcrumbs} />}
-        <h1 className="font-display text-2xl font-semibold tracking-tight text-fg sm:text-[1.7rem]">{title}</h1>
-        {subtitle && <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-fg-muted">{subtitle}</p>}
+        {eyebrow && <p className="text-overline font-bold uppercase text-accent-strong">{eyebrow}</p>}
+        <h1 className={cx('font-display text-h1 font-bold tracking-tight text-fg', eyebrow && 'mt-1')}>{title}</h1>
+        {subtitle && <p className="mt-2 max-w-2xl text-base leading-relaxed text-fg-muted">{subtitle}</p>}
       </div>
       {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
     </header>

@@ -78,8 +78,8 @@ export function TeacherApplicationDetailDialog({ applicationId, onClose, onChang
       onTabChange={setTab}
       actions={a?.status === 'PENDING' && (
         <>
-          <Button variant="secondary" className="!py-1.5" onClick={() => { setError(null); approve.mutate(); }} busy={approve.isPending}>Approve</Button>
-          <Button variant="danger" className="!py-1.5" onClick={() => { setError(null); setRejecting(true); }}>Reject</Button>
+          <Button variant="secondary" size="sm" onClick={() => { setError(null); approve.mutate(); }} busy={approve.isPending}>Approve</Button>
+          <Button variant="danger" size="sm" onClick={() => { setError(null); setRejecting(true); }}>Reject</Button>
         </>
       )}
     >
@@ -95,8 +95,8 @@ export function TeacherApplicationDetailDialog({ applicationId, onClose, onChang
               <h3 className="mb-2 text-sm font-semibold text-red-900">Reject application</h3>
               <Field label="Reason (shown to the applicant)">{(p) => <Textarea {...p} rows={3} value={reason} onChange={(e) => setReason(e.target.value)} />}</Field>
               <div className="mt-3 flex justify-end gap-2">
-                <Button variant="secondary" className="!py-1.5" onClick={() => setRejecting(false)}>Cancel</Button>
-                <Button variant="danger" className="!py-1.5" busy={reject.isPending} disabled={reason.trim().length < 3} onClick={() => reject.mutate()}>Confirm reject</Button>
+                <Button variant="secondary" size="sm" onClick={() => setRejecting(false)}>Cancel</Button>
+                <Button variant="danger" size="sm" busy={reject.isPending} disabled={reason.trim().length < 3} onClick={() => reject.mutate()}>Confirm reject</Button>
               </div>
             </div>
           )}

@@ -1,27 +1,28 @@
 import type { Metadata } from 'next';
-import { Inter, Plus_Jakarta_Sans } from 'next/font/google';
+import { Plus_Jakarta_Sans } from 'next/font/google';
 import { ReactNode } from 'react';
+import { MotionProvider } from '@/components/motion/provider';
 import { Providers } from '@/components/Providers';
 import './globals.css';
 
-// Font variables go on <html>: preflight resolves --font-sans onto html at build time.
-const body = Inter({ subsets: ['latin'], display: 'swap', variable: '--font-body' });
-const display = Plus_Jakarta_Sans({ subsets: ['latin'], display: 'swap', variable: '--font-display-face' });
+// One typeface, system-wide: Plus Jakarta Sans backs both the body and display
+// font variables. It's loaded as a variable font (no `weight` array), so the
+// full 200-800 range is available without a second font download.
+const jakarta = Plus_Jakarta_Sans({ subsets: ['latin'], display: 'swap', variable: '--font-body' });
 
 export const metadata: Metadata = {
   title: { default: 'Connect IELTS Academy', template: '%s · Connect IELTS Academy' },
   description: 'Complete IELTS Preparation: live teacher-led batches, daily mock tests and graded practice.',
-  // Points at the same /brand/mark.svg that <BrandLogo> looks for. Until that file exists this 404s
-  // harmlessly (browsers fall back to no favicon) rather than shipping an invented mark. A raster
-  // opengraph-image needs a real logo asset too, so it's intentionally left out until one is supplied.
-  icons: { icon: '/brand/mark.svg', apple: '/brand/mark.svg' },
+  icons: { icon: '/brand/mark.png', apple: '/brand/mark.png' },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={`${body.variable} ${display.variable}`}>
+    <html lang="en" className={jakarta.variable}>
       <body className="bg-canvas text-fg antialiased">
-        <Providers>{children}</Providers>
+        <MotionProvider>
+          <Providers>{children}</Providers>
+        </MotionProvider>
       </body>
     </html>
   );

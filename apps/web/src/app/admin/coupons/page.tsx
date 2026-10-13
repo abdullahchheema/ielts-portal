@@ -61,7 +61,7 @@ export default function CouponsPage() {
                   <Td>{c.redeemedCount}{c.maxRedemptions ? ` / ${c.maxRedemptions}` : ''}</Td>
                   <Td>{c.perUserLimit}</Td><Td>{date(c.expiresAt)}</Td>
                   <Td><Badge status={c.status} /></Td>
-                  <Td><Button variant="ghost" className="!py-1" onClick={() => toggle(c)}>{c.active ? 'Disable' : 'Enable'}</Button></Td>
+                  <Td><Button variant="ghost" size="xs" onClick={() => toggle(c)}>{c.active ? 'Disable' : 'Enable'}</Button></Td>
                 </tr>
               ))}
             </Table>

@@ -58,7 +58,7 @@ export default function AttendanceCorrectionsPage() {
                   <Td>
                     {r.status === 'PENDING' && (
                       <DropdownMenu
-                        trigger={<Button variant="ghost" className="!py-1">Decide</Button>}
+                        trigger={<Button variant="ghost" size="xs">Decide</Button>}
                         items={[
                           { key: 'approve', label: 'Approve', onSelect: () => decide(r, true) },
                           { key: 'reject', label: 'Reject', danger: true, onSelect: () => decide(r, false) },
