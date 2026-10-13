@@ -10,10 +10,14 @@ import { errorMessage } from '@/lib/errors';
 import { band, date, label } from '@/lib/format';
 
 interface Student { enrollmentId: string; status: string; progressPercent: string; enrolledAt: string | null; student: { firstName: string; lastName: string; currentBand: string | null; targetBand: string | null } }
-interface Session { id: string; topic: string; startsAt: string; endsAt: string; provider: string | null; meetingUrl: string | null; recordingUrl: string | null; _count: { attendance: number } }
+interface Session { id: string; topic: string; startsAt: string; endsAt: string; provider: string | null; meetingUrl: string | null; recordingUrl: string | null; status: string; _count: { attendance: number } }
 interface Sheet { session: { id: string; topic: string }; roster: { studentId: string; name: string; status: string | null; minutesAttended: number | null }[] }
 interface ResultRow { studentId: string; name: string; targetBand: number | null; progressPercent: number; skills: Record<string, { latest: number | null; best: number | null }>; lastMock: { title: string; percent: number | null; at: string } | null; ielts?: IeltsSummaryLike }
+interface CurriculumTreeItem { id: string; title: string; teacherAssignable: boolean; module: string | null }
+interface CurriculumTreeSection { id: string; title: string; items: CurriculumTreeItem[]; children: CurriculumTreeSection[] }
+interface CurriculumAssignment { id: string; requirement: string; classification: string; dueAt: string | null; publishedAt: string | null; completedCount: number; studentCount: number; contentItem: { id: string; title: string; module: string | null } }
 const STATUSES = ['PRESENT', 'LATE', 'ABSENT', 'EXCUSED'];
+const flattenCurriculum = (s: CurriculumTreeSection): CurriculumTreeItem[] => [...s.items, ...s.children.flatMap(flattenCurriculum)];
 
 function AttendanceDialog({ sessionId, onClose }: { sessionId: string | null; onClose: () => void }) {
   const qc = useQueryClient();
@@ -83,6 +87,78 @@ function NewSession({ batchId, open, onClose }: { batchId: string; open: boolean
   );
 }
 
+function AssignCurriculumDialog({ batchId, open, onClose }: { batchId: string; open: boolean; onClose: () => void }) {
+  const qc = useQueryClient();
+  const tree = useQuery({ queryKey: ['mentor-curriculum'], queryFn: () => api<{ sections: CurriculumTreeSection[] }>('/mentor/curriculum'), enabled: open });
+  const [f, setF] = useState({ contentItemId: '', requirement: 'REQUIRED', classification: 'GENERAL', dueAt: '', instructions: '' });
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const items = (tree.data?.sections ?? []).flatMap(flattenCurriculum).filter((i) => i.teacherAssignable);
+
+  async function assign() {
+    setBusy(true); setError(null);
+    try {
+      await api('/mentor/curriculum-assignments', {
+        method: 'POST',
+        body: { contentItemId: f.contentItemId, batchId, requirement: f.requirement, classification: f.classification, dueAt: f.dueAt ? new Date(f.dueAt).toISOString() : undefined, instructions: f.instructions || undefined, publish: true },
+      });
+      await qc.invalidateQueries({ queryKey: ['curriculum-assignments', batchId] });
+      setF({ contentItemId: '', requirement: 'REQUIRED', classification: 'GENERAL', dueAt: '', instructions: '' });
+      onClose();
+    } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
+  }
+
+  return (
+    <Dialog open={open} onClose={onClose} title="Assign a curriculum item">
+      <div className="space-y-3">
+        {error && <Alert>{error}</Alert>}
+        <Field label="Activity">{(p) => (
+          <Select {...p} value={f.contentItemId} onChange={(e) => setF({ ...f, contentItemId: e.target.value })}>
+            <option value="">Select an activity…</option>
+            {items.map((i) => <option key={i.id} value={i.id}>{i.module ? `[${label(i.module)}] ` : ''}{i.title}</option>)}
+          </Select>
+        )}</Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Requirement">{(p) => <Select {...p} value={f.requirement} onChange={(e) => setF({ ...f, requirement: e.target.value })}><option value="REQUIRED">Required</option><option value="RECOMMENDED">Recommended</option></Select>}</Field>
+          <Field label="Classification">{(p) => <Select {...p} value={f.classification} onChange={(e) => setF({ ...f, classification: e.target.value })}><option value="GENERAL">General</option><option value="PRE_CLASS">Pre-class</option><option value="POST_CLASS">Post-class</option><option value="HOMEWORK">Homework</option></Select>}</Field>
+          <Field label="Due date (optional)">{(p) => <Input {...p} type="datetime-local" value={f.dueAt} onChange={(e) => setF({ ...f, dueAt: e.target.value })} />}</Field>
+        </div>
+        <Field label="Instructions (optional)">{(p) => <Input {...p} value={f.instructions} onChange={(e) => setF({ ...f, instructions: e.target.value })} />}</Field>
+        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button busy={busy} disabled={!f.contentItemId} onClick={assign}>Assign</Button></div>
+      </div>
+    </Dialog>
+  );
+}
+
+function Curriculum({ batchId }: { batchId: string }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const { data, isLoading, isError } = useQuery({ queryKey: ['curriculum-assignments', batchId], queryFn: () => api<CurriculumAssignment[]>(`/mentor/batches/${batchId}/curriculum-assignments`) });
+  async function remove(id: string) { await api(`/mentor/curriculum-assignments/${id}`, { method: 'DELETE' }); qc.invalidateQueries({ queryKey: ['curriculum-assignments', batchId] }); }
+  if (isLoading) return <Loading />;
+  if (isError) return <Alert>Could not load assignments.</Alert>;
+  return (
+    <>
+      <div className="mb-3 flex justify-end"><Button onClick={() => setOpen(true)}>Assign activity</Button></div>
+      {!data?.length ? <Empty>No curriculum has been assigned to this batch yet.</Empty> : (
+        <Table head={['Activity', 'Requirement', 'Classification', 'Due', 'Completion', '']}>
+          {data.map((a) => (
+            <tr key={a.id}>
+              <Td className="font-medium">{a.contentItem.title}</Td>
+              <Td><Badge status={a.requirement} tone={a.requirement === 'REQUIRED' ? 'blue' : 'slate'} /></Td>
+              <Td>{label(a.classification)}</Td>
+              <Td>{a.dueAt ? date(a.dueAt, true) : '—'}</Td>
+              <Td>{a.completedCount}/{a.studentCount}</Td>
+              <Td><button onClick={() => remove(a.id)} className="text-xs font-medium text-red-700 hover:underline">Remove</button></Td>
+            </tr>
+          ))}
+        </Table>
+      )}
+      <AssignCurriculumDialog batchId={batchId} open={open} onClose={() => setOpen(false)} />
+    </>
+  );
+}
+
 function Results({ batchId }: { batchId: string }) {
   const { data, isLoading, isError } = useQuery({ queryKey: ['mentor-results', batchId], queryFn: () => api<ResultRow[]>(`/mentor/batches/${batchId}/results`) });
   if (isLoading) return <Loading />;
@@ -111,32 +187,47 @@ export default function MentorBatchPage() {
   const sessions = useQuery({ queryKey: ['sessions-mentor', id], queryFn: () => api<Session[]>(`/mentor/batches/${id}/sessions`) });
   const [sheet, setSheet] = useState<string | null>(null);
   const [newOpen, setNewOpen] = useState(false);
-  const [tab, setTab] = useState<'students' | 'classes' | 'results'>('classes');
+  const [tab, setTab] = useState<'students' | 'classes' | 'curriculum' | 'results'>('classes');
+  const qc = useQueryClient();
   if (students.isLoading) return <Loading />;
   if (students.isError) return <Alert>{errorMessage(students.error)}</Alert>;
   const now = Date.now();
+
+  async function act(sessionId: string, action: 'start' | 'complete' | 'cancel') {
+    await api(`/mentor/sessions/${sessionId}/${action}`, { method: 'POST' });
+    qc.invalidateQueries({ queryKey: ['sessions-mentor', id] });
+  }
 
   return (
     <>
       <PageHeader title="Batch" subtitle={`${students.data?.length ?? 0} enrolled student${students.data?.length === 1 ? '' : 's'}`} actions={<Button onClick={() => setNewOpen(true)}>Schedule class</Button>} />
 
       <div role="tablist" className="mb-5 flex gap-1 border-b border-slate-200">
-        {([['classes', 'Classes & attendance'], ['students', 'Students'], ['results', 'Results']] as const).map(([k, l]) => (
+        {([['classes', 'Classes & attendance'], ['curriculum', 'Curriculum'], ['students', 'Students'], ['results', 'Results']] as const).map(([k, l]) => (
           <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${tab === k ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-600 hover:text-slate-900'}`}>{l}</button>
         ))}
       </div>
 
       {tab === 'results' && <Results batchId={id} />}
+      {tab === 'curriculum' && <Curriculum batchId={id} />}
       {tab === 'classes' && <>
       {!sessions.data?.length ? <Empty>No classes scheduled yet.</Empty> : (
-        <Table head={['Class', 'When', 'Platform', 'Attendance', '']}>
+        <Table head={['Class', 'When', 'Status', 'Attendance', '']}>
           {sessions.data.map((s) => {
             const past = new Date(s.endsAt).getTime() < now;
+            const joinable = s.meetingUrl && now >= new Date(s.startsAt).getTime() - 15 * 60_000 && now <= new Date(s.endsAt).getTime();
             return (
               <tr key={s.id}>
-                <Td className="font-medium">{s.topic}</Td><Td>{date(s.startsAt, true)}</Td><Td>{s.provider ? label(s.provider) : '—'}</Td>
-                <Td>{s._count.attendance ? <Badge status="COMPLETED" tone="green" /> : past ? <Badge status="PENDING" tone="amber" /> : '—'}{s._count.attendance ? ` ${s._count.attendance} marked` : ''}</Td>
-                <Td><Button variant="secondary" className="!py-1" onClick={() => setSheet(s.id)}>Attendance</Button></Td>
+                <Td className="font-medium">{s.topic}</Td><Td>{date(s.startsAt, true)}</Td>
+                <Td><Badge status={s.status} tone={s.status === 'COMPLETED' ? 'green' : s.status === 'CANCELLED' ? 'red' : s.status === 'IN_PROGRESS' ? 'blue' : 'slate'} /></Td>
+                <Td>{s._count.attendance ? <Badge status="RECORDED" tone="green" text={`${s._count.attendance} marked`} /> : past ? <Badge status="PENDING" tone="amber" /> : '—'}</Td>
+                <Td className="space-x-2 whitespace-nowrap">
+                  {joinable && <a href={s.meetingUrl!} target="_blank" rel="noreferrer" className="text-xs font-medium text-green-700 hover:underline">Join</a>}
+                  {s.status === 'SCHEDULED' && <button onClick={() => act(s.id, 'start')} className="text-xs font-medium text-indigo-700 hover:underline">Start</button>}
+                  {s.status === 'IN_PROGRESS' && <button onClick={() => act(s.id, 'complete')} className="text-xs font-medium text-indigo-700 hover:underline">Complete</button>}
+                  {(s.status === 'SCHEDULED' || s.status === 'IN_PROGRESS') && <button onClick={() => act(s.id, 'cancel')} className="text-xs font-medium text-red-700 hover:underline">Cancel</button>}
+                  <Button variant="secondary" className="!py-1" onClick={() => setSheet(s.id)}>Attendance</Button>
+                </Td>
               </tr>
             );
           })}
