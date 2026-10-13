@@ -13,7 +13,7 @@ export const registerSchema = z.object({
   password: passwordSchema,
   firstName: z.string().trim().min(1).max(80),
   lastName: z.string().trim().min(1).max(80),
-  phone: z.string().trim().min(6).max(20).optional(),
+  phone: z.string().trim().min(6).max(20),
   next: z.string().max(300).regex(/^\/(?!\/)/).optional(),
 });
 

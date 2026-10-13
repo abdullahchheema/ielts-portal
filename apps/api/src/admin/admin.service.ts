@@ -195,6 +195,32 @@ export class AdminService {
     return result;
   }
 
+  /**
+   * Sets a new password for any account (student, teacher or staff) — recovery for a locked-out
+   * user, never a way to read their old one; that's one-way hashed and nobody, including an admin,
+   * can see it. Signs the account out everywhere so the old password stops working immediately.
+   */
+  async resetUserPassword(userId: string, password: string, actor: Actor, actorEmail: string) {
+    const owner = this.config.OWNER_EMAIL?.toLowerCase();
+    const result = await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.findFirst({ where: { id: userId, deletedAt: null }, include: { roles: { include: { role: true } } } });
+      if (!user) throw notFound('User');
+      if (userId === actor.userId) throw new AppError('FORBIDDEN', 403, 'Use your own account settings to change your password.');
+      const roles = user.roles.map((r) => r.role.name);
+      if (roles.includes('SUPER_ADMIN') && actorEmail.toLowerCase() !== owner) {
+        throw new AppError('FORBIDDEN', 403, "Only the owner can reset a Super Admin's password.");
+      }
+      const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
+      await tx.user.update({ where: { id: userId }, data: { passwordHash, failedLogins: 0, lockedUntil: null } });
+      await tx.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
+      // Never log the password itself, hashed or not — only that a reset happened.
+      await this.audit.record({ ...actor, action: 'ADMIN_RESET_PASSWORD', entityType: 'User', entityId: userId, after: { passwordChanged: true } }, tx);
+      return { id: userId };
+    });
+    this.ctx.invalidate(userId);
+    return result;
+  }
+
   // ───────── audit log ─────────
   async auditLogs(q: { entityType?: string; action?: string; userId?: string; before?: string; take: number }) {
     const rows = await this.prisma.auditLog.findMany({

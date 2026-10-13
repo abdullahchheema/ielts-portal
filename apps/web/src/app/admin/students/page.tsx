@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState } from 'react';
 import { Alert, Badge, Button, ClickableRow, Empty, FilterBar, Loading, PageHeader, Pagination, SearchInput, Select, Table, Td } from '@/components/ui';
+import { AdminResetPasswordDialog } from '@/components/AdminResetPasswordDialog';
 import { IeltsBadge, IeltsSummaryLike } from '@/components/IeltsSummary';
 import { StudentDetailDialog } from '@/components/StudentDetailDialog';
 import { api } from '@/lib/api';
@@ -30,6 +31,7 @@ export default function StudentsPage() {
   const [skip, setSkip] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [resetPwUser, setResetPwUser] = useState<Row | null>(null);
   const qs = new URLSearchParams({ skip: String(skip), take: String(PAGE), ...(search ? { search } : {}), ...(status ? { status } : {}) }).toString();
   const { data, isLoading, isError } = useQuery({ queryKey: ['admin-students', qs], queryFn: () => api<Page>(`/admin/students?${qs}`) });
   const items = (data?.items ?? []).filter((u) => !ieltsFilter || (u.student?.ielts?.status ?? 'NOT_TAKEN') === ieltsFilter);
@@ -69,9 +71,14 @@ export default function StudentsPage() {
                 <Td>{u.student._count.enrollments}</Td>
                 <Td>{date(u.createdAt)}</Td>
                 <Td><Badge status={u.status} /></Td>
-                <Td>{can(me, 'student.edit') && (u.status === 'ACTIVE'
-                  ? <Button variant="ghost" tone="danger" size="xs" onClick={(e) => { e.stopPropagation(); confirm({ message: `Suspend ${u.email}? They will be signed out immediately.`, tone: 'danger', confirmLabel: 'Suspend' }).then((ok) => { if (ok) { setUserStatus(u.id, 'SUSPENDED'); } }); }}>Suspend</Button>
-                  : u.status === 'SUSPENDED' || u.status === 'BLOCKED' ? <Button variant="ghost" size="xs" onClick={(e) => { e.stopPropagation(); setUserStatus(u.id, 'ACTIVE'); }}>Reactivate</Button> : null)}</Td>
+                <Td>
+                  <span className="flex justify-end gap-1">
+                    {can(me, 'admin.manage') && <Button variant="ghost" size="xs" onClick={(e) => { e.stopPropagation(); setResetPwUser(u); }}>Reset password</Button>}
+                    {can(me, 'student.edit') && (u.status === 'ACTIVE'
+                      ? <Button variant="ghost" tone="danger" size="xs" onClick={(e) => { e.stopPropagation(); confirm({ message: `Suspend ${u.email}? They will be signed out immediately.`, tone: 'danger', confirmLabel: 'Suspend' }).then((ok) => { if (ok) { setUserStatus(u.id, 'SUSPENDED'); } }); }}>Suspend</Button>
+                      : u.status === 'SUSPENDED' || u.status === 'BLOCKED' ? <Button variant="ghost" size="xs" onClick={(e) => { e.stopPropagation(); setUserStatus(u.id, 'ACTIVE'); }}>Reactivate</Button> : null)}
+                  </span>
+                </Td>
               </ClickableRow>
             ))}
           </Table>
@@ -80,6 +87,7 @@ export default function StudentsPage() {
         </>
       ))}
       <StudentDetailDialog studentId={openId} onClose={() => setOpenId(null)} />
+      <AdminResetPasswordDialog open={!!resetPwUser} onClose={() => setResetPwUser(null)} userId={resetPwUser?.id ?? null} userLabel={resetPwUser ? `${resetPwUser.student.firstName} ${resetPwUser.student.lastName} (${resetPwUser.email})` : ''} />
     </>
   );
 }

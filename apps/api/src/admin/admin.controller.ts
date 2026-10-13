@@ -1,7 +1,7 @@
 import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { z } from 'zod';
-import { emailSchema } from '@ielts/validation';
+import { emailSchema, passwordSchema } from '@ielts/validation';
 import { AuthUser, CurrentUser, RequirePermission, clientMeta } from '../common/decorators';
 import { ZodPipe } from '../common/zod.pipe';
 import { Actor } from '../courses/courses.service';
@@ -20,6 +20,7 @@ const studentsQuery = z.object({
 const statusBody = z.object({ status: z.enum(['ACTIVE', 'SUSPENDED', 'BLOCKED']) });
 const staffBody = z.object({ email: emailSchema, roles: z.array(z.string()).min(1).max(6) });
 const rolesBody = z.object({ roles: z.array(z.string()).max(6) });
+const resetPasswordBody = z.object({ password: passwordSchema });
 const auditQuery = z.object({
   entityType: z.string().max(60).optional(),
   action: z.string().max(80).optional(),
@@ -67,6 +68,11 @@ export class AdminController {
   @RequirePermission('admin.manage') @Put('users/:id/roles')
   setRoles(@Param('id', uuid) id: string, @Body(new ZodPipe(rolesBody)) body: z.infer<typeof rolesBody>, @CurrentUser() u: AuthUser, @Req() req: Request) {
     return this.admin.setRoles(id, body.roles, actor(u, req));
+  }
+
+  @RequirePermission('admin.manage') @HttpCode(200) @Post('users/:id/reset-password')
+  resetPassword(@Param('id', uuid) id: string, @Body(new ZodPipe(resetPasswordBody)) body: z.infer<typeof resetPasswordBody>, @CurrentUser() u: AuthUser, @Req() req: Request) {
+    return this.admin.resetUserPassword(id, body.password, actor(u, req), u.email);
   }
 
   @RequirePermission('audit.view') @Get('audit-logs')

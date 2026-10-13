@@ -3,6 +3,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { TeacherApplicationInput } from '@ielts/validation';
+import { AdminResetPasswordDialog } from '@/components/AdminResetPasswordDialog';
 import { TeacherApplicationForm } from '@/components/TeacherApplicationForm';
 import { TeacherDetailDialog } from '@/components/TeacherDetailDialog';
 import { TeacherDocumentsUploader } from '@/components/TeacherDocumentsUploader';
@@ -11,7 +12,7 @@ import { api } from '@/lib/api';
 import { can, useMe } from '@/lib/auth';
 import { errorMessage } from '@/lib/errors';
 
-interface Mentor { id: string; displayName: string; status: string; specializations: string[]; user: { email: string }; _count: { batches: number } }
+interface Mentor { id: string; userId: string; displayName: string; status: string; specializations: string[]; user: { email: string }; _count: { batches: number } }
 interface AdminMentorDetail { application: (Record<string, unknown> & { id: string }) | null }
 
 /** Drops child-record arrays and coerces dates/numbers so an application record can seed the edit form. */
@@ -38,6 +39,7 @@ export default function TeachersPage() {
   const [busy, setBusy] = useState(false);
   const [viewId, setViewId] = useState<string | null>(null);
   const [editMentor, setEditMentor] = useState<Mentor | null>(null);
+  const [resetPwMentor, setResetPwMentor] = useState<Mentor | null>(null);
   const [editApplicationId, setEditApplicationId] = useState<string | null>(null);
   const [editDefaults, setEditDefaults] = useState<Partial<TeacherApplicationInput> | null>(null);
   const [editLoading, setEditLoading] = useState(false);
@@ -125,6 +127,7 @@ export default function TeachersPage() {
                       trigger={<Button variant="ghost" size="xs" onClick={(e) => e.stopPropagation()}>Actions</Button>}
                       items={[
                         { key: 'edit', label: 'Edit', onSelect: () => startEdit(m) },
+                        ...(can(me.data, 'admin.manage') ? [{ key: 'reset-password', label: 'Reset password', onSelect: () => setResetPwMentor(m) }] : []),
                         ...(can(me.data, 'teacher.manage') ? [{ key: 'remove', label: 'Remove', danger: true, onSelect: () => removeTeacher(m) }] : []),
                       ]}
                     />
@@ -158,6 +161,7 @@ export default function TeachersPage() {
       </DetailDialog>
 
       <TeacherDetailDialog mentorId={viewId} onClose={() => setViewId(null)} />
+      <AdminResetPasswordDialog open={!!resetPwMentor} onClose={() => setResetPwMentor(null)} userId={resetPwMentor?.userId ?? null} userLabel={resetPwMentor ? `${resetPwMentor.displayName} (${resetPwMentor.user.email})` : ''} />
     </>
   );
 }

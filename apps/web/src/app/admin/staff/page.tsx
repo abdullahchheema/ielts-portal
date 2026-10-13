@@ -2,6 +2,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { AdminResetPasswordDialog } from '@/components/AdminResetPasswordDialog';
 import { Alert, Badge, Button, Card, Checkbox, Dialog, DropdownMenu, Empty, Field, Input, Loading, PageHeader, Section, Table, Td, useConfirm } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useMe } from '@/lib/auth';
@@ -32,6 +33,7 @@ export default function StaffPage() {
   const [email, setEmail] = useState('');
   const [picked, setPicked] = useState<string[]>([]);
   const [edit, setEdit] = useState<Staff | null>(null);
+  const [resetPw, setResetPw] = useState<Staff | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const me = useMe();
@@ -45,6 +47,8 @@ export default function StaffPage() {
 
   /** Only the owner can remove a Super Admin, and nobody can remove the owner or themselves. The API enforces the same rules. */
   const canRemove = (s: Staff) => !!me.data && me.data.id !== s.id && !s.isOwner && (me.data.isOwner || !s.roles.includes('SUPER_ADMIN'));
+  /** Same rule the API enforces: never yourself, and only the owner may touch a Super Admin's password. */
+  const canResetPassword = (s: Staff) => !!me.data && me.data.id !== s.id && (me.data.isOwner || !s.roles.includes('SUPER_ADMIN'));
 
   async function remove(s: Staff) {
     const ok = await confirm({
@@ -78,6 +82,7 @@ export default function StaffPage() {
                     trigger={<Button variant="ghost" size="xs">Actions</Button>}
                     items={[
                       { key: 'edit', label: 'Edit roles', onSelect: () => { setPicked(s.roles.filter((r) => ASSIGNABLE.includes(r))); setError(null); setEdit(s); } },
+                      ...(canResetPassword(s) ? [{ key: 'reset-password', label: 'Reset password', onSelect: () => setResetPw(s) }] : []),
                       ...(canRemove(s) ? [{ key: 'remove', label: 'Remove', danger: true, onSelect: () => remove(s) }] : []),
                     ]}
                   />
@@ -119,6 +124,7 @@ export default function StaffPage() {
             <Button busy={busy} onClick={() => edit && act(() => api(`/admin/users/${edit.id}/roles`, { method: 'PUT', body: { roles: picked } }), () => setEdit(null))}>Save roles</Button></div>
         </div>
       </Dialog>
+      <AdminResetPasswordDialog open={!!resetPw} onClose={() => setResetPw(null)} userId={resetPw?.id ?? null} userLabel={resetPw?.email ?? ''} />
     </>
   );
 }

@@ -69,7 +69,7 @@ function CreateAccount() {
         <Field label="Last name" error={errors.lastName?.message}>{(p) => <Input {...p} autoComplete="family-name" {...register('lastName')} />}</Field>
       </div>
       <Field label="Email" error={errors.email?.message}>{(p) => <Input {...p} type="email" autoComplete="email" {...register('email')} />}</Field>
-      <Field label="Phone / WhatsApp" hint="Optional" error={errors.phone?.message}>{(p) => <Input {...p} type="tel" autoComplete="tel" {...register('phone')} />}</Field>
+      <Field label="Phone / WhatsApp" error={errors.phone?.message}>{(p) => <Input {...p} type="tel" autoComplete="tel" {...register('phone')} />}</Field>
       <Field label="Password" hint="At least 10 characters, with a letter and a number." error={errors.password?.message}>{(p) => <Input {...p} type="password" autoComplete="new-password" {...register('password')} />}</Field>
       <Button type="submit" busy={isSubmitting} className="w-full">Create account</Button>
       <p className="text-xs text-fg-subtle">
