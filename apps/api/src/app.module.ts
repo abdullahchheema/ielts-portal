@@ -27,6 +27,9 @@ import { LearningModule } from './learning/learning.module';
 import { NotificationsModule } from './notifications/notifications.service';
 import { SettingsModule } from './settings/settings.module';
 import { TeachersModule } from './teachers/teachers.module';
+import { CurriculumModule } from './curriculum/curriculum.service';
+import { VocabularyModule } from './curriculum/vocabulary.service';
+import { GrammarModule } from './curriculum/grammar.service';
 
 @Controller('health')
 class HealthController {
@@ -43,6 +46,7 @@ class HealthController {
   imports: [
     ConfigModule, PrismaModule, IntegrationsModule, AuditModule, EventEmitterModule.forRoot(), JwtModule.register({}),
     AuthModule, RolesModule, SettingsModule, NotificationsModule, CoursesModule, BatchesModule, CommerceModule, LearningModule, AssessmentsModule, GradingModule, LiveModule, SupportModule, ReportsModule, LifecycleModule, CertificatesModule, AdminModule, TeachersModule,
+    CurriculumModule, VocabularyModule, GrammarModule,
   ],
   controllers: [HealthController],
   providers: [
