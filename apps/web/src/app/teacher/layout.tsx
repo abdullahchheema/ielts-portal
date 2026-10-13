@@ -15,6 +15,7 @@ function TeacherShell({ children }: { children: ReactNode }) {
         { href: '/teacher', label: 'Dashboard' },
         { href: '/teacher/batches', label: 'My Batches' },
         { href: '/teacher/grading', label: 'Grading Queue' },
+        { href: '/teacher/mock-requests', label: 'Mock Test Access' },
       ] }]}
     >
       {children}

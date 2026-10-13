@@ -99,6 +99,9 @@ export class StudentAssessmentsController {
   @Get('me/diagnostics')
   diagnostics(@CurrentUser() u: AuthUser) { return this.attempts.diagnostics(student(u).studentId); }
 
+  @Get('me/mock-tests')
+  mockTests(@CurrentUser() u: AuthUser) { return this.attempts.mockTests(student(u).studentId); }
+
   @Get('me/assessments/history')
   history(@CurrentUser() u: AuthUser) { return this.attempts.history(student(u).studentId); }
 

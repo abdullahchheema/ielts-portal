@@ -32,6 +32,7 @@ import { VocabularyModule } from './curriculum/vocabulary.service';
 import { GrammarModule } from './curriculum/grammar.service';
 import { TeacherCurriculumModule } from './curriculum/teacher-curriculum.service';
 import { RecordingsModule } from './recordings/recordings.service';
+import { MocksModule } from './mocks/mocks.service';
 
 @Controller('health')
 class HealthController {
@@ -48,7 +49,7 @@ class HealthController {
   imports: [
     ConfigModule, PrismaModule, IntegrationsModule, AuditModule, EventEmitterModule.forRoot(), JwtModule.register({}),
     AuthModule, RolesModule, SettingsModule, NotificationsModule, CoursesModule, BatchesModule, CommerceModule, LearningModule, AssessmentsModule, GradingModule, LiveModule, SupportModule, ReportsModule, LifecycleModule, CertificatesModule, AdminModule, TeachersModule,
-    CurriculumModule, VocabularyModule, GrammarModule, TeacherCurriculumModule, RecordingsModule,
+    CurriculumModule, VocabularyModule, GrammarModule, TeacherCurriculumModule, RecordingsModule, MocksModule,
   ],
   controllers: [HealthController],
   providers: [
