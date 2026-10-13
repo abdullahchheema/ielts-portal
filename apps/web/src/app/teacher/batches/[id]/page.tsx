@@ -159,6 +159,62 @@ function Curriculum({ batchId }: { batchId: string }) {
   );
 }
 
+interface TeacherRecording { id: string; title: string; status: string; driveUrl: string; reviewNote: string | null; session: { topic: string } | null }
+
+function SubmitRecordingDialog({ batchId, open, onClose }: { batchId: string; open: boolean; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [f, setF] = useState({ title: '', driveUrl: '', description: '' });
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  async function submit() {
+    setBusy(true); setError(null);
+    try {
+      await api('/mentor/recordings', { method: 'POST', body: { batchId, title: f.title, driveUrl: f.driveUrl, description: f.description || undefined } });
+      await qc.invalidateQueries({ queryKey: ['mentor-recordings', batchId] });
+      setF({ title: '', driveUrl: '', description: '' }); onClose();
+    } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
+  }
+  return (
+    <Dialog open={open} onClose={onClose} title="Submit a lecture recording">
+      <div className="space-y-3">
+        {error && <Alert>{error}</Alert>}
+        <Field label="Title">{(p) => <Input {...p} value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} />}</Field>
+        <Field label="Google Drive share link" hint="Share the file with your students' Google accounts, or an institutional Drive, before submitting — a working link does not by itself guarantee access.">
+          {(p) => <Input {...p} type="url" placeholder="https://drive.google.com/file/d/..." value={f.driveUrl} onChange={(e) => setF({ ...f, driveUrl: e.target.value })} />}
+        </Field>
+        <Field label="Description (optional)">{(p) => <Input {...p} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} />}</Field>
+        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button busy={busy} disabled={!f.title.trim() || !f.driveUrl.trim()} onClick={submit}>Submit</Button></div>
+      </div>
+    </Dialog>
+  );
+}
+
+function Recordings({ batchId }: { batchId: string }) {
+  const [open, setOpen] = useState(false);
+  const { data, isLoading, isError } = useQuery({ queryKey: ['mentor-recordings', batchId], queryFn: () => api<TeacherRecording[]>(`/mentor/recordings?batchId=${batchId}`) });
+  if (isLoading) return <Loading />;
+  if (isError) return <Alert>Could not load recordings.</Alert>;
+  return (
+    <>
+      <div className="mb-3 flex justify-end"><Button onClick={() => setOpen(true)}>Submit recording</Button></div>
+      {!data?.length ? <Empty>You have not submitted any recordings for this batch yet.</Empty> : (
+        <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white px-4">
+          {data.map((r) => (
+            <li key={r.id} className="flex items-center justify-between gap-3 py-3 text-sm">
+              <div>
+                <p className="font-medium text-slate-900">{r.title}{r.session && <span className="font-normal text-slate-500"> · {r.session.topic}</span>}</p>
+                {r.reviewNote && <p className="text-xs text-slate-500">{r.reviewNote}</p>}
+              </div>
+              <Badge status={r.status} tone={r.status === 'PUBLISHED' ? 'green' : r.status === 'REJECTED' ? 'red' : 'amber'} />
+            </li>
+          ))}
+        </ul>
+      )}
+      <SubmitRecordingDialog batchId={batchId} open={open} onClose={() => setOpen(false)} />
+    </>
+  );
+}
+
 function Results({ batchId }: { batchId: string }) {
   const { data, isLoading, isError } = useQuery({ queryKey: ['mentor-results', batchId], queryFn: () => api<ResultRow[]>(`/mentor/batches/${batchId}/results`) });
   if (isLoading) return <Loading />;
@@ -187,7 +243,7 @@ export default function MentorBatchPage() {
   const sessions = useQuery({ queryKey: ['sessions-mentor', id], queryFn: () => api<Session[]>(`/mentor/batches/${id}/sessions`) });
   const [sheet, setSheet] = useState<string | null>(null);
   const [newOpen, setNewOpen] = useState(false);
-  const [tab, setTab] = useState<'students' | 'classes' | 'curriculum' | 'results'>('classes');
+  const [tab, setTab] = useState<'students' | 'classes' | 'curriculum' | 'recordings' | 'results'>('classes');
   const qc = useQueryClient();
   if (students.isLoading) return <Loading />;
   if (students.isError) return <Alert>{errorMessage(students.error)}</Alert>;
@@ -203,13 +259,14 @@ export default function MentorBatchPage() {
       <PageHeader title="Batch" subtitle={`${students.data?.length ?? 0} enrolled student${students.data?.length === 1 ? '' : 's'}`} actions={<Button onClick={() => setNewOpen(true)}>Schedule class</Button>} />
 
       <div role="tablist" className="mb-5 flex gap-1 border-b border-slate-200">
-        {([['classes', 'Classes & attendance'], ['curriculum', 'Curriculum'], ['students', 'Students'], ['results', 'Results']] as const).map(([k, l]) => (
+        {([['classes', 'Classes & attendance'], ['curriculum', 'Curriculum'], ['recordings', 'Recordings'], ['students', 'Students'], ['results', 'Results']] as const).map(([k, l]) => (
           <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${tab === k ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-600 hover:text-slate-900'}`}>{l}</button>
         ))}
       </div>
 
       {tab === 'results' && <Results batchId={id} />}
       {tab === 'curriculum' && <Curriculum batchId={id} />}
+      {tab === 'recordings' && <Recordings batchId={id} />}
       {tab === 'classes' && <>
       {!sessions.data?.length ? <Empty>No classes scheduled yet.</Empty> : (
         <Table head={['Class', 'When', 'Status', 'Attendance', '']}>

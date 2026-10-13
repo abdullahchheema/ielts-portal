@@ -1,21 +1,46 @@
 'use client';
 
-import { Badge, Card, PageHeader } from '@/components/ui';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Alert, Badge, Card, Empty, Loading, PageHeader } from '@/components/ui';
+import { api } from '@/lib/api';
+import { errorMessage } from '@/lib/errors';
+import { date } from '@/lib/format';
 
-const FEATURES = [
-  { title: 'Organised by class', text: 'Recordings grouped by batch, class date, module and topic, with search and filters.' },
-  { title: 'Linked to the lesson', text: 'Each recording will connect back to the related lesson and any homework set after that class.' },
-  { title: 'Only what you are authorised to see', text: 'Published recordings for the batches and classes you were enrolled in — nothing else.' },
-];
+interface Recording {
+  id: string; title: string; module: string | null; description: string | null; driveUrl: string; publishedAt: string | null; opened: boolean;
+  batch: { name: string }; session: { topic: string; startsAt: string } | null;
+}
 
 export default function RecordingsPage() {
+  const qc = useQueryClient();
+  const { data, isLoading, isError, error } = useQuery({ queryKey: ['recordings'], queryFn: () => api<Recording[]>('/me/recordings') });
+
+  async function open(r: Recording) {
+    window.open(r.driveUrl, '_blank', 'noopener,noreferrer');
+    try { await api(`/me/recordings/${r.id}/open`, { method: 'POST' }); qc.invalidateQueries({ queryKey: ['recordings'] }); } catch { /* best-effort marker, never blocks opening the recording */ }
+  }
+
+  if (isLoading) return <Loading />;
+  if (isError || !data) return <Alert>{errorMessage(error)}</Alert>;
+
   return (
     <>
-      <PageHeader title="Class Recordings" subtitle="Previously recorded classes, once your teacher has published them." actions={<Badge status="DRAFT" tone="purple" text="Coming soon" />} />
-      <div className="grid gap-4 md:grid-cols-3">
-        {FEATURES.map((f) => <Card key={f.title}><h2 className="mb-1 font-semibold text-slate-900">{f.title}</h2><p className="text-sm text-slate-600">{f.text}</p></Card>)}
-      </div>
-      <p className="mt-6 text-sm text-slate-500">This area is a placeholder for now. Your Class Schedule already links to a recording once one is available for a past class.</p>
+      <PageHeader title="Class Recordings" subtitle="Previously recorded classes your teacher has published, for the batches you are enrolled in." />
+      {!data.length ? <Empty>No recordings have been published yet. Your Class Schedule will also link to a recording once one is available for a past class.</Empty> : (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {data.map((r) => (
+            <Card key={r.id}>
+              <div className="flex items-start justify-between gap-2">
+                <h3 className="font-semibold text-slate-900">{r.title}</h3>
+                {r.opened && <Badge status="OPENED" tone="green" text="Reviewed" />}
+              </div>
+              <p className="mt-1 text-xs text-slate-500">{r.batch.name}{r.session ? ` · ${r.session.topic} · ${date(r.session.startsAt)}` : ''}</p>
+              {r.description && <p className="mt-2 text-sm text-slate-700">{r.description}</p>}
+              <button onClick={() => open(r)} className="mt-3 inline-block text-sm font-medium text-indigo-700 hover:underline">Open recording ↗</button>
+            </Card>
+          ))}
+        </div>
+      )}
     </>
   );
 }
