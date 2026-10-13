@@ -5,6 +5,7 @@ import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Prisma } from '@ielts/db';
 import type { SaveAnswersInput } from '@ielts/validation';
 import { AppError, notFound } from '../common/app-error';
+import { DailyActivityService } from '../common/daily-activity.service';
 import { APP_CONFIG, AppConfig } from '../config/config.module';
 import { LearningService } from '../learning/learning.service';
 import { StorageService } from '../integrations/storage.service';
@@ -41,6 +42,7 @@ export class AttemptsService implements OnModuleInit {
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly scheduler: SchedulerService,
     private readonly events: EventEmitter2,
+    private readonly dailyActivity: DailyActivityService,
   ) {}
 
   onModuleInit() {
@@ -256,6 +258,7 @@ export class AttemptsService implements OnModuleInit {
     if (done) {
       await this.afterFinish(done);
       await this.emitPlanEvidence(user.studentId, attemptId);
+      void this.dailyActivity.bumpStudent(user.studentId, 'mockTestsTaken');
     }
     return this.result(user, attemptId);
   }

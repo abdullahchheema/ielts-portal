@@ -6,6 +6,7 @@ import type { AssignmentSettingsInput, DraftInput, GradeInput } from '@ielts/val
 import { roundIeltsBand } from '../assessments/grading';
 import { AuditService } from '../audit/audit.service';
 import { AppError, forbidden, notFound } from '../common/app-error';
+import { DailyActivityService } from '../common/daily-activity.service';
 import { ieltsSummary } from '../common/ielts';
 import { Actor } from '../courses/courses.service';
 import { StorageService, sniffFileType } from '../integrations/storage.service';
@@ -30,6 +31,7 @@ export class GradingService {
     private readonly learning: LearningService,
     private readonly notify: NotificationsService,
     private readonly writing: WritingService,
+    private readonly dailyActivity: DailyActivityService,
   ) {}
 
   // ───────── admin: configure an assignment on a content item ─────────
@@ -135,6 +137,7 @@ export class GradingService {
 
   /** Completes the lesson (submitting is what counts), tells the assigned mentors, and logs to the student timeline. */
   private async afterSubmit(studentId: string, a: { id: string; contentItemId: string; skill: string }, enrollmentId: string, batchId: string, submissionId: string) {
+    void this.dailyActivity.bumpStudent(studentId, 'submissionsMade');
     await this.learning.markCompletedBySystem(studentId, enrollmentId, a.contentItemId).catch(() => undefined);
     await this.prisma.studentTimelineEvent.create({ data: { studentId, type: 'SUBMISSION_SENT', summary: `Submitted a ${a.skill.toLowerCase()} task`, meta: { submissionId } } });
     const roles = a.skill === 'WRITING' ? ['MAIN', 'WRITING'] : ['MAIN', 'SPEAKING'];

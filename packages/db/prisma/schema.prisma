@@ -280,6 +280,7 @@ model User {
   followUpCreated       FollowUpTask[]         @relation("FollowUpCreator")
   recordingsUploaded    ClassRecording[]       @relation("RecordingUploader")
   lifecycleTransitionsActed StudentLifecycleTransition[] @relation("LifecycleActor")
+  dailyActivity             DailyActivitySummary[]        @relation("DailyActivityUser")
 
   @@map("users")
 }
@@ -2178,6 +2179,28 @@ model BatchHealthSnapshot {
   batch Batch @relation(fields: [batchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@map("batch_health_snapshots")
+}
+
+// One row per user per calendar day. Counts only -- never a timestamped event log -- so this answers
+// "was this person active today and what did they do" without minute-by-minute tracking. Written via
+// cheap upserts at existing action points (login, mock submit, lesson-progress ping, submission
+// created, attendance marked), not request-level middleware.
+model DailyActivitySummary {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  date             DateTime @db.Date
+  loginCount       Int      @default(0) @map("login_count")
+  mockTestsTaken   Int      @default(0) @map("mock_tests_taken")
+  lessonsOpened    Int      @default(0) @map("lessons_opened")
+  submissionsMade  Int      @default(0) @map("submissions_made")
+  classesAttended  Int      @default(0) @map("classes_attended")
+  lastActiveAt     DateTime @default(now()) @map("last_active_at")
+
+  user User @relation("DailyActivityUser", fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([userId, date], map: "daily_activity_summaries_unique")
+  @@index([date], map: "daily_activity_summaries_date_idx")
+  @@map("daily_activity_summaries")
 }
 
 // ───────── Admin experience ─────────

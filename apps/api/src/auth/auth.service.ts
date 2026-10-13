@@ -4,6 +4,7 @@ import * as argon2 from 'argon2';
 import { randomUUID } from 'node:crypto';
 import { LoginInput, RegisterInput } from '@ielts/validation';
 import { AppError } from '../common/app-error';
+import { DailyActivityService } from '../common/daily-activity.service';
 import { APP_CONFIG, AppConfig } from '../config/config.module';
 import { MailService } from '../integrations/mail.service';
 import { RateLimiter } from '../integrations/rate-limiter.service';
@@ -36,6 +37,7 @@ export class AuthService {
     private readonly ctxService: UserContextService,
     private readonly audit: AuditService,
     private readonly mfa: MfaService,
+    private readonly dailyActivity: DailyActivityService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
@@ -144,6 +146,7 @@ export class AuthService {
 
     await this.limiter.reset(key);
     await this.prisma.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null, lastLoginAt: new Date() } });
+    void this.dailyActivity.bump(user.id, 'loginCount');
 
     const ctx = await this.ctxService.get(user.id);
     const isAdmin = !!ctx && isAdminRole(ctx.roles);

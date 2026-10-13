@@ -5,6 +5,7 @@ import { LIFECYCLE_SIGNAL } from '../student-lifecycle/lifecycle.service';
 import { z } from 'zod';
 import { studentProfileSchema } from '@ielts/validation';
 import { AppError, notFound } from '../common/app-error';
+import { DailyActivityService } from '../common/daily-activity.service';
 import { ieltsSummary } from '../common/ielts';
 import { StorageService } from '../integrations/storage.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -36,7 +37,7 @@ type ItemState = 'LOCKED' | 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
 
 @Injectable()
 export class LearningService {
-  constructor(private readonly prisma: PrismaService, private readonly storage: StorageService, private readonly events: EventEmitter2) {}
+  constructor(private readonly prisma: PrismaService, private readonly storage: StorageService, private readonly events: EventEmitter2, private readonly dailyActivity: DailyActivityService) {}
 
   // ───────── access ─────────
   /** Enrollment must be ACTIVE/COMPLETED and inside its access window. Throws a specific error otherwise. */
@@ -199,6 +200,7 @@ export class LearningService {
   }
 
   async openItem(studentId: string, itemId: string) {
+    void this.dailyActivity.bumpStudent(studentId, 'lessonsOpened');
     const { item, enrollment } = await this.resolveItem(studentId, itemId);
     const meta = (item.metadataJson ?? {}) as { body?: string; url?: string; fileKey?: string; fileName?: string; assessmentId?: string };
     const progress = await this.prisma.contentProgress.findUnique({

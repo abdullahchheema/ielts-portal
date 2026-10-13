@@ -27,4 +27,7 @@ export class AdminStudentInsightsController {
 
   @RequirePermission('student.view') @Get('readiness')
   readiness(@Param('id', uuid) id: string) { return this.insights.readiness(id); }
+
+  @RequirePermission('student.view') @Get('target-band')
+  target(@Param('id', uuid) id: string) { return this.insights.targetPlan(id); }
 }

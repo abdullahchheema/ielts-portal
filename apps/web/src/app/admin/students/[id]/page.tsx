@@ -6,6 +6,8 @@ import { useMemo } from 'react';
 import { Alert, Badge, Card, DefinitionList, Empty, PageHeader, Section, SkeletonCards, SkeletonTable, Table, Tabs, Td } from '@/components/ui';
 import { EstimatedBand } from '@/components/EstimatedBand';
 import { IeltsSummary, IeltsSummaryLike } from '@/components/IeltsSummary';
+import { InsightsPanels, Readiness, TargetPlan, Weakness } from '@/components/InsightsPanels';
+import { ActivitySummaryList, DailyActivityRow } from '@/components/ActivitySummaryList';
 import { RiskBadge, type RiskLevelValue } from '@/components/RiskBadge';
 import { LifecyclePanel } from '@/components/LifecyclePanel';
 import { SurveyDoc, SurveySummary } from '@/components/survey/SurveySummary';
@@ -36,7 +38,7 @@ interface AttendanceRow { date: string; topic: string; batch: string; status: st
 interface AssessmentRow { title: string; skill: string | null; type: string; attemptNumber: number; status: string; submittedAt: string | null; score: string | null; percent: number | null; band: number | null }
 interface AssignmentRow { title: string; skill: string; dueAt: string | null; status: string; submittedAt: string | null; late: boolean; band: number | null; gradedAt: string | null }
 
-const TABS = [['overview', 'Overview'], ['performance', 'Performance'], ['attendance', 'Attendance'], ['assessments', 'Assessments'], ['assignments', 'Assignments'], ['activity', 'Activity'], ['account', 'Account']] as const;
+const TABS = [['overview', 'Overview'], ['performance', 'Performance'], ['insights', 'Insights'], ['attendance', 'Attendance'], ['assessments', 'Assessments'], ['assignments', 'Assignments'], ['activity', 'Activity'], ['account', 'Account']] as const;
 const SKILLS: SkillKey[] = ['LISTENING', 'READING', 'WRITING', 'SPEAKING'];
 const ATTENDANCE_TONE: Record<string, 'green' | 'amber' | 'red' | 'blue' | 'slate'> = { PRESENT: 'green', LATE: 'amber', ABSENT: 'red', EXCUSED: 'blue' };
 
@@ -47,7 +49,11 @@ export default function StudentDetailPage() {
 
   const student = useQuery({ queryKey: ['admin-student', id], queryFn: () => api<Detail>(`/admin/students/${id}`) });
   const analytics = useQuery({ queryKey: ['admin-student-analytics', id], queryFn: () => api<Analytics>(`/admin/students/${id}/analytics`) });
+  const weak = useQuery({ queryKey: ['admin-student-weakness', id], queryFn: () => api<Weakness>(`/admin/students/${id}/insights/weakness`), enabled: tab === 'insights' });
+  const ready = useQuery({ queryKey: ['admin-student-readiness', id], queryFn: () => api<Readiness>(`/admin/students/${id}/insights/readiness`), enabled: tab === 'insights' });
+  const target = useQuery({ queryKey: ['admin-student-target-band', id], queryFn: () => api<TargetPlan>(`/admin/students/${id}/insights/target-band`), enabled: tab === 'insights' });
   const attendance = useQuery({ queryKey: ['admin-student-attendance', id], queryFn: () => api<AttendanceRow[]>(`/admin/students/${id}/analytics/attendance`), enabled: tab === 'attendance' });
+  const activitySummary = useQuery({ queryKey: ['admin-student-activity-summary', id], queryFn: () => api<DailyActivityRow[]>(`/admin/students/${id}/analytics/activity-summary`), enabled: tab === 'activity' });
   const assessments = useQuery({ queryKey: ['admin-student-assessments', id], queryFn: () => api<AssessmentRow[]>(`/admin/students/${id}/analytics/assessments`), enabled: tab === 'assessments' });
   const assignments = useQuery({ queryKey: ['admin-student-assignments', id], queryFn: () => api<AssignmentRow[]>(`/admin/students/${id}/analytics/assignments`), enabled: tab === 'assignments' });
   const survey = useQuery({ queryKey: ['admin-student-enrollment-survey', id], queryFn: () => api<SurveyDoc>(`/admin/students/${id}/enrollment-survey`), enabled: tab === 'account' });
@@ -126,6 +132,8 @@ export default function StudentDetailPage() {
         )
       )}
 
+      {tab === 'insights' && <InsightsPanels weak={weak} ready={ready} target={target} />}
+
       {tab === 'attendance' && (
         attendance.isLoading ? <SkeletonTable rows={6} cols={5} /> : attendance.isError || !attendance.data ? <Alert>Could not load attendance.</Alert> : attendance.data.length === 0 ? (
           <Empty title="No attendance yet">Attendance appears here once a teacher marks a class this student was enrolled for.</Empty>
@@ -183,13 +191,20 @@ export default function StudentDetailPage() {
       )}
 
       {tab === 'activity' && (
-        <Card>
-          <h2 className="mb-3 font-display text-base font-semibold text-fg">Timeline</h2>
-          <ol className="space-y-3 border-l-2 border-border pl-4 text-sm">
-            {s.timeline.length === 0 && <li className="text-fg-muted">No activity yet.</li>}
-            {s.timeline.map((t) => <li key={t.id}><p className="text-xs text-fg-muted">{date(t.createdAt, true)}</p><p>{t.summary}</p></li>)}
-          </ol>
-        </Card>
+        <div className="space-y-6">
+          <Section title="Daily activity" description="Logins, lessons opened, mock tests, submissions and classes attended — the last 14 days.">
+            {activitySummary.isLoading ? <SkeletonCards count={3} /> : activitySummary.isError || !activitySummary.data ? <Alert>Could not load activity.</Alert> : (
+              <ActivitySummaryList rows={activitySummary.data} />
+            )}
+          </Section>
+          <Card>
+            <h2 className="mb-3 font-display text-base font-semibold text-fg">Timeline</h2>
+            <ol className="space-y-3 border-l-2 border-border pl-4 text-sm">
+              {s.timeline.length === 0 && <li className="text-fg-muted">No activity yet.</li>}
+              {s.timeline.map((t) => <li key={t.id}><p className="text-xs text-fg-muted">{date(t.createdAt, true)}</p><p>{t.summary}</p></li>)}
+            </ol>
+          </Card>
+        </div>
       )}
 
       {tab === 'account' && (

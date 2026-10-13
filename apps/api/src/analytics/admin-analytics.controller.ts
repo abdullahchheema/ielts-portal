@@ -2,6 +2,7 @@ import { Controller, Get, ParseUUIDPipe, Query, Param, Res } from '@nestjs/commo
 import type { Response } from 'express';
 import { z } from 'zod';
 import { AppError } from '../common/app-error';
+import { DailyActivityService } from '../common/daily-activity.service';
 import { RequirePermission } from '../common/decorators';
 import { ZodPipe } from '../common/zod.pipe';
 import { AdminAnalyticsService } from './admin-analytics.service';
@@ -65,7 +66,13 @@ export class AdminAnalyticsController {
 
 @Controller('admin/students')
 export class AdminStudentAnalyticsController {
-  constructor(private readonly analytics: AdminAnalyticsService, private readonly detail: Student360Service) {}
+  constructor(private readonly analytics: AdminAnalyticsService, private readonly detail: Student360Service, private readonly dailyActivity: DailyActivityService) {}
+
+  @RequirePermission('report.academic.view', 'student.view')
+  @Get(':id/analytics/activity-summary')
+  activitySummary(@Param('id', new ParseUUIDPipe()) id: string, @Query('days', new ZodPipe(z.coerce.number().int().min(1).max(90).default(14))) days: number) {
+    return this.dailyActivity.summaryForStudent(id, days);
+  }
 
   @RequirePermission('report.academic.view', 'student.view')
   @Get(':id/analytics/attendance')

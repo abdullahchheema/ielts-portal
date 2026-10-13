@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put
 import type { Request } from 'express';
 import { z } from 'zod';
 import { emailSchema, passwordSchema } from '@ielts/validation';
+import { DailyActivityService } from '../common/daily-activity.service';
 import { AuthUser, CurrentUser, RequirePermission, clientMeta } from '../common/decorators';
 import { ZodPipe } from '../common/zod.pipe';
 import { Actor } from '../courses/courses.service';
@@ -31,7 +32,7 @@ const auditQuery = z.object({
 
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly admin: AdminService, private readonly ctx: UserContextService) {}
+  constructor(private readonly admin: AdminService, private readonly ctx: UserContextService, private readonly dailyActivity: DailyActivityService) {}
 
   @RequirePermission('dashboard.view') @Get('dashboard')
   async dashboard(@CurrentUser() u: AuthUser) {
@@ -77,4 +78,12 @@ export class AdminController {
 
   @RequirePermission('audit.view') @Get('audit-logs')
   audit(@Query(new ZodPipe(auditQuery)) q: z.infer<typeof auditQuery>) { return this.admin.auditLogs(q); }
+
+  @RequirePermission('teacher.manage') @Get('mentors/:id/activity')
+  teacherActivity(@Param('id', uuid) id: string) { return this.admin.teacherActivity(id); }
+
+  @RequirePermission('teacher.manage') @Get('mentors/:id/activity-summary')
+  teacherActivitySummary(@Param('id', uuid) id: string, @Query('days', new ZodPipe(z.coerce.number().int().min(1).max(90).default(14))) days: number) {
+    return this.dailyActivity.summaryForMentor(id, days);
+  }
 }

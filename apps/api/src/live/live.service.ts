@@ -4,6 +4,7 @@ import { liveClassProvider, LiveClassProvider } from './live-provider';
 import { APP_CONFIG, AppConfig } from '../config/config.module';
 import { Inject } from '@nestjs/common';
 import { attendanceWarnings, DEFAULT_ATTENDANCE_RULES } from '../engagement/engagement-rules';
+import { DailyActivityService } from '../common/daily-activity.service';
 import { Body, Controller, Delete, Get, HttpCode, Injectable, Module, Param, ParseUUIDPipe, Patch, Post, Put, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { AttendanceInput, SessionInput, UpdateSessionInput, attendanceSchema, sessionSchema, updateSessionSchema } from '@ielts/validation';
@@ -34,6 +35,7 @@ export class LiveService {
     private readonly audit: AuditService,
     private readonly notify: NotificationsService,
     private readonly scope: ScopeService,
+    private readonly dailyActivity: DailyActivityService,
     @Inject(APP_CONFIG) config: AppConfig,
   ) {
     this.provider = liveClassProvider(config.LIVE_CLASS_PROVIDER);
@@ -186,6 +188,9 @@ export class LiveService {
       }
     });
     await this.recalcWarnings(input.records.map((x) => x.studentId)).catch(() => undefined);
+    for (const x of input.records) {
+      if (x.status === 'PRESENT' || x.status === 'LATE') void this.dailyActivity.bumpStudent(x.studentId, 'classesAttended');
+    }
     return { ok: true };
   }
 

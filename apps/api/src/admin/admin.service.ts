@@ -241,4 +241,58 @@ export class AdminService {
     }));
     return { items, nextBefore: more ? items[items.length - 1].createdAt : null };
   }
+
+  // ───────── teacher activity ─────────
+  /**
+   * What a specific teacher has actually been doing: batches taught, grading volume/turnaround, recent
+   * feedback given, and how often they've taken attendance. Nothing here was tracked per-teacher before —
+   * `submissionFeedback.mentorId` stores the grader's *User* id (not the MentorProfile id, despite the
+   * column name), so every query below resolves through `mentor.userId`, not `mentor.id`.
+   */
+  async teacherActivity(mentorId: string) {
+    const mentor = await this.prisma.mentorProfile.findUnique({ where: { id: mentorId }, select: { id: true, userId: true, displayName: true, status: true, user: { select: { email: true, lastLoginAt: true } } } });
+    if (!mentor) throw notFound('Teacher');
+
+    const [batches, feedbackRows, attendanceMarked] = await Promise.all([
+      this.prisma.batchMentor.findMany({
+        where: { mentorId: mentor.id },
+        select: { mentorRole: true, assignedAt: true, batch: { select: { id: true, name: true, status: true, startAt: true } } },
+        orderBy: { assignedAt: 'desc' },
+      }),
+      this.prisma.submissionFeedback.findMany({
+        where: { mentorId: mentor.userId },
+        orderBy: { createdAt: 'desc' },
+        take: 500,
+        select: {
+          id: true, comment: true, finalBand: true, createdAt: true,
+          submission: { select: { submittedAt: true, student: { select: { firstName: true, lastName: true } }, assignment: { select: { skill: true, contentItem: { select: { title: true } } } } } },
+        },
+      }),
+      this.prisma.attendanceEvent.count({ where: { actorId: mentor.userId } }),
+    ]);
+
+    const turnaroundsMs = feedbackRows
+      .map((f) => f.createdAt.getTime() - f.submission.submittedAt.getTime())
+      .filter((ms) => ms >= 0);
+    const avgTurnaroundHours = turnaroundsMs.length
+      ? Math.round((turnaroundsMs.reduce((a, b) => a + b, 0) / turnaroundsMs.length / 3_600_000) * 10) / 10
+      : null;
+    const last30Days = feedbackRows.filter((f) => f.createdAt.getTime() > Date.now() - 30 * 86_400_000).length;
+
+    return {
+      id: mentor.id, displayName: mentor.displayName, status: mentor.status,
+      email: mentor.user.email, lastLoginAt: mentor.user.lastLoginAt,
+      batches: batches.map((b) => ({ id: b.batch.id, name: b.batch.name, status: b.batch.status, role: b.mentorRole, assignedAt: b.assignedAt })),
+      grading: {
+        totalGraded: feedbackRows.length, last30Days, avgTurnaroundHours,
+        recent: feedbackRows.slice(0, 25).map((f) => ({
+          id: f.id, student: `${f.submission.student.firstName} ${f.submission.student.lastName}`,
+          title: f.submission.assignment.contentItem.title, skill: f.submission.assignment.skill,
+          band: f.finalBand === null ? null : Number(f.finalBand), comment: f.comment,
+          submittedAt: f.submission.submittedAt, gradedAt: f.createdAt,
+        })),
+      },
+      attendanceMarkedCount: attendanceMarked,
+    };
+  }
 }

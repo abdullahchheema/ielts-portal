@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import Link from 'next/link';
 import { useState } from 'react';
 import { TeacherApplicationInput } from '@ielts/validation';
 import { AdminResetPasswordDialog } from '@/components/AdminResetPasswordDialog';
@@ -121,7 +122,7 @@ export default function TeachersPage() {
             <Table sticky head={['Name', 'Email', 'Specializations', 'Batches', 'Status', '']}>
               {filtered.map((m) => (
                 <ClickableRow key={m.id} onClick={() => setViewId(m.id)}>
-                  <Td className="font-medium">{m.displayName}</Td><Td>{m.user.email}</Td><Td>{m.specializations.join(', ') || '—'}</Td><Td>{m._count.batches}</Td><Td><Badge status={m.status} /></Td>
+                  <Td className="font-medium"><Link href={`/admin/teachers/${m.id}`} className="text-primary hover:underline" onClick={(e) => e.stopPropagation()}>{m.displayName}</Link></Td><Td>{m.user.email}</Td><Td>{m.specializations.join(', ') || '—'}</Td><Td>{m._count.batches}</Td><Td><Badge status={m.status} /></Td>
                   <Td>
                     <DropdownMenu
                       trigger={<Button variant="ghost" size="xs" onClick={(e) => e.stopPropagation()}>Actions</Button>}

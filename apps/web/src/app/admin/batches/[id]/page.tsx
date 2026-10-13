@@ -5,7 +5,7 @@ import { useConfirm } from '@/components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
-import { Alert, Badge, Button, Card, Empty, Field, Loading, PageHeader, Section, Select, SimpleList, SimpleListItem, Table, Td } from '@/components/ui';
+import { Alert, Badge, Button, Card, Dialog, Empty, Field, Loading, PageHeader, Section, Select, SimpleList, SimpleListItem, Table, Td } from '@/components/ui';
 import { api } from '@/lib/api';
 import { can, useMe } from '@/lib/auth';
 import { errorMessage } from '@/lib/errors';
@@ -18,6 +18,11 @@ interface Batch {
 }
 interface Mentor { id: string; displayName: string; status: string }
 interface Student { enrollmentId: string; status: string; progressPercent: string; student: { firstName: string; lastName: string; currentBand: string | null; targetBand: string | null } }
+interface LiveSession {
+  id: string; topic: string; startsAt: string; endsAt: string; provider: string | null; meetingUrl: string | null; recordingUrl: string | null; status: string;
+  _count: { attendance: number };
+}
+interface AttendanceSheet { session: { id: string; topic: string; startsAt: string; endsAt: string }; roster: { studentId: string; name: string; status: string | null; minutesAttended: number | null }[] }
 
 // Mirrors the API's transition table so the UI only offers legal moves (the API still enforces it).
 const NEXT: Record<string, string[]> = {
@@ -33,10 +38,19 @@ export default function BatchDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [mentorId, setMentorId] = useState('');
   const [role, setRole] = useState('MAIN');
+  const [viewSessionId, setViewSessionId] = useState<string | null>(null);
 
   const batch = useQuery({ queryKey: ['admin-batch', id], queryFn: () => api<Batch>(`/admin/batches/${id}`) });
   const mentors = useQuery({ queryKey: ['admin-mentors'], queryFn: () => api<Mentor[]>('/admin/mentors'), enabled: can(me, 'mentor.assign') });
   const students = useQuery({ queryKey: ['batch-students', id], queryFn: () => api<Student[]>(`/mentor/batches/${id}/students`), enabled: can(me, 'teaching.view') });
+  // The same mentor-scoped endpoint a teacher uses — admin and academic-admin roles already oversee every
+  // batch (see ScopeService.assertBatch), so this needs no new backend route.
+  const sessions = useQuery({ queryKey: ['batch-sessions', id], queryFn: () => api<LiveSession[]>(`/mentor/batches/${id}/sessions`), enabled: can(me, 'teaching.view') });
+  const roster = useQuery({
+    queryKey: ['session-attendance', viewSessionId],
+    queryFn: () => api<AttendanceSheet>(`/mentor/sessions/${viewSessionId}/attendance`),
+    enabled: !!viewSessionId,
+  });
   const refresh = () => { qc.invalidateQueries({ queryKey: ['admin-batch', id] }); qc.invalidateQueries({ queryKey: ['admin-batches'] }); qc.invalidateQueries({ queryKey: ['batch-students', id] }); };
   const run = async (fn: () => Promise<unknown>) => { setError(null); try { await fn(); refresh(); } catch (e) { setError(errorMessage(e)); } };
 
@@ -97,6 +111,26 @@ export default function BatchDetailPage() {
         </Section>
       </div>
 
+      {sessions.data && (
+        <Section title={`Classes (${sessions.data.length})`} description="The same schedule and meeting link the teacher and students see." className="mt-6">
+          {sessions.data.length === 0 ? <Empty>No classes scheduled yet.</Empty> : (
+            <Table head={['Topic', 'When', 'Provider', 'Meeting link', 'Attendance', 'Status', '']} sticky>
+              {sessions.data.map((s) => (
+                <tr key={s.id}>
+                  <Td>{s.topic}</Td>
+                  <Td>{date(s.startsAt, true)} – {date(s.endsAt, true)}</Td>
+                  <Td>{s.provider ? label(s.provider) : '—'}</Td>
+                  <Td>{s.meetingUrl ? <a href={s.meetingUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">Open ↗</a> : '—'}</Td>
+                  <Td>{s._count.attendance} marked</Td>
+                  <Td><Badge status={s.status} /></Td>
+                  <Td><Button variant="ghost" size="xs" onClick={() => setViewSessionId(s.id)}>View attendance</Button></Td>
+                </tr>
+              ))}
+            </Table>
+          )}
+        </Section>
+      )}
+
       {students.data && (
         <Section title={`Enrolled students (${students.data.length})`} className="mt-6">
           {students.data.length === 0 ? <Empty>No enrolled students yet.</Empty> : (
@@ -113,6 +147,21 @@ export default function BatchDetailPage() {
           )}
         </Section>
       )}
+
+      <Dialog open={!!viewSessionId} onClose={() => setViewSessionId(null)} title={roster.data ? `Attendance — ${roster.data.session.topic}` : 'Attendance'}>
+        {roster.isLoading && <Loading />}
+        {roster.data && (roster.data.roster.length === 0 ? <Empty>No enrolled students for this batch.</Empty> : (
+          <SimpleList>
+            {roster.data.roster.map((r) => (
+              <SimpleListItem
+                key={r.studentId}
+                left={<span>{r.name}</span>}
+                right={<>{r.minutesAttended !== null && <span className="text-xs text-fg-muted">{r.minutesAttended} min</span>}{r.status ? <Badge status={r.status} /> : <span className="text-xs text-fg-subtle">Not marked</span>}</>}
+              />
+            ))}
+          </SimpleList>
+        ))}
+      </Dialog>
     </>
   );
 }
