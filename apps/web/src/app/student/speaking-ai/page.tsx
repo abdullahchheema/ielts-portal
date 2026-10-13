@@ -1,8 +1,8 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
-import { AIInsightCard, AiUnavailable, Alert, Button, Card, Empty, Field, FeedbackList, Loading, PageHeader, ScoreBreakdown, Select } from '@/components/ui';
+import { ReactNode, useState } from 'react';
+import { AIInsightCard, Accordion, AiUnavailable, Alert, Badge, Button, Card, Empty, Field, FeedbackList, Loading, PageHeader, ScoreBreakdown, Select } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { extensionFor, useRecorder } from '@/lib/use-recorder';
@@ -93,7 +93,7 @@ export default function SpeakingPracticePage() {
         <Card className="max-w-2xl space-y-4">
           <Field label="Part">{(p) => <Select {...p} value={part} onChange={(e) => setPart(e.target.value as Part)}>{(['PART1', 'PART2', 'PART3'] as Part[]).map((x) => <option key={x} value={x}>{PART_LABEL[x]}</option>)}</Select>}</Field>
           {questions.isLoading && <Loading />}
-          {questions.data && questions.data.length === 0 && <p className="text-sm text-fg-muted">No published questions for this part yet. You can still practise with a sample question.</p>}
+          {questions.data && questions.data.length === 0 && <Alert kind="info">No published questions for this part yet. You can still practise with a sample question.</Alert>}
           <Button onClick={begin} busy={busy}>Start practice</Button>
         </Card>
       )}
@@ -118,7 +118,11 @@ export default function SpeakingPracticePage() {
                 <Button onClick={upload} busy={busy} disabled={rec.state.kind !== 'ready'}>Submit answer</Button>
               </div>
             ) : (
-              <p className="text-sm text-fg-muted">Answer saved. {answer.status === 'EVALUATED' ? 'Your feedback is ready.' : 'Working on your feedback…'}</p>
+              <p className="flex items-center gap-2 text-sm text-fg-muted">
+                Answer saved
+                <Badge status={answer.status} />
+                {answer.status === 'EVALUATED' ? 'Your feedback is ready.' : 'Working on your feedback…'}
+              </p>
             )}
 
             {answer && ['EVALUATED', 'PROCESSING_FAILED'].includes(answer.status) && (
@@ -141,11 +145,25 @@ export default function SpeakingPracticePage() {
                   <ScoreBreakdown items={answer.latestEvaluation.criteria.map((c) => ({ label: CRITERIA[c.key] ?? c.key, score: c.score }))} />
                   <FeedbackList title="Strengths" items={answer.latestEvaluation.feedback.strengths} />
                   <FeedbackList title="To work on" items={answer.latestEvaluation.feedback.weaknesses} />
-                  {answer.latestEvaluation.feedback.corrections.length > 0 && (
-                    <ul className="space-y-2 text-sm">{answer.latestEvaluation.feedback.corrections.map((c, i) => <li key={i}><span className="text-fg-muted">{c.original}</span><span className="block text-success">{c.corrected}</span></li>)}</ul>
-                  )}
-                  <FeedbackList title="Practise next" items={answer.latestEvaluation.feedback.recommendedPractice} />
-                  <p className="text-xs text-fg-subtle">{answer.latestEvaluation.feedback.pronunciationNote}</p>
+                  <Accordion
+                    items={[
+                      answer.latestEvaluation.feedback.corrections.length > 0 && {
+                        key: 'corrections',
+                        title: `Corrections (${answer.latestEvaluation.feedback.corrections.length})`,
+                        content: <ul className="space-y-2 text-sm">{answer.latestEvaluation.feedback.corrections.map((c, i) => <li key={i}><span className="text-fg-muted">{c.original}</span><span className="block text-success">{c.corrected}</span></li>)}</ul>,
+                      },
+                      answer.latestEvaluation.feedback.recommendedPractice.length > 0 && {
+                        key: 'practice',
+                        title: 'Practise next',
+                        content: <FeedbackList title="Practise next" items={answer.latestEvaluation.feedback.recommendedPractice} />,
+                      },
+                      answer.latestEvaluation.feedback.pronunciationNote && {
+                        key: 'pronunciation',
+                        title: 'Pronunciation note',
+                        content: <p className="text-sm text-fg-muted">{answer.latestEvaluation.feedback.pronunciationNote}</p>,
+                      },
+                    ].filter(Boolean) as { key: string; title: string; content: ReactNode }[]}
+                  />
                 </div>
               </AIInsightCard>
             )}

@@ -2,7 +2,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Alert, Button, Card, Empty, Loading, PageHeader, Tabs, Table, Td } from '@/components/ui';
+import { Alert, Card, Empty, Loading, PageHeader, Switch, Tabs, Table, Td } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 
@@ -40,7 +40,7 @@ export default function LeaderboardPage() {
           <Tabs aria-label="Period" value={period} onChange={(k) => setPeriod(k as 'WEEKLY' | 'MONTHLY')} items={[{ key: 'WEEKLY', label: 'This week' }, { key: 'MONTHLY', label: 'This month' }]} />
           <Card className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-fg-muted">{data.me ? `You are ranked ${data.me.rank} with ${data.me.points} points.` : 'You are not shown in the ranking.'}</p>
-            {data.me ? <Button variant="secondary" onClick={() => optOut(true)}>Hide me from the ranking</Button> : <Button variant="secondary" onClick={() => optOut(false)}>Show me in the ranking</Button>}
+            <Switch checked={!!data.me} onChange={(v) => optOut(!v)} label="Show me in the ranking" />
           </Card>
           {data.top.length === 0 ? <Empty title="No activity yet this period" /> : (
             <Table head={['Rank', 'Student', 'Points']}>

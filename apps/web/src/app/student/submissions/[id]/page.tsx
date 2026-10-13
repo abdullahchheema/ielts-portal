@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
-import { Alert, Badge, Card, Loading, PageHeader, Table, Td } from '@/components/ui';
+import { Accordion, Alert, Badge, Card, Loading, PageHeader, Table, Td } from '@/components/ui';
 import { api } from '@/lib/api';
 import { band, date } from '@/lib/format';
 
@@ -32,9 +32,17 @@ export default function SubmissionPage() {
           </Table>
           {latest.comment && <div><h3 className="mb-1 text-sm font-semibold">Overall comment</h3><p className="whitespace-pre-wrap text-sm text-fg">{latest.comment}</p></div>}
           {older.length > 0 && (
-            <details className="text-sm"><summary className="cursor-pointer text-primary">Earlier gradings ({older.length})</summary>
-              <ul className="mt-2 space-y-1">{older.map((f) => <li key={f.id}>{date(f.createdAt, true)} — Band {band(f.finalBand)}{f.comment ? ` — ${f.comment}` : ''}</li>)}</ul>
-            </details>
+            <Accordion
+              items={[{
+                key: 'earlier',
+                title: `Earlier gradings (${older.length})`,
+                content: (
+                  <ul className="space-y-1">
+                    {older.map((f) => <li key={f.id}>{date(f.createdAt, true)} — Band {band(f.finalBand)}{f.comment ? ` — ${f.comment}` : ''}</li>)}
+                  </ul>
+                ),
+              }]}
+            />
           )}
         </Card>
       ) : <div className="mb-6"><Alert kind="info">Your mentor hasn’t graded this yet. You’ll get a notification when it’s ready.</Alert></div>}

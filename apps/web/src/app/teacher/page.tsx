@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { CalendarClock, ClipboardCheck, Layers, Users } from 'lucide-react';
 import Link from 'next/link';
-import { Alert, Card, Empty, LinkButton, PageHeader, Section, SkeletonTable, StatCard } from '@/components/ui';
+import { Alert, CardList, CardListItem, Empty, LinkButton, PageHeader, Section, SkeletonTable, StatCard } from '@/components/ui';
 import { api } from '@/lib/api';
 import { date } from '@/lib/format';
 import { TeacherWorkload } from '@/components/TeacherWorkload';
@@ -46,19 +46,20 @@ export default function TeacherDashboard() {
             Schedule a class from one of your batch pages.
           </Empty>
         ) : (
-          <Card className="p-0">
-            <ul className="divide-y divide-border">
-              {data.upcomingSessions.map((s) => (
-                <li key={s.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-5 py-4 text-sm">
+          <CardList>
+            {data.upcomingSessions.map((s) => (
+              <CardListItem
+                key={s.id}
+                left={
                   <div className="min-w-0">
                     <p className="font-medium text-fg">{s.topic}</p>
-                    <p className="text-fg-muted tabular-nums">{date(s.startsAt, true)}</p>
+                    <p className="text-sm text-fg-muted tabular-nums">{date(s.startsAt, true)}</p>
                   </div>
-                  <Link href={`/teacher/batches/${s.batch.id}`} className="rounded-sm font-medium text-primary hover:underline focus-visible:outline-2 focus-visible:outline-ring">{s.batch.name}</Link>
-                </li>
-              ))}
-            </ul>
-          </Card>
+                }
+                right={<Link href={`/teacher/batches/${s.batch.id}`} className="rounded-sm text-sm font-medium text-primary hover:underline focus-visible:outline-2 focus-visible:outline-ring">{s.batch.name}</Link>}
+              />
+            ))}
+          </CardList>
         )}
       </Section>
     </>

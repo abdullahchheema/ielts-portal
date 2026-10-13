@@ -2,7 +2,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Alert, Button, Card, Empty, Loading, PageHeader, Tabs } from '@/components/ui';
+import { Alert, Badge, Button, CardList, CardListItem, Empty, Loading, PageHeader, Tabs } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 
@@ -65,20 +65,20 @@ export default function StudyPlanPage() {
           <div className="mt-6">
             {!data.plan && <Empty title="No plan yet">Set a target band and exam date in your profile, then update the plan.</Empty>}
             {data.plan && data.tasks.length === 0 && <Empty title={`Nothing in ${VIEWS.find((v) => v.key === view)?.label.toLowerCase()}`}>{view === 'completed' ? 'Completed tasks appear here.' : 'You are all caught up.'}</Empty>}
-            <ul className="space-y-3">
+            <CardList>
               {data.tasks.map((t) => (
-                <li key={t.id}>
-                  <Card className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <CardListItem key={t.id}
+                  left={
                     <div className="min-w-0">
                       <p className="font-medium text-fg">{t.title}</p>
                       <p className="text-xs text-fg-muted">{t.skill.toLowerCase()} · {t.minutes} min · {t.date}</p>
                       <p className="mt-1 text-sm text-fg-muted">{t.rationale}</p>
                     </div>
-                    {t.status === 'PENDING' ? <Button variant="secondary" onClick={() => complete(t.id)}>Mark done</Button> : <span className="text-sm text-success">Done</span>}
-                  </Card>
-                </li>
+                  }
+                  right={t.status === 'PENDING' ? <Button variant="secondary" onClick={() => complete(t.id)}>Mark done</Button> : <Badge status={t.status} tone="green" text="Done" />}
+                />
               ))}
-            </ul>
+            </CardList>
           </div>
         </>
       )}

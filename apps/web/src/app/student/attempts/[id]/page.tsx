@@ -77,7 +77,7 @@ function ResultView({ r, attemptId, lessonHref }: { r: Result; attemptId: string
           <h2 className="mb-2 font-semibold">{s.title}</h2>
           <ol className="space-y-3">
             {s.questions.map((q, i) => (
-              <li key={q.id}><Card className={q.correct ? 'ring-green-300' : 'ring-red-300'}>
+              <li key={q.id}><Card className={q.correct ? 'ring-success/40' : 'ring-danger/40'}>
                 <p className="mb-2 text-sm font-medium"><span className="mr-2 text-fg-subtle">{i + 1}.</span>{q.prompt.text} <span className={q.correct ? 'text-success' : 'text-danger'}>{q.correct ? '✓ Correct' : '✗ Incorrect'}</span></p>
                 <p className="text-sm text-fg-muted">Your answer: <strong>{describe(q, q.yourAnswer)}</strong></p>
                 {!q.correct && <p className="text-sm text-fg-muted">Correct answer: <strong>{describe(q, q.correctAnswer)}</strong></p>}

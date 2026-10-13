@@ -1,9 +1,10 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import { ClipboardCheck } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
-import { Alert, Badge, Button, Empty, Loading, PageHeader, Table, Td } from '@/components/ui';
+import { Alert, Badge, Button, Empty, FilterBar, Loading, PageHeader, Pagination, Table, Tabs, Td } from '@/components/ui';
 import { api } from '@/lib/api';
 import { band, date, label } from '@/lib/format';
 
@@ -18,16 +19,23 @@ export default function GradingQueuePage() {
   return (
     <>
       <PageHeader title="Grading queue" subtitle={status === 'SUBMITTED' ? 'Oldest first, so nobody waits longer than they should.' : 'Recently graded work. Open one to adjust a grade.'} />
-      <div role="tablist" aria-label="Queue" className="mb-4 flex gap-2">
-        {(['SUBMITTED', 'GRADED'] as const).map((s) => (
-          <button key={s} role="tab" aria-selected={status === s} onClick={() => { setStatus(s); setSkip(0); }} className={`rounded-md px-3 py-1.5 text-sm font-medium ${status === s ? 'bg-primary text-white' : 'bg-surface text-fg ring-1 ring-border-strong'}`}>{s === 'SUBMITTED' ? 'To grade' : 'Graded'}</button>
-        ))}
-      </div>
+      <FilterBar count={data?.total}>
+        <Tabs
+          aria-label="Queue"
+          value={status}
+          onChange={(k) => { setStatus(k as typeof status); setSkip(0); }}
+          items={[{ key: 'SUBMITTED', label: 'To grade' }, { key: 'GRADED', label: 'Graded' }]}
+        />
+      </FilterBar>
       {isLoading && <Loading />}
       {isError && <Alert>Could not load the queue.</Alert>}
-      {data && (data.items.length === 0 ? <Empty>{status === 'SUBMITTED' ? 'Nothing waiting — nice work.' : 'No graded submissions yet.'}</Empty> : (
+      {data && (data.items.length === 0 ? (
+        <Empty icon={ClipboardCheck} title={status === 'SUBMITTED' ? 'Nothing waiting' : 'No graded submissions yet'}>
+          {status === 'SUBMITTED' ? 'Nice work — every submission has been graded.' : 'Graded work will appear here.'}
+        </Empty>
+      ) : (
         <>
-          <Table head={['Student', 'Task', 'Batch', 'Submitted', status === 'GRADED' ? 'Band' : 'Length', '']}>
+          <Table sticky head={['Student', 'Task', 'Batch', 'Submitted', status === 'GRADED' ? 'Band' : 'Length', '']}>
             {data.items.map((s) => (
               <tr key={s.id}>
                 <Td className="font-medium">{s.student}</Td>
@@ -39,10 +47,7 @@ export default function GradingQueuePage() {
               </tr>
             ))}
           </Table>
-          <div className="mt-3 flex items-center justify-between text-sm text-fg-muted">
-            <span>{data.total} total</span>
-            <div className="flex gap-2"><Button variant="secondary" disabled={skip === 0} onClick={() => setSkip(Math.max(0, skip - PAGE))}>Previous</Button><Button variant="secondary" disabled={skip + PAGE >= data.total} onClick={() => setSkip(skip + PAGE)}>Next</Button></div>
-          </div>
+          <Pagination skip={skip} take={PAGE} total={data.total} onSkip={setSkip} />
         </>
       ))}
     </>

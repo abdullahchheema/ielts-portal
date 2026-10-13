@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Card, LinkButton, Loading, PageHeader, ProgressBar, SimpleList, SimpleListItem } from '@/components/ui';
+import { Alert, Card, LinkButton, Loading, PageHeader, ProgressBar, Section, SimpleList, SimpleListItem } from '@/components/ui';
 import { EnrollmentBadge, PaymentPendingNotice, primaryApplication, scheduleText, useApplications } from '@/components/student';
 import { api } from '@/lib/api';
 import { date, money } from '@/lib/format';
@@ -35,21 +35,22 @@ export default function MyCoursePage() {
         </Card>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <h2 className="mb-2 font-semibold">What is included</h2>
-          <ul className="list-disc space-y-1 pl-5 text-sm text-fg">{c.includes.map((i) => <li key={i}>{i}</li>)}</ul>
-        </Card>
-        <Card>
-          <h2 className="mb-2 font-semibold">Modules</h2>
-          <ul className="list-disc space-y-1 pl-5 text-sm text-fg">{c.modules.map((m) => <li key={m}>{m}</li>)}</ul>
-          <p className="mt-3 text-sm text-fg-muted">{c.durationWeeks ? `${c.durationWeeks} weeks · ` : ''}{money(c.price, c.currency)}</p>
-        </Card>
-      </div>
+      <Section title="Course details">
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card>
+            <h3 className="mb-2 font-semibold text-fg">What is included</h3>
+            <ul className="list-disc space-y-1 pl-5 text-sm text-fg">{c.includes.map((i) => <li key={i}>{i}</li>)}</ul>
+          </Card>
+          <Card>
+            <h3 className="mb-2 font-semibold text-fg">Modules</h3>
+            <ul className="list-disc space-y-1 pl-5 text-sm text-fg">{c.modules.map((m) => <li key={m}>{m}</li>)}</ul>
+            <p className="mt-3 text-sm text-fg-muted">{c.durationWeeks ? `${c.durationWeeks} weeks · ` : ''}{money(c.price, c.currency)}</p>
+          </Card>
+        </div>
+      </Section>
 
       {certs.data && certs.data.length > 0 && (
-        <>
-          <h2 className="mb-3 mt-8 text-lg font-semibold">Certificates</h2>
+        <Section title="Certificates">
           <SimpleList>
             {certs.data.map((x) => (
               <SimpleListItem key={x.id}
@@ -58,7 +59,7 @@ export default function MyCoursePage() {
               />
             ))}
           </SimpleList>
-        </>
+        </Section>
       )}
     </>
   );

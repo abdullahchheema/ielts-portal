@@ -7,7 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { Alert, Button, Card, Field, Input, Loading, PageHeader, Select, Textarea } from '@/components/ui';
+import { Alert, Button, Card, Field, Input, Loading, PageHeader, Radio, Select, Textarea } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage, fieldErrors } from '@/lib/errors';
 import { IeltsSummaryLike } from '@/components/IeltsSummary';
@@ -114,9 +114,9 @@ export default function ProfilePage() {
           <fieldset className="rounded-md bg-canvas p-4">
             <legend className="px-1 text-sm font-medium text-fg">IELTS background</legend>
             <div className="space-y-3">
-              <div className="flex gap-4 text-sm">
-                <label className="flex items-center gap-2"><input type="radio" value="NEVER" {...register('ieltsHistory')} /> Never taken IELTS</label>
-                <label className="flex items-center gap-2"><input type="radio" value="TAKEN" {...register('ieltsHistory')} /> I have taken IELTS before</label>
+              <div className="flex gap-4">
+                <Radio value="NEVER" label="Never taken IELTS" {...register('ieltsHistory')} />
+                <Radio value="TAKEN" label="I have taken IELTS before" {...register('ieltsHistory')} />
               </div>
               {errors.ieltsHistory && <p className="text-xs text-danger">{errors.ieltsHistory.message}</p>}
               {taken && (

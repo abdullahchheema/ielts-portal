@@ -1,10 +1,12 @@
 'use client';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { X } from 'lucide-react';
 import { useState } from 'react';
-import { Alert, Button, Card, Empty, Loading, PageHeader, Select, Textarea } from '@/components/ui';
+import { Alert, Button, Card, Empty, Loading, PageHeader, Section, Select, SimpleList, SimpleListItem, Textarea, Tooltip } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
+import { cx } from '@/lib/cx';
 
 interface Conv { id: string; title: string; mode: string; updatedAt: string }
 interface Msg { id: string; role: 'USER' | 'ASSISTANT'; content: string; sources: string[] | null }
@@ -60,23 +62,39 @@ export default function TutorPage() {
       <PageHeader title="AI tutor" subtitle="Ask about IELTS. Answers come from academy material, and this is practice support, not an official result." />
       {error && <Alert>{error}</Alert>}
       <div className="grid gap-6 lg:grid-cols-[18rem_1fr]">
-        <Card className="space-y-3">
+        <Card className="space-y-4">
           <div className="flex gap-2">
             <Select aria-label="Topic" value={mode} onChange={(e) => setMode(e.target.value as (typeof MODES)[number])}>
               {MODES.map((m) => <option key={m} value={m}>{m[0] + m.slice(1).toLowerCase()}</option>)}
             </Select>
             <Button onClick={newChat}>New chat</Button>
           </div>
-          {convs.isLoading && <Loading />}
-          {convs.data && convs.data.length === 0 && <p className="text-sm text-fg-muted">No chats yet.</p>}
-          <ul className="space-y-1">
-            {convs.data?.map((c) => (
-              <li key={c.id} className="flex items-center justify-between gap-2">
-                <button onClick={() => setActive(c.id)} className={`min-w-0 flex-1 truncate rounded-md px-2 py-1.5 text-left text-sm ${active === c.id ? 'bg-primary-soft text-fg' : 'text-fg-muted hover:bg-surface-muted'}`}>{c.title}</button>
-                <button onClick={() => remove(c.id)} aria-label="Delete chat" className="px-1 text-xs text-fg-subtle hover:text-danger">×</button>
-              </li>
-            ))}
-          </ul>
+          <Section title="Conversations" className="mb-0">
+            {convs.isLoading && <Loading />}
+            {convs.data && convs.data.length === 0 && <p className="text-sm text-fg-muted">No chats yet.</p>}
+            {convs.data && convs.data.length > 0 && (
+              <SimpleList>
+                {convs.data.map((c) => (
+                  <SimpleListItem
+                    key={c.id}
+                    className={cx('cursor-pointer', active === c.id && 'bg-primary-soft/40')}
+                    left={
+                      <Tooltip content={c.title}>
+                        <button onClick={() => setActive(c.id)} className={cx('min-w-0 max-w-[10rem] truncate text-left font-medium', active === c.id ? 'text-fg' : 'text-fg-muted hover:text-fg')}>
+                          {c.title}
+                        </button>
+                      </Tooltip>
+                    }
+                    right={
+                      <Button variant="ghost" tone="danger" size="sm" aria-label="Delete chat" onClick={() => remove(c.id)} className="!px-1.5">
+                        <X aria-hidden className="size-3.5" />
+                      </Button>
+                    }
+                  />
+                ))}
+              </SimpleList>
+            )}
+          </Section>
         </Card>
 
         <Card className="flex min-h-[28rem] flex-col gap-4">

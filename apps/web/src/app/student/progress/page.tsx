@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { Alert, Badge, Loading, PageHeader, SimpleList, SimpleListItem } from '@/components/ui';
+import { Alert, Badge, Loading, PageHeader, Section, SimpleList, SimpleListItem } from '@/components/ui';
 import { BandChart, BandPoint } from '@/components/BandChart';
 import { api } from '@/lib/api';
 import { band, date } from '@/lib/format';
@@ -29,8 +29,7 @@ export default function ProgressPage() {
       </div>
 
       {subs.data && subs.data.length > 0 && (
-        <>
-          <h2 className="mb-3 mt-10 font-display text-lg font-semibold text-fg">Writing & speaking submissions</h2>
+        <Section title="Writing & speaking submissions" className="mt-10">
           <SimpleList>
             {subs.data.map((s) => (
               <SimpleListItem key={s.id}
@@ -39,7 +38,7 @@ export default function ProgressPage() {
               />
             ))}
           </SimpleList>
-        </>
+        </Section>
       )}
     </>
   );

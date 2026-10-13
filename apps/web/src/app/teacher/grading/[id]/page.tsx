@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Badge, Button, Card, Field, Input, Loading, PageHeader, Select, Textarea } from '@/components/ui';
+import { Accordion, Alert, Badge, Button, Card, Field, Input, Loading, PageHeader, Select, SimpleList, SimpleListItem, Textarea } from '@/components/ui';
 import { IeltsBadge, IeltsSummaryLike } from '@/components/IeltsSummary';
 import { ApiError, api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
@@ -107,13 +107,29 @@ export default function GradePage() {
         <div className="space-y-4">
           <Card>
             <p className="mb-2 flex items-center gap-2 text-xs text-fg-muted">Student level: {band(s.student.currentBand)} → target {band(s.student.targetBand)}{s.wordCount ? ` · ${s.wordCount} words${s.assignment.minWords ? ` (min ${s.assignment.minWords})` : ''}` : ''} <IeltsBadge ielts={s.student.ielts} /></p>
-            {s.assignment.instructions && <details className="mb-3 text-sm"><summary className="cursor-pointer text-primary">Task instructions</summary><p className="mt-1 whitespace-pre-wrap text-fg">{s.assignment.instructions}</p></details>}
+            {s.assignment.instructions && (
+              <div className="mb-3">
+                <Accordion items={[{ key: 'instructions', title: 'Task instructions', content: <p className="whitespace-pre-wrap text-sm text-fg">{s.assignment.instructions}</p> }]} />
+              </div>
+            )}
             {s.body && <p className="whitespace-pre-wrap text-sm leading-relaxed text-fg">{s.body}</p>}
             {s.audioUrl && <audio controls className="w-full" src={s.audioUrl} />}
           </Card>
           {s.feedback.length > 0 && (
             <Card><h2 className="mb-2 font-semibold">Grading history</h2>
-              <ul className="space-y-2 text-sm">{s.feedback.map((f) => <li key={f.id}><strong>Band {band(f.finalBand)}</strong> <span className="text-fg-muted">· {date(f.createdAt, true)}</span>{f.comment && <p className="text-fg">{f.comment}</p>}</li>)}</ul>
+              <SimpleList>
+                {s.feedback.map((f) => (
+                  <SimpleListItem
+                    key={f.id}
+                    left={
+                      <div className="min-w-0">
+                        <p><strong>Band {band(f.finalBand)}</strong> <span className="text-fg-muted">· {date(f.createdAt, true)}</span></p>
+                        {f.comment && <p className="mt-0.5 text-fg">{f.comment}</p>}
+                      </div>
+                    }
+                  />
+                ))}
+              </SimpleList>
             </Card>
           )}
         </div>
@@ -155,14 +171,16 @@ function GrammarTag({ studentId }: { studentId: string }) {
     } catch (e) { setMsg(errorMessage(e)); } finally { setBusy(false); }
   }
   return (
-    <div className="space-y-2 border-t border-border pt-4">
-      <p className="text-sm font-medium">Grammar note</p>
-      <Select aria-label="Grammar category" value={code} onChange={(e) => setCode(e.target.value)}>
-        <option value="">Choose a category</option>
-        {GRAMMAR_CODES.map((c) => <option key={c} value={c}>{c.toLowerCase().replace(/_/g, ' ')}</option>)}
-      </Select>
-      <Input aria-label="Excerpt from the essay" placeholder="The phrase from the essay" value={excerpt} maxLength={300} onChange={(e) => setExcerpt(e.target.value)} />
-      <Input aria-label="Suggested correction" placeholder="Suggested correction (optional)" value={correction} maxLength={300} onChange={(e) => setCorrection(e.target.value)} />
+    <div className="space-y-3 border-t border-border pt-4">
+      <h3 className="text-sm font-medium text-fg">Grammar note</h3>
+      <Field label="Category">{(p) => (
+        <Select {...p} value={code} onChange={(e) => setCode(e.target.value)}>
+          <option value="">Choose a category</option>
+          {GRAMMAR_CODES.map((c) => <option key={c} value={c}>{c.toLowerCase().replace(/_/g, ' ')}</option>)}
+        </Select>
+      )}</Field>
+      <Field label="Excerpt">{(p) => <Input {...p} placeholder="The phrase from the essay" value={excerpt} maxLength={300} onChange={(e) => setExcerpt(e.target.value)} />}</Field>
+      <Field label="Suggested correction (optional)">{(p) => <Input {...p} placeholder="Suggested correction" value={correction} maxLength={300} onChange={(e) => setCorrection(e.target.value)} />}</Field>
       {msg && <p className="text-xs text-fg-muted" aria-live="polite">{msg}</p>}
       <Button variant="secondary" onClick={save} busy={busy} disabled={!code || excerpt.trim().length < 3}>Save grammar note</Button>
     </div>

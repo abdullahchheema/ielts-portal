@@ -2,8 +2,8 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
-import { AIInsightCard, AiUnavailable, Alert, Badge, Button, Card, FeedbackList, Loading, PageHeader, ScoreBreakdown, Textarea } from '@/components/ui';
+import { ReactNode, useEffect, useRef, useState } from 'react';
+import { AIInsightCard, Accordion, AiUnavailable, Alert, Badge, Button, Card, FeedbackList, Loading, PageHeader, ScoreBreakdown, SimpleList, SimpleListItem, Textarea } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 
@@ -135,40 +135,66 @@ export default function WritingEssayPage() {
                 <FeedbackList title="Strengths" items={ev.feedback.strengths} />
                 <FeedbackList title="Task response" items={ev.feedback.taskIssues} />
                 <FeedbackList title="Coherence" items={ev.feedback.coherenceIssues} />
-                {ev.feedback.grammarIssues.length > 0 && (
-                  <div>
-                    <p className="mb-1 font-medium text-fg">Grammar</p>
-                    <ul className="space-y-2">{ev.feedback.grammarIssues.map((g, i) => <li key={i} className="text-sm"><span className="line-through text-fg-muted">{g.excerpt}</span> → <span className="text-success">{g.correction}</span><span className="block text-xs text-fg-subtle">{g.explanation}</span></li>)}</ul>
-                  </div>
-                )}
-                {ev.feedback.sentenceCorrections.length > 0 && (
-                  <div>
-                    <p className="mb-1 font-medium text-fg">Sentence corrections</p>
-                    <ul className="space-y-2">{ev.feedback.sentenceCorrections.map((c, i) => <li key={i} className="text-sm"><span className="text-fg-muted">{c.original}</span><span className="block text-success">{c.corrected}</span></li>)}</ul>
-                  </div>
-                )}
-                <FeedbackList title="Vocabulary" items={ev.feedback.vocabularyIssues.map((v) => `“${v.excerpt}” → ${v.suggestion}`)} />
-                <FeedbackList title="Next steps" items={ev.feedback.suggestions} />
+                <Accordion
+                  items={[
+                    ev.feedback.grammarIssues.length > 0 && {
+                      key: 'grammar',
+                      title: `Grammar (${ev.feedback.grammarIssues.length})`,
+                      content: (
+                        <ul className="space-y-2">{ev.feedback.grammarIssues.map((g, i) => <li key={i} className="text-sm"><span className="line-through text-fg-muted">{g.excerpt}</span> → <span className="text-success">{g.correction}</span><span className="block text-xs text-fg-subtle">{g.explanation}</span></li>)}</ul>
+                      ),
+                    },
+                    ev.feedback.sentenceCorrections.length > 0 && {
+                      key: 'sentences',
+                      title: `Sentence corrections (${ev.feedback.sentenceCorrections.length})`,
+                      content: (
+                        <ul className="space-y-2">{ev.feedback.sentenceCorrections.map((c, i) => <li key={i} className="text-sm"><span className="text-fg-muted">{c.original}</span><span className="block text-success">{c.corrected}</span></li>)}</ul>
+                      ),
+                    },
+                    ev.feedback.vocabularyIssues.length > 0 && {
+                      key: 'vocabulary',
+                      title: `Vocabulary (${ev.feedback.vocabularyIssues.length})`,
+                      content: <FeedbackList title="Vocabulary" items={ev.feedback.vocabularyIssues.map((v) => `“${v.excerpt}” → ${v.suggestion}`)} />,
+                    },
+                    ev.feedback.suggestions.length > 0 && {
+                      key: 'next-steps',
+                      title: 'Next steps',
+                      content: <FeedbackList title="Next steps" items={ev.feedback.suggestions} />,
+                    },
+                  ].filter(Boolean) as { key: string; title: string; content: ReactNode }[]}
+                />
               </div>
             </AIInsightCard>
           )}
 
-          <Card className="space-y-2">
+          <Card className="space-y-3">
             <h3 className="font-semibold text-fg">Measurements</h3>
             <p className="text-sm text-fg-muted">{data.stats.words} words · {data.stats.paragraphs} paragraphs · {data.stats.sentences} sentences</p>
             {data.stats.repeatedWords.length > 0 && (
-              <p className="text-sm text-fg-muted">Repeated: {data.stats.repeatedWords.map((w) => `${w.word} (${w.count})`).join(', ')}</p>
+              <div>
+                <p className="mb-1.5 text-xs font-medium text-fg-muted">Repeated words</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {data.stats.repeatedWords.map((w) => <Badge key={w.word} status={w.word} tone="slate" text={`${w.word} ×${w.count}`} />)}
+                </div>
+              </div>
             )}
             {data.stats.weakPhrases.length > 0 && (
-              <ul className="text-sm text-fg-muted">{data.stats.weakPhrases.map((w, i) => <li key={i}>“{w.match}”: try {w.suggestion}</li>)}</ul>
+              <ul className="space-y-1 text-sm text-fg-muted">{data.stats.weakPhrases.map((w, i) => <li key={i}>“{w.match}”: try {w.suggestion}</li>)}</ul>
             )}
             <p className="text-xs text-fg-subtle">These counts describe the text. They are not IELTS scoring criteria.</p>
           </Card>
 
           {data.history.length > 1 && (
-            <Card className="space-y-2">
+            <Card className="space-y-3">
               <h3 className="font-semibold text-fg">Estimates over time</h3>
-              <ul className="text-sm text-fg-muted">{data.history.map((h) => <li key={h.id}>AI estimate {h.estimatedBand} · {new Date(h.createdAt).toLocaleDateString()}</li>)}</ul>
+              <SimpleList>
+                {data.history.map((h) => (
+                  <SimpleListItem key={h.id}
+                    left={<span className="text-fg">Revision {h.revision}</span>}
+                    right={<span className="flex items-center gap-3 text-xs text-fg-muted"><span>AI estimate {h.estimatedBand ?? '—'}</span><span>{new Date(h.createdAt).toLocaleDateString()}</span></span>}
+                  />
+                ))}
+              </SimpleList>
             </Card>
           )}
         </section>

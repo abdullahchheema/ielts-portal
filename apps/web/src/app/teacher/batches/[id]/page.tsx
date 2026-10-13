@@ -5,7 +5,7 @@ import { SkeletonTable } from '@/components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
-import { Alert, Badge, Button, Card, Dialog, Empty, Field, Input, Loading, PageHeader, ProgressBar, Select, Table, Tabs, Td } from '@/components/ui';
+import { Accordion, Alert, Badge, Button, Card, Dialog, Empty, Field, Input, Loading, PageHeader, ProgressBar, Select, SimpleList, SimpleListItem, Table, Tabs, Td } from '@/components/ui';
 import { BatchAnalytics } from './batch-analytics';
 import { AttendanceHistory } from './attendance-history';
 import { IeltsBadge, IeltsSummaryLike } from '@/components/IeltsSummary';
@@ -43,22 +43,26 @@ function AttendanceDialog({ sessionId, onClose }: { sessionId: string | null; on
         {data && (
           <>
             <div className="flex justify-end"><Button variant="ghost" className="!py-1 text-xs" onClick={() => setMarks(Object.fromEntries(data.roster.map((r) => [r.studentId, 'PRESENT'])))}>Mark everyone present</Button></div>
-            <ul className="max-h-80 divide-y divide-border overflow-auto text-sm">
-              {data.roster.map((r) => (
-                <li key={r.studentId} className="flex items-center justify-between gap-3 py-2">
-                  <span className="min-w-0 flex-1 truncate">{r.name}</span>
-                  <Input aria-label={`Note for ${r.name}`} placeholder="Note (optional)" maxLength={500} className="!w-44" value={notes[r.studentId] ?? ''} onChange={(e) => setNotes({ ...notes, [r.studentId]: e.target.value })} />
-                  <Select aria-label={`Attendance for ${r.name}`} className="!w-32" value={value(r)} onChange={(e) => setMarks({ ...marks, [r.studentId]: e.target.value })}><option value="">—</option>{STATUSES.map((s) => <option key={s} value={s}>{label(s)}</option>)}</Select>
-                </li>
-              ))}
-            </ul>
+            <div className="max-h-80 overflow-auto">
+              <SimpleList>
+                {data.roster.map((r) => (
+                  <SimpleListItem
+                    key={r.studentId}
+                    left={<span className="min-w-0 flex-1 truncate">{r.name}</span>}
+                    right={
+                      <>
+                        <Input aria-label={`Note for ${r.name}`} placeholder="Note (optional)" maxLength={500} className="!w-44" value={notes[r.studentId] ?? ''} onChange={(e) => setNotes({ ...notes, [r.studentId]: e.target.value })} />
+                        <Select aria-label={`Attendance for ${r.name}`} className="!w-32" value={value(r)} onChange={(e) => setMarks({ ...marks, [r.studentId]: e.target.value })}><option value="">—</option>{STATUSES.map((s) => <option key={s} value={s}>{label(s)}</option>)}</Select>
+                      </>
+                    }
+                  />
+                ))}
+              </SimpleList>
+            </div>
           </>
         )}
         {sessionId && (
-          <details className="rounded-md bg-surface-muted p-3 text-sm">
-            <summary className="cursor-pointer font-medium text-fg">Correction history</summary>
-            <div className="mt-3"><AttendanceHistory sessionId={sessionId} /></div>
-          </details>
+          <Accordion items={[{ key: 'history', title: 'Correction history', content: <AttendanceHistory sessionId={sessionId} /> }]} />
         )}
         <div className="flex justify-end gap-2"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button busy={busy} onClick={save}>Save attendance</Button></div>
       </div>
@@ -102,7 +106,7 @@ function Results({ batchId }: { batchId: string }) {
   if (!data.length) return <Empty>No enrolled students yet.</Empty>;
   const SK = ['LISTENING', 'READING', 'WRITING', 'SPEAKING'];
   return (
-    <Table head={['Student', 'IELTS', 'Target', ...SK.map((k) => label(k)), 'Last mock', 'Progress']}>
+    <Table sticky head={['Student', 'IELTS', 'Target', ...SK.map((k) => label(k)), 'Last mock', 'Progress']}>
       {data.map((r) => (
         <tr key={r.studentId}>
           <Td className="font-medium">{r.name}</Td>
@@ -146,7 +150,7 @@ export default function MentorBatchPage() {
       {tab === 'results' && <Results batchId={id} />}
       {tab === 'classes' && <>
       {!sessions.data?.length ? <Empty>No classes scheduled yet.</Empty> : (
-        <Table head={['Class', 'When', 'Platform', 'Attendance', '']}>
+        <Table sticky head={['Class', 'When', 'Platform', 'Attendance', '']}>
           {sessions.data.map((s) => {
             const past = new Date(s.endsAt).getTime() < now;
             return (
@@ -163,7 +167,7 @@ export default function MentorBatchPage() {
       </>}
       {tab === 'students' && <>
       {!students.data?.length ? <Empty>No students enrolled yet.</Empty> : (
-        <Table head={['Student', 'Current → target', 'Progress', 'Enrolled', 'Status']}>
+        <Table sticky head={['Student', 'Current → target', 'Progress', 'Enrolled', 'Status']}>
           {students.data.map((s) => (
             <tr key={s.enrollmentId}>
               <Td className="font-medium">{s.student.firstName} {s.student.lastName}</Td>

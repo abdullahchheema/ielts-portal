@@ -57,7 +57,7 @@ function RefundRequest({ orderId }: { orderId: string }) {
   const [reason, setReason] = useState('');
   const send = useMutation({ mutationFn: () => api(`/orders/${orderId}/refund-request`, { method: 'POST', body: { reason } }) });
   if (send.isSuccess) return <Alert kind="success">Refund request sent. We will email you once it has been reviewed.</Alert>;
-  if (!open) return <button className="text-sm text-fg-muted underline" onClick={() => setOpen(true)}>Request a refund</button>;
+  if (!open) return <Button variant="ghost" size="sm" onClick={() => setOpen(true)}>Request a refund</Button>;
   return (
     <Card className="mt-2">
       <h3 className="mb-2 font-semibold">Request a refund</h3>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Badge, Card, Empty, Loading, PageHeader, ProgressBar, SimpleList, SimpleListItem } from '@/components/ui';
+import { Alert, Badge, Card, CardList, CardListItem, Empty, Loading, PageHeader, ProgressBar, Section, SimpleList, SimpleListItem } from '@/components/ui';
 import { api } from '@/lib/api';
 import { date } from '@/lib/format';
 
@@ -18,19 +18,18 @@ export default function SchedulePage() {
     <>
       <PageHeader title="Live classes" subtitle="The join link appears 15 minutes before a class starts." />
       {sessions.data.upcoming.length === 0 ? <Empty>No upcoming classes scheduled.</Empty> : (
-        <ul className="space-y-3">
+        <CardList>
           {sessions.data.upcoming.map((s) => (
-            <li key={s.id}><Card className="flex flex-wrap items-center justify-between gap-3">
-              <div><p className="font-semibold">{s.topic}</p><p className="text-sm text-fg-muted">{date(s.startsAt, true)} – {new Date(s.endsAt).toLocaleTimeString('en-GB', { timeStyle: 'short' })} · {s.course} ({s.batch})</p></div>
-              {s.joinUrl ? <a href={s.joinUrl} target="_blank" rel="noopener noreferrer" className="rounded-md bg-success px-4 py-2 text-sm font-medium text-white hover:brightness-95">Join class ↗</a> : <span className="text-sm text-fg-muted">Link opens 15 min before</span>}
-            </Card></li>
+            <CardListItem key={s.id}
+              left={<div><p className="font-semibold">{s.topic}</p><p className="text-sm text-fg-muted">{date(s.startsAt, true)} – {new Date(s.endsAt).toLocaleTimeString('en-GB', { timeStyle: 'short' })} · {s.course} ({s.batch})</p></div>}
+              right={s.joinUrl ? <a href={s.joinUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-md bg-success px-4 py-2 text-sm font-medium text-white hover:brightness-95">Join class ↗</a> : <span className="text-sm text-fg-muted">Link opens 15 min before</span>}
+            />
           ))}
-        </ul>
+        </CardList>
       )}
 
       {att.data && att.data.some((a) => a.sessionsHeld > 0) && (
-        <>
-          <h2 className="mb-3 mt-8 text-lg font-semibold">My attendance</h2>
+        <Section title="My attendance" className="mt-8">
           <div className="grid gap-4 md:grid-cols-2">
             {att.data.filter((a) => a.sessionsHeld > 0).map((a) => (
               <Card key={a.enrollmentId}><p className="mb-2 font-medium">{a.course}</p>
@@ -39,12 +38,11 @@ export default function SchedulePage() {
               </Card>
             ))}
           </div>
-        </>
+        </Section>
       )}
 
       {sessions.data.past.length > 0 && (
-        <>
-          <h2 className="mb-3 mt-8 text-lg font-semibold">Past classes</h2>
+        <Section title="Past classes" className="mt-8">
           <SimpleList>
             {sessions.data.past.map((s) => (
               <SimpleListItem key={s.id}
@@ -53,7 +51,7 @@ export default function SchedulePage() {
               />
             ))}
           </SimpleList>
-        </>
+        </Section>
       )}
     </>
   );

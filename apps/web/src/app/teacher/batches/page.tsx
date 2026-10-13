@@ -1,11 +1,10 @@
 'use client';
 
-import { SkeletonTable } from '@/components/ui';
-
 import { useQuery } from '@tanstack/react-query';
+import { Layers } from 'lucide-react';
 import Link from 'next/link';
 import { scheduleText } from '@/components/student';
-import { Alert, Badge, Card, Empty, Loading, PageHeader } from '@/components/ui';
+import { Alert, Badge, Card, Empty, PageHeader, SkeletonTable } from '@/components/ui';
 import { api } from '@/lib/api';
 import { date, label } from '@/lib/format';
 
@@ -18,7 +17,7 @@ export default function TeacherBatches() {
   return (
     <>
       <PageHeader title="My batches" subtitle="Open a batch for its students, live classes, attendance and results." />
-      {!data?.length ? <Empty>You have not been assigned to a batch yet.</Empty> : (
+      {!data?.length ? <Empty icon={Layers} title="No batches yet">You have not been assigned to a batch yet. It will appear here once the academy assigns you one.</Empty> : (
         <div className="grid gap-4 md:grid-cols-2">
           {data.map((b) => (
             <Link key={`${b.id}-${b.myRole}`} href={`/teacher/batches/${b.id}`}>

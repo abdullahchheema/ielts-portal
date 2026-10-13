@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Alert, Badge, Button, Card, Empty, Loading, PageHeader, Select, Table, Td } from '@/components/ui';
+import { Alert, Badge, Button, Card, Checkbox, Empty, Field, Loading, PageHeader, Section, Select, Table, Td } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { date } from '@/lib/format';
@@ -46,17 +46,23 @@ export default function SimulatorPage() {
       {available.data && !noMocks && (
         <Card className="mb-8 max-w-2xl space-y-4">
           <h2 className="font-semibold text-fg">Start a simulator</h2>
-          <Select aria-label="Listening mock" value={listening} onChange={(e) => setListening(e.target.value)}>
-            <option value="">Choose a listening mock</option>
-            {available.data.listening.map((m) => <option key={m.id} value={m.id}>{m.title}{m.timeLimitMin ? ` · ${m.timeLimitMin} min` : ''}</option>)}
-          </Select>
-          <Select aria-label="Reading mock" value={reading} onChange={(e) => setReading(e.target.value)}>
-            <option value="">Choose a reading mock</option>
-            {available.data.reading.map((m) => <option key={m.id} value={m.id}>{m.title}{m.timeLimitMin ? ` · ${m.timeLimitMin} min` : ''}</option>)}
-          </Select>
-          <label className="flex items-center gap-2 text-sm text-fg">
-            <input type="checkbox" checked={includeSpeaking} onChange={(e) => setIncludeSpeaking(e.target.checked)} /> Include the speaking section
-          </label>
+          <Field label="Listening mock">
+            {(p) => (
+              <Select {...p} value={listening} onChange={(e) => setListening(e.target.value)}>
+                <option value="">Choose a listening mock</option>
+                {available.data.listening.map((m) => <option key={m.id} value={m.id}>{m.title}{m.timeLimitMin ? ` · ${m.timeLimitMin} min` : ''}</option>)}
+              </Select>
+            )}
+          </Field>
+          <Field label="Reading mock">
+            {(p) => (
+              <Select {...p} value={reading} onChange={(e) => setReading(e.target.value)}>
+                <option value="">Choose a reading mock</option>
+                {available.data.reading.map((m) => <option key={m.id} value={m.id}>{m.title}{m.timeLimitMin ? ` · ${m.timeLimitMin} min` : ''}</option>)}
+              </Select>
+            )}
+          </Field>
+          <Checkbox label="Include the speaking section" checked={includeSpeaking} onChange={(e) => setIncludeSpeaking(e.target.checked)} />
           <div className="flex justify-end">
             <Button onClick={start} busy={busy} disabled={!listening || !reading}>Start simulator</Button>
           </div>
@@ -64,22 +70,23 @@ export default function SimulatorPage() {
         </Card>
       )}
 
-      <h2 className="mb-3 font-semibold text-fg">Your simulators</h2>
-      {exams.isLoading && <Loading />}
-      {exams.data && (exams.data.length === 0 ? <Empty title="No simulators yet" /> : (
-        <Table head={['Started', 'Status', 'Stage', 'Overall (estimate)', 'Not assessed', '']}>
-          {exams.data.map((x) => (
-            <tr key={x.id}>
-              <Td>{date(x.createdAt)}</Td>
-              <Td><Badge status={x.status} /></Td>
-              <Td>{x.stage.toLowerCase()}</Td>
-              <Td>{x.overallEstimate ?? '—'}</Td>
-              <Td>{x.missingSkills.length ? x.missingSkills.join(', ').toLowerCase() : '—'}</Td>
-              <Td><Link href={`/student/simulator/${x.id}`} className="text-primary hover:underline">Open</Link></Td>
-            </tr>
-          ))}
-        </Table>
-      ))}
+      <Section title="Your simulators">
+        {exams.isLoading && <Loading />}
+        {exams.data && (exams.data.length === 0 ? <Empty title="No simulators yet" /> : (
+          <Table head={['Started', 'Status', 'Stage', 'Overall (estimate)', 'Not assessed', '']}>
+            {exams.data.map((x) => (
+              <tr key={x.id}>
+                <Td>{date(x.createdAt)}</Td>
+                <Td><Badge status={x.status} /></Td>
+                <Td>{x.stage.toLowerCase()}</Td>
+                <Td>{x.overallEstimate ?? '—'}</Td>
+                <Td>{x.missingSkills.length ? x.missingSkills.join(', ').toLowerCase() : '—'}</Td>
+                <Td><Link href={`/student/simulator/${x.id}`} className="text-primary hover:underline">Open</Link></Td>
+              </tr>
+            ))}
+          </Table>
+        ))}
+      </Section>
     </>
   );
 }

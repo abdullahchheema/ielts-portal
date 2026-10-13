@@ -3,7 +3,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Alert, Badge, Button, Card, CardList, CardListItem, Empty, Field, Loading, PageHeader, Select, Textarea } from '@/components/ui';
+import { Alert, Badge, Button, Card, CardList, CardListItem, Empty, Field, Loading, PageHeader, Section, Select, Textarea, Tooltip } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { date } from '@/lib/format';
@@ -42,24 +42,29 @@ export default function WritingPracticePage() {
         </div>
       </Card>
 
-      <h2 className="mb-3 font-semibold text-fg">Your essays</h2>
-      {isLoading && <Loading />}
-      {isError && <Alert>Could not load your essays.</Alert>}
-      {data && (data.length === 0 ? <Empty title="No essays yet">Start one above.</Empty> : (
-        <CardList>
-          {data.map((r) => (
-            <CardListItem key={r.id} href={`/student/writing-ai/${r.id}`}
-              left={<span className="min-w-0 truncate text-sm font-medium text-fg">{r.promptText}</span>}
-              right={<span className="flex items-center gap-3 text-xs text-fg-muted">
-                <span>{r.taskType === 'TASK1' ? 'Task 1' : 'Task 2'} · {r.wordCount} words</span>
-                {r.estimatedBand && <span>AI estimate {r.estimatedBand}</span>}
-                <Badge status={r.status} />
-                <span>{date(r.submittedAt ?? null)}</span>
-              </span>}
-            />
-          ))}
-        </CardList>
-      ))}
+      <Section title="Your essays">
+        {isLoading && <Loading />}
+        {isError && <Alert>Could not load your essays.</Alert>}
+        {data && (data.length === 0 ? <Empty title="No essays yet">Start one above.</Empty> : (
+          <CardList>
+            {data.map((r) => (
+              <CardListItem key={r.id} href={`/student/writing-ai/${r.id}`}
+                left={
+                  <Tooltip content={r.promptText}>
+                    <span className="min-w-0 truncate text-sm font-medium text-fg">{r.promptText}</span>
+                  </Tooltip>
+                }
+                right={<span className="flex items-center gap-3 text-xs text-fg-muted">
+                  <span>{r.taskType === 'TASK1' ? 'Task 1' : 'Task 2'} · {r.wordCount} words</span>
+                  {r.estimatedBand && <span>AI estimate {r.estimatedBand}</span>}
+                  <Badge status={r.status} />
+                  <span>{date(r.submittedAt ?? null)}</span>
+                </span>}
+              />
+            ))}
+          </CardList>
+        ))}
+      </Section>
     </>
   );
 }

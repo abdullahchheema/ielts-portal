@@ -1,6 +1,6 @@
 'use client';
 
-import { Alert, Card, Loading, PageHeader } from '@/components/ui';
+import { Alert, Card, DefinitionList, Loading, PageHeader } from '@/components/ui';
 import { EnrollmentBadge, PaymentPendingNotice, primaryApplication, scheduleText, teacherText, useApplications } from '@/components/student';
 import { date, label } from '@/lib/format';
 
@@ -10,7 +10,6 @@ export default function MyBatchPage() {
   if (apps.isError) return <Alert>Could not load your batch.</Alert>;
   const app = primaryApplication(apps.data);
   const b = app?.batch;
-  const row = (k: string, v: string) => <div className="flex justify-between gap-4 border-b border-border py-2.5 text-sm last:border-0"><dt className="text-fg-muted">{k}</dt><dd className="text-right font-medium text-fg">{v}</dd></div>;
 
   return (
     <>
@@ -19,14 +18,16 @@ export default function MyBatchPage() {
         <>
           {app.status !== 'ACTIVE' && app.status !== 'COMPLETED' && <div className="mb-6"><PaymentPendingNotice app={app} /></div>}
           <Card className="max-w-xl">
-            <h2 className="mb-2 text-lg font-semibold">{b.name}</h2>
-            <dl>
-              {row('Starts', date(b.startAt))}
-              {row('Class days', scheduleText(b))}
-              {row('Delivery', label(b.deliveryMode))}
-              {row('Teacher', teacherText(b.mentors))}
-              {b.mentors.length > 1 && row('Teacher roles', b.mentors.map((m) => `${m.name} (${label(m.role)})`).join(', '))}
-            </dl>
+            <h2 className="mb-3 text-lg font-semibold">{b.name}</h2>
+            <DefinitionList
+              items={[
+                { label: 'Starts', value: date(b.startAt) },
+                { label: 'Class days', value: scheduleText(b) },
+                { label: 'Delivery', value: label(b.deliveryMode) },
+                { label: 'Teacher', value: teacherText(b.mentors) },
+                ...(b.mentors.length > 1 ? [{ label: 'Teacher roles', value: b.mentors.map((m) => `${m.name} (${label(m.role)})`).join(', ') }] : []),
+              ]}
+            />
             {b.mentors.length === 0 && <p className="mt-3 text-sm text-fg-muted">A teacher will be assigned to your batch before it starts. You will be notified.</p>}
           </Card>
         </>

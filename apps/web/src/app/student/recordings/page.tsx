@@ -2,7 +2,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Alert, Button, Card, Empty, Loading, PageHeader } from '@/components/ui';
+import { Alert, Badge, Button, Card, CardList, CardListItem, Empty, Loading, PageHeader } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { date } from '@/lib/format';
@@ -55,24 +55,31 @@ export default function RecordingsPage() {
           />
         </Card>
       )}
-      <ul className="space-y-3">
-        {data?.map((r) => (
-          <li key={r.id}>
-            <Card className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <p className="font-medium text-fg">{r.session.title ?? r.session.topic}</p>
-                <p className="text-xs text-fg-muted">
-                  {date(r.session.startsAt)}{r.session.mentor ? ` · ${r.session.mentor.displayName}` : ''}{r.durationSec ? ` · ${Math.round(r.durationSec / 60)} min` : ''}
-                </p>
-                <p className="text-xs text-fg-subtle">
-                  {r.progress?.completed ? 'Watched' : r.progress ? `Stopped at ${Math.floor(r.progress.positionSec / 60)} min` : 'Not started'}
-                </p>
-              </div>
-              <Button variant="secondary" onClick={() => play(r.id)}>{r.progress?.completed ? 'Watch again' : 'Watch'}</Button>
-            </Card>
-          </li>
-        ))}
-      </ul>
+      {data && data.length > 0 && (
+        <CardList>
+          {data.map((r) => (
+            <CardListItem
+              key={r.id}
+              left={
+                <div className="min-w-0">
+                  <p className="font-medium text-fg">{r.session.title ?? r.session.topic}</p>
+                  <p className="text-xs text-fg-muted">
+                    {date(r.session.startsAt)}{r.session.mentor ? ` · ${r.session.mentor.displayName}` : ''}{r.durationSec ? ` · ${Math.round(r.durationSec / 60)} min` : ''}
+                  </p>
+                  <div className="mt-1">
+                    {r.progress?.completed
+                      ? <Badge status="COMPLETED" tone="green" text="Watched" />
+                      : r.progress
+                        ? <Badge status="IN_PROGRESS" tone="amber" text={`Stopped at ${Math.floor(r.progress.positionSec / 60)} min`} />
+                        : <Badge status="NOT_STARTED" tone="slate" text="Not started" />}
+                  </div>
+                </div>
+              }
+              right={<Button variant="secondary" onClick={() => play(r.id)}>{r.progress?.completed ? 'Watch again' : 'Watch'}</Button>}
+            />
+          ))}
+        </CardList>
+      )}
     </>
   );
 }
