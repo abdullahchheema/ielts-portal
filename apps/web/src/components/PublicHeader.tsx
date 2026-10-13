@@ -30,10 +30,11 @@ export function PublicHeader() {
         </Link>
         <nav aria-label="Main" className="flex items-center gap-1">
           <Link href="/#course" className={`hidden sm:inline-block ${NAV_LINK}`}>The course</Link>
-          <Link href="/#batches" className={`hidden md:inline-block ${NAV_LINK}`}>Batches</Link>
-          <Link href="/#how" className={`hidden lg:inline-block ${NAV_LINK}`}>How it works</Link>
-          <Link href="/#faq" className={`hidden lg:inline-block ${NAV_LINK}`}>FAQ</Link>
-          <Link href="/apply-teacher" className={`hidden lg:inline-block ${NAV_LINK}`}>Teach with us</Link>
+          <Link href="/pricing" className={`hidden sm:inline-block ${NAV_LINK}`}>Pricing</Link>
+          <Link href="/reviews" className={`hidden md:inline-block ${NAV_LINK}`}>Reviews</Link>
+          <Link href="/free-tools" className={`hidden lg:inline-block ${NAV_LINK}`}>Free tools</Link>
+          <Link href="/about" className={`hidden lg:inline-block ${NAV_LINK}`}>About</Link>
+          <Link href="/#faq" className={`hidden xl:inline-block ${NAV_LINK}`}>FAQ</Link>
           {me ? (
             <Link href={homeFor(me as Me)} className="ml-2 inline-flex items-center rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-fg shadow-xs transition-colors hover:bg-primary-hover">My portal</Link>
           ) : (

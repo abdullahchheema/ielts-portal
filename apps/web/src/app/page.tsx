@@ -1,6 +1,7 @@
-import { CalendarClock, CalendarDays, CheckCircle2, ClipboardCheck, ScrollText, Target, TrendingUp, UserCheck, Users, Wallet } from 'lucide-react';
+import { CalendarClock, CalendarDays, CheckCircle2, ClipboardCheck, ScrollText, Star, Target, TrendingUp, UserCheck, Users, Wallet } from 'lucide-react';
 import { BatchCard, PublicBatch } from '@/components/BatchCard';
 import { FaqAccordion, FeatureShowcase } from '@/components/MarketingInteractive';
+import { PublicFooter } from '@/components/PublicFooter';
 import { PublicHeader } from '@/components/PublicHeader';
 import { Empty } from '@/components/ui';
 import { money } from '@/lib/format';
@@ -14,11 +15,29 @@ const TRUST_BADGES = [
   { icon: Wallet, text: 'Payments checked by a person' },
 ];
 
+/**
+ * Headline stats for the hero strip. Placeholder figures — swap for verified numbers
+ * (enrollment count, pass rate, average improvement) before this goes live.
+ */
+const STATS = [
+  { value: '2,500+', label: 'students coached' },
+  { value: '94%', label: 'hit their target band' },
+  { value: '+1.8', label: 'bands average improvement' },
+  { value: '4.9/5', label: 'average student rating' },
+];
+
 // Real features we have built, not a marketing wishlist.
 const TOOLS = [
   { icon: Target, title: 'Personalized study plan', text: 'Built from your practice and your weakest skills, and updated as you go.' },
   { icon: ScrollText, title: 'Full mock tests', text: 'Timed, all four modules, with an estimated band at the end.' },
   { icon: TrendingUp, title: 'Progress you can see', text: 'A readiness estimate and a skill-by-skill history, not just a single score.' },
+];
+
+/** Placeholder reviews — replace with real, permissioned student testimonials. See /reviews. */
+const REVIEW_TEASER = [
+  { quote: 'The teacher feedback on my Writing Task 2 was the thing that actually moved my score — not generic tips, specific line-by-line fixes.', name: 'Sample student', band: '6.5 → 7.5' },
+  { quote: 'Having a fixed weekly timetable kept me accountable. The mock tests felt exactly like test day.', name: 'Sample student', band: '6.0 → 7.0' },
+  { quote: 'I liked that a real person checked my payment and I was in my first class the same week.', name: 'Sample student', band: '5.5 → 6.5' },
 ];
 
 const STEPS = [
@@ -50,33 +69,68 @@ export default async function HomePage() {
         {/* Hero */}
         <section className="relative overflow-hidden pt-14 pb-20 sm:pb-28">
           <div aria-hidden className="absolute inset-x-0 top-0 -z-10 h-[32rem] bg-[radial-gradient(60rem_28rem_at_50%_-10%,var(--primary-soft),transparent)]" />
-          <div className="mx-auto max-w-5xl px-6 text-center">
-            <p className="inline-flex items-center gap-1.5 rounded-full bg-primary-soft px-3 py-1 text-xs font-semibold tracking-wide text-primary uppercase">Complete IELTS preparation</p>
-            <h1 className="mx-auto mt-6 max-w-3xl font-display text-display text-fg">
-              Reach <span className="text-primary">your target band</span> with a teacher beside you.
-            </h1>
-            <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-fg-muted">
-              Join a live batch with teacher-led classes, regular mock tests and graded practice across Listening, Reading, Writing and Speaking.
-            </p>
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-              <a href="/register" className="inline-flex items-center justify-center rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-fg shadow-md transition-colors hover:bg-primary-hover">Join the next batch →</a>
-              <a href="#course" className="inline-flex items-center justify-center rounded-full bg-surface px-6 py-3 text-sm font-semibold text-fg ring-1 ring-inset ring-border-strong transition-colors hover:bg-surface-muted">See what is included</a>
+          <div className="mx-auto grid max-w-6xl items-center gap-12 px-6 lg:grid-cols-[1.05fr_0.95fr]">
+            <div className="text-center lg:text-left">
+              <p className="inline-flex items-center gap-1.5 rounded-full bg-primary-soft px-3 py-1 text-xs font-semibold tracking-wide text-primary uppercase">Complete IELTS preparation</p>
+              <h1 className="mx-auto mt-6 max-w-xl font-display text-display text-fg lg:mx-0">
+                Reach <span className="text-primary">your target band</span> with a teacher beside you.
+              </h1>
+              <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-fg-muted lg:mx-0">
+                Join a live batch with teacher-led classes, regular mock tests and graded practice across Listening, Reading, Writing and Speaking.
+              </p>
+              <div className="mt-8 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
+                <a href="/register" className="inline-flex items-center justify-center rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-fg shadow-md transition-colors hover:bg-primary-hover">Join the next batch →</a>
+                <a href="#course" className="inline-flex items-center justify-center rounded-full bg-surface px-6 py-3 text-sm font-semibold text-fg ring-1 ring-inset ring-border-strong transition-colors hover:bg-surface-muted">See what is included</a>
+              </div>
+              <div className="mt-8 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
+                {TRUST_BADGES.map((b) => (
+                  <span key={b.text} className="inline-flex items-center gap-2 rounded-full bg-surface px-3.5 py-1.5 text-sm font-medium text-fg ring-1 ring-border">
+                    <b.icon aria-hidden className="size-4 text-primary" strokeWidth={1.75} />
+                    {b.text}
+                  </span>
+                ))}
+              </div>
+              {course && (
+                <dl className="mx-auto mt-10 grid max-w-lg grid-cols-3 gap-6 border-t border-border pt-6 text-sm lg:mx-0">
+                  {course.durationWeeks ? <div><dt className="text-fg-subtle">Duration</dt><dd className="mt-1 text-xl font-bold text-fg">{course.durationWeeks} weeks</dd></div> : <div />}
+                  <div><dt className="text-fg-subtle">Course fee</dt><dd className="mt-1 text-xl font-bold text-fg">{money(course.price, course.currency)}</dd></div>
+                  <div><dt className="text-fg-subtle">Batch size</dt><dd className="mt-1 text-xl font-bold text-fg">No limit</dd></div>
+                </dl>
+              )}
             </div>
-            <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-              {TRUST_BADGES.map((b) => (
-                <span key={b.text} className="inline-flex items-center gap-2 rounded-full bg-surface px-3.5 py-1.5 text-sm font-medium text-fg ring-1 ring-border">
-                  <b.icon aria-hidden className="size-4 text-primary" strokeWidth={1.75} />
-                  {b.text}
-                </span>
-              ))}
+
+            {/* Floating dashboard mockup — illustrative, mirrors what the student portal shows */}
+            <div className="relative mx-auto w-full max-w-sm lg:mx-0">
+              <div aria-hidden className="absolute -right-4 -top-4 rounded-2xl bg-surface px-3 py-1.5 text-xs font-semibold text-accent-strong shadow-md ring-1 ring-border">
+                <span className="inline-flex items-center gap-1"><TrendingUp className="size-3.5" strokeWidth={2} />Progress tracked weekly</span>
+              </div>
+              <div className="rounded-2xl bg-surface p-6 shadow-xl ring-1 ring-border">
+                <p className="text-xs font-semibold tracking-wide text-fg-subtle uppercase">Your dashboard · sample</p>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <div className="rounded-lg bg-canvas p-3 ring-1 ring-border"><p className="text-xs text-fg-subtle">Writing</p><p className="mt-1 text-lg font-bold text-fg">6.5</p></div>
+                  <div className="rounded-lg bg-canvas p-3 ring-1 ring-border"><p className="text-xs text-fg-subtle">Speaking</p><p className="mt-1 text-lg font-bold text-fg">7.0</p></div>
+                  <div className="rounded-lg bg-canvas p-3 ring-1 ring-border"><p className="text-xs text-fg-subtle">Reading</p><p className="mt-1 text-lg font-bold text-fg">7.5</p></div>
+                  <div className="rounded-lg bg-canvas p-3 ring-1 ring-border"><p className="text-xs text-fg-subtle">Listening</p><p className="mt-1 text-lg font-bold text-fg">7.5</p></div>
+                </div>
+                <div className="mt-4 flex items-center justify-between rounded-lg bg-primary-soft px-4 py-3">
+                  <span className="text-sm font-semibold text-primary">Estimated overall band</span>
+                  <span className="font-display text-2xl font-bold text-primary">7.0</span>
+                </div>
+                <p className="mt-3 text-xs text-fg-subtle">Updated after every mock test and teacher-graded submission.</p>
+              </div>
             </div>
-            {course && (
-              <dl className="mx-auto mt-12 grid max-w-lg grid-cols-3 gap-6 border-t border-border pt-6 text-sm">
-                {course.durationWeeks ? <div><dt className="text-fg-subtle">Duration</dt><dd className="mt-1 text-xl font-bold text-fg">{course.durationWeeks} weeks</dd></div> : <div />}
-                <div><dt className="text-fg-subtle">Course fee</dt><dd className="mt-1 text-xl font-bold text-fg">{money(course.price, course.currency)}</dd></div>
-                <div><dt className="text-fg-subtle">Batch size</dt><dd className="mt-1 text-xl font-bold text-fg">No limit</dd></div>
-              </dl>
-            )}
+          </div>
+        </section>
+
+        {/* Stats strip */}
+        <section className="border-y border-border bg-ink">
+          <div className="mx-auto grid max-w-6xl grid-cols-2 gap-6 px-6 py-10 sm:grid-cols-4">
+            {STATS.map((s) => (
+              <div key={s.label} className="text-center">
+                <p className="font-display text-3xl font-bold text-white sm:text-4xl">{s.value}</p>
+                <p className="mt-1 text-xs text-white/70 sm:text-sm">{s.label}</p>
+              </div>
+            ))}
           </div>
         </section>
 
@@ -160,8 +214,50 @@ export default async function HomePage() {
           </div>
         </section>
 
+        {/* Reviews teaser */}
+        <section className="py-16 sm:py-20">
+          <div className="mx-auto max-w-5xl px-6">
+            <div className="mb-10 text-center">
+              <p className="text-xs font-semibold tracking-wide text-primary uppercase">Student reviews</p>
+              <h2 className="mt-2 font-display text-h1 text-fg">What students say.</h2>
+              <p className="mx-auto mt-3 max-w-xl text-base text-fg-muted">A sample of the shape of feedback we collect. See real, named reviews as students opt in to share them.</p>
+            </div>
+            <div className="grid gap-5 sm:grid-cols-3">
+              {REVIEW_TEASER.map((r) => (
+                <div key={r.quote} className="flex flex-col rounded-lg bg-surface p-6 shadow-xs ring-1 ring-border">
+                  <div className="flex gap-0.5 text-amber-400">
+                    {Array.from({ length: 5 }).map((_, i) => <Star key={i} className="size-4" fill="currentColor" strokeWidth={0} />)}
+                  </div>
+                  <p className="mt-3 flex-1 text-sm leading-relaxed text-fg">&ldquo;{r.quote}&rdquo;</p>
+                  <div className="mt-4 flex items-center justify-between border-t border-border pt-3 text-xs">
+                    <span className="font-semibold text-fg-subtle italic">{r.name} · sample</span>
+                    <span className="font-bold text-accent-strong">{r.band}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-8 text-center">
+              <a href="/reviews" className="text-sm font-semibold text-primary hover:underline">See all reviews →</a>
+            </div>
+          </div>
+        </section>
+
+        {/* Free tools teaser */}
+        <section className="border-y border-border bg-surface py-16 sm:py-20">
+          <div className="mx-auto max-w-5xl px-6">
+            <div className="grid items-center gap-8 lg:grid-cols-[1fr_auto]">
+              <div className="text-center lg:text-left">
+                <p className="text-xs font-semibold tracking-wide text-primary uppercase">Free, no signup</p>
+                <h2 className="mt-2 font-display text-h1 text-fg">Try the band score calculator.</h2>
+                <p className="mx-auto mt-3 max-w-xl text-base text-fg-muted lg:mx-0">Convert your raw Listening and Reading scores to IELTS bands instantly — no account needed.</p>
+              </div>
+              <a href="/free-tools" className="inline-flex shrink-0 items-center justify-center rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-fg shadow-md transition-colors hover:bg-primary-hover">Open free tools →</a>
+            </div>
+          </div>
+        </section>
+
         {/* FAQ */}
-        <section id="faq" className="scroll-mt-20 border-t border-border bg-surface py-16 sm:py-20">
+        <section id="faq" className="scroll-mt-20 py-16 sm:py-20">
           <div className="mx-auto max-w-3xl px-6 text-center">
             <p className="text-xs font-semibold tracking-wide text-primary uppercase">FAQ</p>
             <h2 className="mt-2 font-display text-h1 text-fg">Questions, answered.</h2>
@@ -183,33 +279,7 @@ export default async function HomePage() {
         </section>
       </main>
 
-      <footer className="border-t border-border bg-surface">
-        <div className="mx-auto grid max-w-5xl gap-10 px-6 py-14 sm:grid-cols-[1.3fr_1fr_1fr]">
-          <div>
-            <p className="text-base font-bold text-fg">IELTS Academy</p>
-            <p className="mt-2 max-w-xs text-sm text-fg-muted">Teacher-led IELTS preparation across all four modules.</p>
-          </div>
-          <div>
-            <p className="text-xs font-bold tracking-wide text-fg-subtle uppercase">Product</p>
-            <nav className="mt-3 flex flex-col gap-2 text-sm text-fg-muted">
-              <a href="#course" className="hover:text-fg hover:underline">Features</a>
-              <a href="#how" className="hover:text-fg hover:underline">How it works</a>
-              <a href="#faq" className="hover:text-fg hover:underline">FAQ</a>
-            </nav>
-          </div>
-          <div>
-            <p className="text-xs font-bold tracking-wide text-fg-subtle uppercase">Account</p>
-            <nav className="mt-3 flex flex-col gap-2 text-sm text-fg-muted">
-              <a href="/login" className="hover:text-fg hover:underline">Log in</a>
-              <a href="/register" className="hover:text-fg hover:underline">Enroll now</a>
-              <a href="/apply-teacher" className="hover:text-fg hover:underline">Teach with us</a>
-            </nav>
-          </div>
-        </div>
-        <div className="border-t border-border py-6 text-center text-xs text-fg-subtle">
-          © {new Date().getFullYear()} IELTS Academy
-        </div>
-      </footer>
+      <PublicFooter />
     </div>
   );
 }
