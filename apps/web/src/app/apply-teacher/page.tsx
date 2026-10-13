@@ -6,7 +6,7 @@ import { AccountGate } from '@/components/AccountGate';
 import { PublicHeader } from '@/components/PublicHeader';
 import { TeacherApplicationForm } from '@/components/TeacherApplicationForm';
 import { TeacherDocumentsUploader } from '@/components/TeacherDocumentsUploader';
-import { Card, Loading } from '@/components/ui';
+import { Alert, Card, Loading } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useMe } from '@/lib/auth';
 import { errorMessage } from '@/lib/errors';
@@ -33,7 +33,7 @@ export default function ApplyTeacherPage() {
     <>
       <PublicHeader />
       <main className="mx-auto max-w-4xl px-4 py-10">
-        <h1 className="mb-2 text-2xl font-bold text-fg">Apply to teach with us</h1>
+        <h1 className="mb-2 font-display text-2xl font-semibold tracking-tight text-fg">Apply to teach with us</h1>
         {me.isLoading ? <Loading /> : !me.data ? (
           <Card>
             <AccountGate
@@ -51,9 +51,9 @@ export default function ApplyTeacherPage() {
                 <TeacherDocumentsUploader applicationId={applicationId} onDone={() => setStage('done')} />
               )}
               {stage === 'done' && (
-                <div className="py-6 text-center">
-                  <h2 className="mb-2 text-lg font-semibold text-fg">Application submitted</h2>
-                  <p className="text-sm text-fg-muted">Thank you. We have received your application and any documents you uploaded. We will reach out by email once it has been reviewed.</p>
+                <div className="space-y-3 py-2 text-center">
+                  <h2 className="text-lg font-semibold text-fg">Application submitted</h2>
+                  <Alert kind="success">Thank you. We have received your application and any documents you uploaded. We will reach out by email once it has been reviewed.</Alert>
                 </div>
               )}
             </Card>

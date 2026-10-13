@@ -8,7 +8,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { GoogleSignInButton } from '@/components/AccountGate';
-import { Alert, Button, Field, Input } from '@/components/ui';
+import { Alert, Button, Field, Input, Separator } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { Me, homeFor } from '@/lib/auth';
 import { errorMessage } from '@/lib/errors';
@@ -78,6 +78,7 @@ function LoginForm() {
         </Field>
       )}
       <Button type="submit" busy={isSubmitting} className="w-full">{needMfa ? 'Verify and log in' : 'Log in'}</Button>
+      <Separator label="or" />
       <GoogleSignInButton next={params.get('next') ?? undefined} />
       <div className="flex justify-between text-sm">
         <Link href="/forgot-password" className="text-primary hover:underline">Forgot password?</Link>

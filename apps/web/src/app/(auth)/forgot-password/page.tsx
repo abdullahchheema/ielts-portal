@@ -26,7 +26,7 @@ export default function ForgotPasswordPage() {
     return (
       <div className="space-y-4">
         <h1 className="text-xl font-semibold">Check your email</h1>
-        <p className="text-sm text-fg-muted">If an account exists for that address, we have sent a link to reset your password.</p>
+        <Alert kind="success">If an account exists for that address, we have sent a link to reset your password.</Alert>
         <Link href="/login" className="text-sm text-primary hover:underline">Back to log in</Link>
       </div>
     );

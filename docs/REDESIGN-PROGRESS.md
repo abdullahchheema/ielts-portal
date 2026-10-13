@@ -26,9 +26,12 @@ All 86 routes are now 🔶 (repainted via tokens). None are ✅ yet — that req
 - [x] `MarketingInteractive.tsx` — rewritten (`FeatureShowcase` tabs, `FaqAccordion`) on the `Tabs`/`Accordion` primitives; removed the only 3 raw hex values in `src/`
 - [x] `(auth)/layout.tsx` — rewritten split-panel shell on tokens + `<BrandLogo>`
 - [x] `server-api.ts` `publicGet` now honours `revalidate` instead of hardcoding `cache: 'no-store'`
-- [x] `/register`, `/enroll/[batchId]`, `/apply-teacher`, `/verify/[code]`, 5× `(auth)` pages — spot-checked, already compliant (use `ui` primitives/tokens only, no `.mkt` classes)
+- [x] `/register`, `/enroll/[batchId]`, `/apply-teacher`, `/verify/[code]`, 5× `(auth)` pages — superseded by a later real per-route recomposition pass (see below); the original "spot-checked, already compliant" note undersold the actual gaps found
 - [x] `src/styles/marketing.css` deleted, `@import` removed; verified zero `mkt`/`--mkt-` references remain in `apps/web/src`
 - [x] `npm run lint -w @ielts/web`, `npm test -w @ielts/web` (13/13 passed), `npm run build -w @ielts/web` all clean on the combined Phase B+C change set
+- [x] **Real recomposition of the 9 "spot-checked" routes**: `register` (batches grid → `Section`), `apply-teacher` (heading style fix, `Alert` success state), `verify/[code]` (emoji glyphs → lucide icons in toned badges, fixed a real severity bug where "revoked" and "not found" both used danger tone — revoked is now warning), `(auth)/login` + `(auth)/create-account` (`Separator label="or"` primitive replacing/missing from the hand-rolled divider), `(auth)/forgot-password` (missing `Alert` success state added); `(auth)/reset-password` and `(auth)/verify-email` read in full and left unchanged — no real gap, not a repeat spot-check
+- [x] `enroll/[batchId]/page.tsx` shell/chrome only: local hand-rolled `Steps` component (duplicating `Stepper` feature-for-feature) replaced with the real `Stepper` primitive; Payment/details/review steps wrapped in `Section`; review `<dl>` replaced with `DefinitionList`. `SurveyWizard`, its autosave/revision logic, payment/receipt submission, and `applicantProfileSchema` validation confirmed untouched by reading the diff directly
+- [x] `npm run lint -w @ielts/web`, `npm test -w @ielts/web` (16/16, including `SurveyWizard.test.tsx`), `npm run build -w @ielts/web` (86/86 routes) all independently re-run after these edits — clean
 
 ## Phase D — Onboarding survey
 - [x] `enrollment_surveys` migration (hand-written SQL, RLS, CHECK constraints, mirrored in `schema.prisma`, `drift` clean)

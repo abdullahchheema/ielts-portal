@@ -10,7 +10,7 @@ import { PaymentSection, PaymentValues, METHOD_LABEL, emptyPayment, paymentFormD
 import { SurveyWizard, SurveyComplete } from '@/components/survey/SurveyWizard';
 import { PublicBatch } from '@/components/BatchCard';
 import { PublicHeader } from '@/components/PublicHeader';
-import { Alert, Button, Card, Field, Input, Loading, Select } from '@/components/ui';
+import { Alert, Button, Card, DefinitionList, Field, Input, Loading, Section, Select, Stepper } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { useMe } from '@/lib/auth';
 import { errorMessage } from '@/lib/errors';
@@ -24,21 +24,8 @@ interface Details {
 const EMPTY: Details = { phone: '', city: '', country: 'Pakistan', testType: '', targetBand: '', examDate: '', ieltsHistory: '', ieltsOverall: '' };
 const DAY: Record<string, string> = { MON: 'Mon', TUE: 'Tue', WED: 'Wed', THU: 'Thu', FRI: 'Fri', SAT: 'Sat', SUN: 'Sun' };
 const LABELS = ['Your goals', 'Payment', 'Review & submit'];
+const STEP_DEFS = LABELS.map((label, i) => ({ key: String(i), label }));
 const TEST_LABEL: Record<string, string> = { ACADEMIC: 'Academic', GENERAL: 'General Training' };
-
-function Steps({ step }: { step: number }) {
-  return (
-    <ol className="mb-6 flex flex-wrap items-center gap-2 text-sm" aria-label="Enrollment steps">
-      {LABELS.map((l, i) => (
-        <li key={l} className="flex items-center gap-2">
-          <span className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${i < step ? 'bg-success text-white' : i === step ? 'bg-primary text-white' : 'bg-surface-muted text-fg-muted'}`}>{i < step ? '✓' : i + 1}</span>
-          <span className={i === step ? 'font-semibold text-fg' : 'text-fg-muted'}>{l}</span>
-          {i < LABELS.length - 1 && <span aria-hidden className="mx-1 h-px w-5 bg-border-strong" />}
-        </li>
-      ))}
-    </ol>
-  );
-}
 
 export default function EnrollPage() {
   const { batchId } = useParams<{ batchId: string }>();
@@ -162,7 +149,7 @@ export default function EnrollPage() {
       <PublicHeader />
       <main className="mx-auto max-w-3xl px-4 py-8">
         {header}
-        <Steps step={step} />
+        <div className="mb-6"><Stepper steps={STEP_DEFS} activeIndex={step} /></div>
 
         <Card>
           {formError && <div className="mb-4"><Alert>{formError}</Alert></div>}
@@ -170,38 +157,40 @@ export default function EnrollPage() {
           {step === 0 && <SurveyWizard onComplete={onSurveyComplete} />}
 
           {step === 1 && (
-            <div className="space-y-4">
-              <h2 className="text-lg font-semibold">Payment</h2>
-              <p className="text-sm text-fg-muted">Pay the course fee, then upload your receipt. Your place is confirmed once the academy verifies the payment.</p>
+            <Section title="Payment" description="Pay the course fee, then upload your receipt. Your place is confirmed once the academy verifies the payment.">
               <PaymentSection value={payment} onChange={setPay} errors={errors} amount={price} currency={course.data.currency} batchId={batchId} />
-            </div>
+            </Section>
           )}
 
           {step === 2 && (
-            <div className="space-y-4">
-              <h2 className="text-lg font-semibold">A few more details</h2>
-              <p className="text-sm text-fg-muted">Applying as <span className="font-medium text-fg">{me.data.email}</span>. Every field is required.</p>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Phone / WhatsApp" error={errors.phone}>{(p) => <Input {...p} type="tel" autoComplete="tel" {...text('phone')} />}</Field>
-                <Field label="City" error={errors.city}>{(p) => <Select {...p} {...text('city')}><option value="">Select</option>{PAKISTAN_CITIES.map((c) => <option key={c} value={c}>{c}</option>)}</Select>}</Field>
-                <Field label="Country" error={errors.country}>{(p) => <Select {...p} {...text('country')}>{COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}</Select>}</Field>
-                <Field label="Test you are preparing for" error={errors.testType}>{(p) => <Select {...p} {...text('testType')}><option value="">Select</option><option value="ACADEMIC">Academic</option><option value="GENERAL">General Training</option></Select>}</Field>
-                <Field label="Planned exam date" error={errors.examDate}>{(p) => <Input {...p} type="date" {...text('examDate')} />}</Field>
-              </div>
+            <div className="space-y-6">
+              <Section title="A few more details">
+                <p className="mb-4 text-sm text-fg-muted">Applying as <span className="font-medium text-fg">{me.data.email}</span>. Every field is required.</p>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Phone / WhatsApp" error={errors.phone}>{(p) => <Input {...p} type="tel" autoComplete="tel" {...text('phone')} />}</Field>
+                  <Field label="City" error={errors.city}>{(p) => <Select {...p} {...text('city')}><option value="">Select</option>{PAKISTAN_CITIES.map((c) => <option key={c} value={c}>{c}</option>)}</Select>}</Field>
+                  <Field label="Country" error={errors.country}>{(p) => <Select {...p} {...text('country')}>{COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}</Select>}</Field>
+                  <Field label="Test you are preparing for" error={errors.testType}>{(p) => <Select {...p} {...text('testType')}><option value="">Select</option><option value="ACADEMIC">Academic</option><option value="GENERAL">General Training</option></Select>}</Field>
+                  <Field label="Planned exam date" error={errors.examDate}>{(p) => <Input {...p} type="date" {...text('examDate')} />}</Field>
+                </div>
+              </Section>
 
-              <h2 className="pt-2 text-lg font-semibold">Review and submit</h2>
-              <dl className="grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
-                <div className="sm:col-span-2"><dt className="text-fg-muted">Applying as</dt><dd className="font-medium">{me.data.email}</dd></div>
-                <div><dt className="text-fg-muted">Test</dt><dd className="font-medium">{TEST_LABEL[d.testType] ?? d.testType}</dd></div>
-                <div><dt className="text-fg-muted">Target band</dt><dd className="font-medium">{d.targetBand}</dd></div>
-                <div><dt className="text-fg-muted">Previous IELTS</dt><dd className="font-medium">{d.ieltsHistory === 'TAKEN' ? `Yes, overall ${d.ieltsOverall}` : 'No, first time'}</dd></div>
-                <div><dt className="text-fg-muted">Batch</dt><dd className="font-medium">{batch.name}</dd></div>
-                <div><dt className="text-fg-muted">Payment method</dt><dd className="font-medium">{METHOD_LABEL[payment.paymentMethod] ?? payment.paymentMethod}</dd></div>
-                <div><dt className="text-fg-muted">Reference</dt><dd className="font-medium">{payment.transactionReference}</dd></div>
-                <div><dt className="text-fg-muted">Amount paid</dt><dd className="font-medium">{money(payment.claimedAmount, course.data.currency)}</dd></div>
-                <div><dt className="text-fg-muted">Receipt</dt><dd className="font-medium">{payment.file?.name}</dd></div>
-              </dl>
-              <Alert kind="info">After you submit, your application shows as <strong>Pending payment verification</strong>. Course content unlocks once the academy confirms your payment.</Alert>
+              <Section title="Review and submit">
+                <DefinitionList
+                  items={[
+                    { label: 'Applying as', value: me.data.email },
+                    { label: 'Test', value: TEST_LABEL[d.testType] ?? d.testType },
+                    { label: 'Target band', value: d.targetBand },
+                    { label: 'Previous IELTS', value: d.ieltsHistory === 'TAKEN' ? `Yes, overall ${d.ieltsOverall}` : 'No, first time' },
+                    { label: 'Batch', value: batch.name },
+                    { label: 'Payment method', value: METHOD_LABEL[payment.paymentMethod] ?? payment.paymentMethod },
+                    { label: 'Reference', value: payment.transactionReference },
+                    { label: 'Amount paid', value: money(payment.claimedAmount, course.data.currency) },
+                    { label: 'Receipt', value: payment.file?.name },
+                  ]}
+                />
+                <div className="mt-4"><Alert kind="info">After you submit, your application shows as <strong>Pending payment verification</strong>. Course content unlocks once the academy confirms your payment.</Alert></div>
+              </Section>
             </div>
           )}
 

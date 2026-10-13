@@ -7,7 +7,7 @@ import { Suspense, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { RegisterInput, registerSchema } from '@ielts/validation';
 import { GoogleSignInButton } from '@/components/AccountGate';
-import { Alert, Button, Field, Input } from '@/components/ui';
+import { Alert, Button, Field, Input, Separator } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 
@@ -47,6 +47,7 @@ function CreateAccount() {
           We sent a verification link to <span className="font-medium text-fg">{sentTo}</span>. Open it to activate your account, then log in
           {next ? ' to continue your application' : ''}.
         </p>
+        <Alert kind="success">Check your inbox for the verification link.</Alert>
         {resent && <Alert kind="success">A new link is on its way.</Alert>}
         <div className="flex flex-wrap items-center gap-4 text-sm">
           <Link href={loginHref} className="font-medium text-primary hover:underline">Go to log in</Link>
@@ -62,7 +63,7 @@ function CreateAccount() {
       <p className="text-sm text-fg-muted">Your account is where you apply, track your application and open your portal.</p>
       {error && <Alert>{error}</Alert>}
       <GoogleSignInButton next={next ?? undefined} />
-      <div className="flex items-center gap-3 text-xs text-fg-muted" aria-hidden><span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" /></div>
+      <Separator label="or" />
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="First name" error={errors.firstName?.message}>{(p) => <Input {...p} autoComplete="given-name" {...register('firstName')} />}</Field>
         <Field label="Last name" error={errors.lastName?.message}>{(p) => <Input {...p} autoComplete="family-name" {...register('lastName')} />}</Field>

@@ -1,3 +1,4 @@
+import { CircleAlert, CircleCheck, TriangleAlert } from 'lucide-react';
 import type { Metadata } from 'next';
 import { PublicHeader } from '@/components/PublicHeader';
 import { publicGet } from '@/lib/server-api';
@@ -22,8 +23,8 @@ export default async function VerifyCertificatePage({ params }: { params: Promis
         <div className="rounded-lg bg-surface p-8 text-center shadow-xs ring-1 ring-border">
           {r?.valid ? (
             <>
-              <p className="text-4xl" aria-hidden>✓</p>
-              <h1 className="mt-2 text-2xl font-semibold text-green-700">Certificate verified</h1>
+              <span aria-hidden className="mx-auto grid size-12 place-items-center rounded-full bg-success-soft text-success"><CircleCheck className="size-6" strokeWidth={1.75} /></span>
+              <h1 className="mt-3 text-2xl font-semibold text-success">Certificate verified</h1>
               <p className="mt-4 text-fg-muted">This certifies that</p>
               <p className="text-xl font-semibold text-fg">{r.studentName}</p>
               <p className="mt-2 text-fg-muted">completed</p>
@@ -34,14 +35,14 @@ export default async function VerifyCertificatePage({ params }: { params: Promis
             </>
           ) : r?.status === 'REVOKED' ? (
             <>
-              <p className="text-4xl" aria-hidden>⊘</p>
-              <h1 className="mt-2 text-2xl font-semibold text-danger">Certificate revoked</h1>
+              <span aria-hidden className="mx-auto grid size-12 place-items-center rounded-full bg-warning-soft text-warning"><TriangleAlert className="size-6" strokeWidth={1.75} /></span>
+              <h1 className="mt-3 text-2xl font-semibold text-warning">Certificate revoked</h1>
               <p className="mt-3 text-fg-muted">This certificate has been withdrawn by the academy and no longer stands. Contact the academy if you have a question.</p>
             </>
           ) : (
             <>
-              <p className="text-4xl" aria-hidden>✗</p>
-              <h1 className="mt-2 text-2xl font-semibold text-danger">Certificate not found</h1>
+              <span aria-hidden className="mx-auto grid size-12 place-items-center rounded-full bg-danger-soft text-danger"><CircleAlert className="size-6" strokeWidth={1.75} /></span>
+              <h1 className="mt-3 text-2xl font-semibold text-danger">Certificate not found</h1>
               <p className="mt-3 text-fg-muted">We could not find a certificate with this ID. Check the ID for typos, or contact the academy.</p>
             </>
           )}
