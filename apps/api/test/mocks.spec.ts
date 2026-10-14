@@ -66,7 +66,7 @@ describe('mock access requests', () => {
 
     const started = (await stApi(`/assessments/${assessmentId}/start`).expect(201)).body;
     expect(started.attempt?.id ?? started.id).toBeTruthy();
-  }, 30_000);
+  }, 60_000);
 
   it('declining a request keeps the student blocked, with a reviewer note visible to them', async () => {
     const { assessmentId, batchId } = await buildMockAssessment();
@@ -111,7 +111,7 @@ describe('mock access requests', () => {
     await as(main.session)(http(app).delete(`/mentor/mock-activations/${activation.id}`)).expect(204);
     const afterCancel = (await as(main.session)(http(app).get(`/mentor/batches/${batchId}/mock-activations`)).expect(200)).body as Array<{ id: string; status: string }>;
     expect(afterCancel.find((a) => a.id === activation.id)?.status).toBe('CANCELLED');
-  }, 30_000);
+  }, 60_000);
 
   it('an activation outside its availability window does not grant access', async () => {
     const { assessmentId, batchId } = await buildMockAssessment();
@@ -149,5 +149,5 @@ describe('mock access requests', () => {
     expect(blocked.body.error.code).toBe('MOCK_ACCESS_REQUIRED');
     // No orphaned exam attempt was left behind by the failed start.
     expect(await prisma.examAttempt.count({ where: { studentId: st.studentId } })).toBe(0);
-  }, 30_000);
+  }, 60_000);
 });

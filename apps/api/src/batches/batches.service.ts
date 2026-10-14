@@ -97,6 +97,74 @@ export class BatchesService {
     return { ...batch, mentorAssigned: batch.mentors.length > 0, counts: counts.get(id) ?? { pending: 0, enrolled: 0 } };
   }
 
+  /**
+   * Batch analytics for the super-admin dashboard (spec §41, §43). Every percentage below states
+   * its own denominator so it cannot be read as "of all students" by mistake:
+   * - Attendance is computed only over COMPLETED sessions (future and cancelled sessions never
+   *   count), and only over attendance rows that were actually recorded — an un-marked (pending)
+   *   register entry is excluded from both the numerator and the denominator, never treated as absent.
+   * - "Active" students are enrollments with at least one real activity signal (progress, attendance,
+   *   or an assessment attempt) in the last 14 days — a documented, inspectable rule, not a guess.
+   */
+  async analytics(batchId: string) {
+    const batch = await this.prisma.batch.findFirst({ where: { id: batchId, deletedAt: null } });
+    if (!batch) throw notFound('Batch');
+    const since = new Date(Date.now() - 14 * 86_400_000);
+
+    const [enrollments, classCounts, attendanceRows, recordingCounts] = await Promise.all([
+      this.prisma.enrollment.findMany({ where: { batchId, deletedAt: null, status: { in: ['ACTIVE', 'COMPLETED'] } }, select: { id: true, studentId: true } }),
+      this.prisma.liveSession.groupBy({ by: ['status'], where: { batchId }, _count: true }),
+      this.prisma.attendance.findMany({ where: { session: { batchId, status: 'COMPLETED' } }, select: { studentId: true, status: true } }),
+      this.prisma.lectureRecording.groupBy({ by: ['status'], where: { batchId }, _count: true }),
+    ]);
+    const studentIds = enrollments.map((e) => e.studentId);
+    const classOf = (s: string) => classCounts.find((c) => c.status === s)?._count ?? 0;
+
+    const recordedByStudent = new Map<string, { recorded: number; presentOrLate: number }>();
+    for (const a of attendanceRows) {
+      const row = recordedByStudent.get(a.studentId) ?? { recorded: 0, presentOrLate: 0 };
+      row.recorded += 1;
+      if (a.status === 'PRESENT' || a.status === 'LATE') row.presentOrLate += 1;
+      recordedByStudent.set(a.studentId, row);
+    }
+    const totalRecorded = attendanceRows.length;
+    const totalPresentOrLate = attendanceRows.filter((a) => a.status === 'PRESENT' || a.status === 'LATE').length;
+    const averageAttendancePercent = totalRecorded ? Math.round((totalPresentOrLate / totalRecorded) * 10_000) / 100 : null;
+    const lowAttendanceStudentIds = [...recordedByStudent.entries()].filter(([, r]) => r.recorded > 0 && r.presentOrLate / r.recorded < 0.5).map(([studentId]) => studentId);
+
+    const [activeProgress, activeAttendance, activeAttempts, overdueAssignments] = studentIds.length ? await Promise.all([
+      this.prisma.contentProgress.findMany({ where: { studentId: { in: studentIds }, updatedAt: { gte: since } }, select: { studentId: true }, distinct: ['studentId'] }),
+      this.prisma.attendance.findMany({ where: { studentId: { in: studentIds }, session: { batchId }, joinedAt: { gte: since } }, select: { studentId: true }, distinct: ['studentId'] }),
+      this.prisma.assessmentAttempt.findMany({ where: { studentId: { in: studentIds }, submittedAt: { gte: since } }, select: { studentId: true }, distinct: ['studentId'] }),
+      this.prisma.curriculumAssignment.findMany({
+        where: { requirement: 'REQUIRED', publishedAt: { not: null }, dueAt: { lt: new Date() }, OR: [{ batchId }, { studentId: { in: studentIds } }] },
+        select: { contentItemId: true, studentId: true },
+      }),
+    ]) : [[], [], [], []];
+    const activeStudentIds = new Set([...activeProgress, ...activeAttendance, ...activeAttempts].map((r) => r.studentId));
+
+    let studentsWithOutstandingWork = 0;
+    if (overdueAssignments.length) {
+      const itemIds = [...new Set(overdueAssignments.map((a) => a.contentItemId))];
+      const completed = await this.prisma.contentProgress.findMany({ where: { studentId: { in: studentIds }, contentItemId: { in: itemIds }, status: 'COMPLETED' }, select: { studentId: true, contentItemId: true } });
+      const completedSet = new Set(completed.map((c) => `${c.studentId}:${c.contentItemId}`));
+      const outstanding = new Set<string>();
+      for (const a of overdueAssignments) {
+        const targets = a.studentId ? [a.studentId] : studentIds;
+        for (const sid of targets) if (!completedSet.has(`${sid}:${a.contentItemId}`)) outstanding.add(sid);
+      }
+      studentsWithOutstandingWork = outstanding.size;
+    }
+
+    return {
+      batchId, totalEnrolled: enrollments.length, activeStudents: activeStudentIds.size,
+      lowAttendanceStudents: lowAttendanceStudentIds.length, studentsWithOutstandingWork,
+      classes: { scheduled: classOf('SCHEDULED') + classOf('RESCHEDULED'), inProgress: classOf('IN_PROGRESS'), completed: classOf('COMPLETED'), cancelled: classOf('CANCELLED') },
+      averageAttendancePercent, attendanceSampleSize: totalRecorded,
+      recordings: { published: recordingCounts.find((r) => r.status === 'PUBLISHED')?._count ?? 0, pending: recordingCounts.filter((r) => r.status !== 'PUBLISHED' && r.status !== 'ARCHIVED').reduce((s, r) => s + r._count, 0) },
+    };
+  }
+
   /** New batches always belong to the academy's one course. Mentors are optional and can be added any time. */
   async create(input: CreateBatchInput, actor: Actor) {
     const { course, version: newest } = await getMainCourse(this.prisma);

@@ -50,12 +50,12 @@ export class ClassSessionService {
     const s = await this.assertManager(sessionId, mentorId, canOverseeAll);
     if (action === 'START') {
       if (s.status !== 'SCHEDULED') throw new AppError('CONFLICT', 409, 'Only a scheduled class can be started.');
-      const r = await this.prisma.liveSession.updateMany({ where: { id: sessionId, status: 'SCHEDULED' }, data: { status: 'LIVE', startedAt: new Date() } });
+      const r = await this.prisma.liveSession.updateMany({ where: { id: sessionId, status: 'SCHEDULED' }, data: { status: 'IN_PROGRESS', startedAt: new Date() } });
       if (r.count === 0) throw conflict('CONFLICT', 'This class has already started.');
-      return { id: sessionId, status: 'LIVE' };
+      return { id: sessionId, status: 'IN_PROGRESS' };
     }
-    if (s.status !== 'LIVE' && s.status !== 'SCHEDULED') throw conflict('CONFLICT', 'This class is not running.');
-    const r = await this.prisma.liveSession.updateMany({ where: { id: sessionId, status: { in: ['LIVE', 'SCHEDULED'] } }, data: { status: 'COMPLETED', endedAt: new Date() } });
+    if (s.status !== 'IN_PROGRESS' && s.status !== 'SCHEDULED') throw conflict('CONFLICT', 'This class is not running.');
+    const r = await this.prisma.liveSession.updateMany({ where: { id: sessionId, status: { in: ['IN_PROGRESS', 'SCHEDULED'] } }, data: { status: 'COMPLETED', endedAt: new Date() } });
     if (r.count === 0) throw conflict('CONFLICT', 'This class has already ended.');
     return { id: sessionId, status: 'COMPLETED' };
   }

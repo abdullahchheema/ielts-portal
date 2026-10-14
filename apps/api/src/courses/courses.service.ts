@@ -116,47 +116,66 @@ export class CoursesService {
     }, { timeout: 20_000, maxWait: 10_000 });
   }
 
+  /**
+   * Clones a version's whole section/item tree in bulk (createMany, not one row per await): a real
+   * course tree is now hundreds of rows (full IELTS taxonomy seed), and the old one-row-at-a-time
+   * version blew past this transaction's timeout against a remote DB.
+   */
   private async cloneTree(tx: Prisma.TransactionClient, fromVersionId: string, toVersionId: string) {
     const sections = await tx.courseSection.findMany({ where: { courseVersionId: fromVersionId }, include: { items: true } });
-    const sectionMap = new Map<string, string>();
-    const itemMap = new Map<string, string>();
+    if (!sections.length) return;
 
-    // Parents first so parentSectionId can be remapped.
-    const byParent = (parent: string | null) => sections.filter((s) => s.parentSectionId === parent);
-    const walk = async (parent: string | null, newParent: string | null) => {
-      for (const s of byParent(parent)) {
-        const created = await tx.courseSection.create({
-          data: {
-            courseVersionId: toVersionId, parentSectionId: newParent, title: s.title,
-            description: s.description, sequence: s.sequence, status: s.status,
-          },
-        });
-        sectionMap.set(s.id, created.id);
-        for (const i of s.items) {
-          const item = await tx.contentItem.create({
-            data: {
-              sectionId: created.id, title: i.title, contentType: i.contentType, sequence: i.sequence,
-              isRequired: i.isRequired, estimatedMinutes: i.estimatedMinutes, releaseType: i.releaseType,
-              releaseValue: i.releaseValue ?? undefined, status: i.status, metadataJson: i.metadataJson ?? undefined,
-            },
-          });
-          itemMap.set(i.id, item.id);
-        }
-        await walk(s.id, created.id);
-      }
-    };
-    await walk(null, null);
+    const sectionMap = new Map<string, string>(); // old section id -> new section id
+    const itemMap = new Map<string, string>(); // old item id -> new item id
+    for (const s of sections) sectionMap.set(s.id, randomUUID());
+    for (const s of sections) for (const i of s.items) itemMap.set(i.id, randomUUID());
+
+    // BFS from the roots so every parent row is inserted before its children — required for the
+    // self-referencing parent_section_id foreign key within a single multi-row INSERT.
+    const childrenOf = new Map<string | null, typeof sections>();
+    for (const s of sections) {
+      const key = s.parentSectionId ?? null;
+      if (!childrenOf.has(key)) childrenOf.set(key, []);
+      childrenOf.get(key)!.push(s);
+    }
+    const ordered: typeof sections = [];
+    const queue: (string | null)[] = [null];
+    while (queue.length) {
+      const parent = queue.shift()!;
+      for (const s of childrenOf.get(parent) ?? []) { ordered.push(s); queue.push(s.id); }
+    }
+
+    await tx.courseSection.createMany({
+      data: ordered.map((s) => ({
+        id: sectionMap.get(s.id)!, courseVersionId: toVersionId,
+        parentSectionId: s.parentSectionId ? sectionMap.get(s.parentSectionId)! : null,
+        title: s.title, description: s.description, sequence: s.sequence, status: s.status,
+        track: s.track, module: s.module, kind: s.kind, area: s.area, skillKey: s.skillKey,
+      })),
+    });
+
+    const allItems = sections.flatMap((s) => s.items.map((i) => ({ item: i, newSectionId: sectionMap.get(s.id)! })));
+    if (allItems.length) {
+      await tx.contentItem.createMany({
+        data: allItems.map(({ item: i, newSectionId }) => ({
+          id: itemMap.get(i.id)!, sectionId: newSectionId, title: i.title, contentType: i.contentType, sequence: i.sequence,
+          isRequired: i.isRequired, estimatedMinutes: i.estimatedMinutes, releaseType: i.releaseType,
+          releaseValue: i.releaseValue ?? undefined, status: i.status, metadataJson: i.metadataJson ?? undefined,
+          track: i.track, module: i.module, skillKey: i.skillKey, testPart: i.testPart, activityKind: i.activityKind,
+          difficulty: i.difficulty, bandMin: i.bandMin, bandMax: i.bandMax, isTimed: i.isTimed,
+          teacherAssignable: i.teacherAssignable, recommendable: i.recommendable, masteryPercent: i.masteryPercent,
+          prerequisiteSkillKeys: i.prerequisiteSkillKeys,
+        })),
+      });
+    }
 
     // Prerequisites point at item ids — remap them to the cloned items.
-    for (const [oldId, newId] of itemMap) {
-      const item = await tx.contentItem.findUniqueOrThrow({ where: { id: newId } });
-      const rv = item.releaseValue as { requiredItemId?: string } | null;
-      if (item.releaseType === 'PREREQUISITE' && rv?.requiredItemId) {
-        const mapped = itemMap.get(rv.requiredItemId);
-        await tx.contentItem.update({ where: { id: newId }, data: { releaseValue: { ...rv, requiredItemId: mapped ?? null } } });
-      }
-      void oldId;
-    }
+    await Promise.all(allItems.map(({ item: i }) => {
+      const rv = i.releaseValue as { requiredItemId?: string } | null;
+      if (i.releaseType !== 'PREREQUISITE' || !rv?.requiredItemId) return null;
+      const mapped = itemMap.get(rv.requiredItemId) ?? null;
+      return tx.contentItem.update({ where: { id: itemMap.get(i.id)! }, data: { releaseValue: { ...rv, requiredItemId: mapped } } });
+    }));
   }
 
   async publishVersion(versionId: string, actor: Actor) {
@@ -219,7 +238,9 @@ export class CoursesService {
       }
       const sequence = input.sequence ?? (await tx.courseSection.count({ where: { courseVersionId: versionId, parentSectionId: input.parentSectionId ?? null } }));
       const section = await tx.courseSection.create({
-        data: { courseVersionId: versionId, parentSectionId: input.parentSectionId ?? null, title: input.title, description: input.description, sequence, module: input.module },
+        // input.module is the course's ACADEMIC/GENERAL/BOTH track (see COURSE_MODULES) — it maps to
+        // the "track" column, not Prisma's "module" column (which is the IELTS skill: LISTENING/etc).
+        data: { courseVersionId: versionId, parentSectionId: input.parentSectionId ?? null, title: input.title, description: input.description, sequence, track: input.module },
       });
       await this.audit.record({ ...actor, action: 'SECTION_CREATED', entityType: 'CourseSection', entityId: section.id, after: section }, tx);
       return section;
@@ -235,7 +256,12 @@ export class CoursesService {
       if (input.parentSectionId !== undefined && input.parentSectionId !== before.parentSectionId) {
         await this.assertNoCycle(tx, id, input.parentSectionId, before.courseVersionId);
       }
-      const after = await tx.courseSection.update({ where: { id }, data: input });
+      // input.module is the ACADEMIC/GENERAL/BOTH track (see createSection) — maps to "track", not "module".
+      const { module: trackInput, ...sectionRest } = input;
+      const after = await tx.courseSection.update({
+        where: { id },
+        data: { ...sectionRest, ...(trackInput !== undefined ? { track: trackInput } : {}) },
+      });
       await this.audit.record({ ...actor, action: 'SECTION_UPDATED', entityType: 'CourseSection', entityId: id, before, after }, tx);
       return after;
     });
@@ -293,7 +319,9 @@ export class CoursesService {
           sectionId, title: input.title, contentType: input.contentType, sequence, isRequired: input.isRequired,
           estimatedMinutes: input.estimatedMinutes, releaseType: input.releaseType,
           releaseValue: (input.releaseValue ?? undefined) as Prisma.InputJsonValue | undefined,
-          status: input.status, metadataJson: (input.metadata ?? undefined) as Prisma.InputJsonValue | undefined, module: input.module,
+          status: input.status, metadataJson: (input.metadata ?? undefined) as Prisma.InputJsonValue | undefined,
+          // input.module is the ACADEMIC/GENERAL/BOTH track (see createSection) — maps to "track", not "module".
+          track: input.module,
           masteryPercent: input.masteryPercent,
         },
       });
@@ -312,13 +340,15 @@ export class CoursesService {
       const releaseValue = input.releaseValue ?? (before.releaseValue as never);
       await this.assertRelease(tx, before.section.courseVersionId, releaseType, releaseValue, id);
 
-      const { metadata, releaseValue: rv, ...rest } = input;
+      // input.module is the ACADEMIC/GENERAL/BOTH track (see createSection) — maps to "track", not "module".
+      const { metadata, releaseValue: rv, module: trackInput, ...rest } = input;
       const after = await tx.contentItem.update({
         where: { id },
         data: {
           ...rest,
           ...(rv !== undefined ? { releaseValue: rv as Prisma.InputJsonValue } : {}),
           ...(metadata !== undefined ? { metadataJson: metadata as Prisma.InputJsonValue } : {}),
+          ...(trackInput !== undefined ? { track: trackInput } : {}),
         },
       });
       const { section: _s, ...beforeItem } = before;

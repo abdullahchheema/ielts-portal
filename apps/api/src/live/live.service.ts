@@ -7,12 +7,14 @@ import { attendanceWarnings, DEFAULT_ATTENDANCE_RULES } from '../engagement/enga
 import { DailyActivityService } from '../common/daily-activity.service';
 import { Body, Controller, Delete, Get, HttpCode, Injectable, Module, Param, ParseUUIDPipe, Patch, Post, Put, Req } from '@nestjs/common';
 import type { Request } from 'express';
+import { z } from 'zod';
 import { AttendanceInput, SessionInput, UpdateSessionInput, attendanceSchema, sessionSchema, updateSessionSchema } from '@ielts/validation';
 import { AuditService } from '../audit/audit.service';
 import { AppError, forbidden, notFound } from '../common/app-error';
 import { AuthUser, CurrentUser, RequirePermission, clientMeta } from '../common/decorators';
 import { ZodPipe } from '../common/zod.pipe';
 import { Actor } from '../courses/courses.service';
+import { parseZoomUrl } from './meeting-links';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AttendanceCorrectionsModule } from './attendance-corrections';
@@ -25,6 +27,8 @@ export interface Reviewer { userId: string; mentorId?: string; canOverseeAll: bo
 /** After this long, a teacher can no longer change a mark directly; they must request a correction. */
 export const ATTENDANCE_EDIT_WINDOW_HOURS = 24;
 const bad = (field: string, msg: string) => new AppError('VALIDATION_ERROR', 422, 'Some fields are invalid.', { [field]: msg });
+const SESSION_ACTIONS = ['START', 'COMPLETE', 'CANCEL'] as const;
+type SessionAction = (typeof SESSION_ACTIONS)[number];
 
 @Injectable()
 export class LiveService {
@@ -50,13 +54,21 @@ export class LiveService {
     if (new Date(endsAt) <= new Date(startsAt)) throw bad('endsAt', 'The session must end after it starts.');
   }
 
+  /** Server-side backstop (spec §45): a Zoom provider needs an actual Zoom host, not just any https:// link. */
+  private checkMeetingUrl(provider: string | undefined, meetingUrl: string | undefined) {
+    if (provider !== 'ZOOM' || !meetingUrl) return;
+    const check = parseZoomUrl(meetingUrl);
+    if (!check.valid) throw new AppError('MEETING_INVALID_URL', 422, check.reason, { meetingUrl: check.reason });
+  }
+
   // ───────── mentor / admin ─────────
   async create(r: Reviewer, batchId: string, input: SessionInput, actor: Actor) {
     const batch = await this.assertBatch(r, batchId);
     this.checkTimes(input.startsAt, input.endsAt);
+    this.checkMeetingUrl(input.provider, input.meetingUrl);
     const session = await this.prisma.$transaction(async (tx) => {
       const s = await tx.liveSession.create({
-        data: { batchId, mentorId: r.mentorId ?? null, topic: input.topic, startsAt: new Date(input.startsAt), endsAt: new Date(input.endsAt), provider: input.provider, meetingUrl: input.meetingUrl },
+        data: { batchId, mentorId: r.mentorId ?? null, topic: input.topic, startsAt: new Date(input.startsAt), endsAt: new Date(input.endsAt), provider: input.provider, meetingUrl: input.meetingUrl, status: 'SCHEDULED' },
       });
       await this.audit.record({ ...actor, action: 'LIVE_SESSION_CREATED', entityType: 'LiveSession', entityId: s.id, after: { batchId, topic: s.topic, startsAt: s.startsAt } }, tx);
       return s;
@@ -76,12 +88,54 @@ export class LiveService {
     if (!before) throw notFound('Session');
     await this.assertBatch(r, before.batchId);
     this.checkTimes(input.startsAt ?? before.startsAt, input.endsAt ?? before.endsAt);
+    this.checkMeetingUrl(input.provider ?? before.provider ?? undefined, input.meetingUrl ?? before.meetingUrl ?? undefined);
+    const rescheduling = !!input.startsAt && new Date(input.startsAt).getTime() !== before.startsAt.getTime();
     return this.prisma.$transaction(async (tx) => {
       const after = await tx.liveSession.update({
         where: { id },
-        data: { topic: input.topic, provider: input.provider, meetingUrl: input.meetingUrl, recordingUrl: input.recordingUrl, startsAt: input.startsAt ? new Date(input.startsAt) : undefined, endsAt: input.endsAt ? new Date(input.endsAt) : undefined },
+        data: {
+          topic: input.topic, provider: input.provider, meetingUrl: input.meetingUrl, recordingUrl: input.recordingUrl,
+          startsAt: input.startsAt ? new Date(input.startsAt) : undefined, endsAt: input.endsAt ? new Date(input.endsAt) : undefined,
+          ...(rescheduling ? { status: 'RESCHEDULED', rescheduledFromStartsAt: before.startsAt } : {}),
+        },
       });
-      await this.audit.record({ ...actor, action: 'LIVE_SESSION_UPDATED', entityType: 'LiveSession', entityId: id, before, after }, tx);
+      await this.audit.record({ ...actor, action: rescheduling ? 'LIVE_SESSION_RESCHEDULED' : 'LIVE_SESSION_UPDATED', entityType: 'LiveSession', entityId: id, before, after }, tx);
+      return after;
+    });
+  }
+
+  /**
+   * Application-recorded lifecycle (spec §44–§46): a session's status is only ever set by a
+   * teacher/admin action here, never inferred from the clock — opening a Zoom link or a class's
+   * scheduled time passing does not by itself mean the class is live or finished.
+   */
+  async setStatus(r: Reviewer, id: string, action: SessionAction, reason: string | undefined, actor: Actor) {
+    const before = await this.prisma.liveSession.findUnique({ where: { id } });
+    if (!before) throw notFound('Session');
+    await this.assertBatch(r, before.batchId);
+    if (before.status === 'CANCELLED' || before.status === 'COMPLETED') {
+      throw new AppError('CONFLICT', 409, `This class is already ${before.status.toLowerCase()}.`);
+    }
+    const now = new Date();
+    const data =
+      action === 'START' ? { status: 'IN_PROGRESS' as const, startedAt: now }
+      : action === 'COMPLETE' ? { status: 'COMPLETED' as const, completedAt: now }
+      : { status: 'CANCELLED' as const, cancelledAt: now, cancelReason: reason };
+    return this.prisma.$transaction(async (tx) => {
+      const after = await tx.liveSession.update({ where: { id }, data });
+      await this.audit.record({ ...actor, action: `LIVE_SESSION_${action}D`, entityType: 'LiveSession', entityId: id, before: { status: before.status }, after: { status: after.status } }, tx);
+      return after;
+    });
+  }
+
+  /** Locks the attendance register for a session so later corrections are visible as a deliberate re-open (spec §43). */
+  async finalizeAttendance(r: Reviewer, id: string, actor: Actor) {
+    const s = await this.prisma.liveSession.findUnique({ where: { id } });
+    if (!s) throw notFound('Session');
+    await this.assertBatch(r, s.batchId);
+    return this.prisma.$transaction(async (tx) => {
+      const after = await tx.liveSession.update({ where: { id }, data: { attendanceFinalizedAt: new Date(), attendanceFinalizedBy: actor.userId } });
+      await this.audit.record({ ...actor, action: 'ATTENDANCE_FINALIZED', entityType: 'LiveSession', entityId: id }, tx);
       return after;
     });
   }
@@ -149,6 +203,7 @@ export class LiveService {
     const stranger = input.records.find((x) => !enrolled.has(x.studentId));
     if (stranger) throw bad('records', 'One of the students is not enrolled in this batch.');
     const now = new Date();
+    const isCorrection = s.attendanceFinalizedAt !== null;
     await this.prisma.$transaction(async (tx) => {
       const before = new Map((await tx.attendance.findMany({
         where: { sessionId, studentId: { in: input.records.map((x) => x.studentId) } },
@@ -177,7 +232,9 @@ export class LiveService {
           await tx.attendanceEvent.create({ data: { sessionId, studentId: x.studentId, action: prev ? 'CHANGED' : 'MARKED', beforeStatus: prev?.status ?? null, afterStatus: x.status, actorId: actor.userId } });
         }
       }
-      await this.audit.record({ ...actor, action: 'ATTENDANCE_MARKED', entityType: 'LiveSession', entityId: sessionId, after: { count: input.records.length, corrected: corrections.length } }, tx);
+      // A finalized register's own changes are recorded under a distinct action so they are visible
+      // in the audit log as deliberate corrections, not the original marking (spec §43).
+      await this.audit.record({ ...actor, action: isCorrection ? 'ATTENDANCE_CORRECTED_AFTER_FINALIZATION' : 'ATTENDANCE_MARKED', entityType: 'LiveSession', entityId: sessionId, after: { count: input.records.length, corrected: corrections.length } }, tx);
       // Per-record before and after for corrections, so a change to a historical record is never anonymous.
       if (corrections.length > 0 && corrections.length <= 50) {
         for (const c of corrections) {
@@ -278,6 +335,17 @@ export class LiveController {
   @RequirePermission('teaching.view') @HttpCode(204) @Delete('mentor/sessions/:id')
   async remove(@Param('id', uuid) id: string, @CurrentUser() u: AuthUser, @Req() req: Request) { await this.live.remove(await this.rev(u), id, actor(u, req)); }
 
+  @RequirePermission('teaching.view') @HttpCode(200) @Post('mentor/sessions/:id/start')
+  async start(@Param('id', uuid) id: string, @CurrentUser() u: AuthUser, @Req() req: Request) { return this.live.setStatus(await this.rev(u), id, 'START', undefined, actor(u, req)); }
+
+  @RequirePermission('teaching.view') @HttpCode(200) @Post('mentor/sessions/:id/complete')
+  async complete(@Param('id', uuid) id: string, @CurrentUser() u: AuthUser, @Req() req: Request) { return this.live.setStatus(await this.rev(u), id, 'COMPLETE', undefined, actor(u, req)); }
+
+  @RequirePermission('teaching.view') @HttpCode(200) @Post('mentor/sessions/:id/cancel')
+  async cancel(@Param('id', uuid) id: string, @Body(new ZodPipe(z.object({ reason: z.string().trim().max(500).optional() }))) body: { reason?: string }, @CurrentUser() u: AuthUser, @Req() req: Request) {
+    return this.live.setStatus(await this.rev(u), id, 'CANCEL', body.reason, actor(u, req));
+  }
+
   @RequirePermission('teaching.view') @Get('mentor/sessions/:id/attendance')
   async sheet(@Param('id', uuid) id: string, @CurrentUser() u: AuthUser) { return this.live.attendanceSheet(await this.rev(u), id); }
 
@@ -286,6 +354,9 @@ export class LiveController {
 
   @RequirePermission('teaching.view') @Put('mentor/sessions/:id/attendance')
   async mark(@Param('id', uuid) id: string, @Body(new ZodPipe(attendanceSchema)) body: AttendanceInput, @CurrentUser() u: AuthUser, @Req() req: Request) { return this.live.markAttendance(await this.rev(u), id, body, actor(u, req)); }
+
+  @RequirePermission('teaching.view') @HttpCode(200) @Post('mentor/sessions/:id/attendance/finalize')
+  async finalize(@Param('id', uuid) id: string, @CurrentUser() u: AuthUser, @Req() req: Request) { return this.live.finalizeAttendance(await this.rev(u), id, actor(u, req)); }
 
   @Get('me/sessions')
   mine(@CurrentUser() u: AuthUser) {

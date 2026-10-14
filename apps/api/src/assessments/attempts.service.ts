@@ -125,6 +125,7 @@ export class AttemptsService implements OnModuleInit {
     });
     const version = assessment?.versions[0];
     if (!assessment || !version) throw new AppError('ASSESSMENT_NOT_AVAILABLE', 404, 'This assessment is not available.');
+    if (assessment.type === 'MOCK') await this.mocks.assertAttemptAllowed(user.studentId, assessment.id);
     const access = await this.resolveAccess(user.studentId, assessment);
 
     let lapsed = null as Finished | null;
@@ -368,6 +369,27 @@ export class AttemptsService implements OnModuleInit {
       const attempts = await this.prisma.assessmentAttempt.findMany({ where: { assessmentId: d.id, studentId, status: { not: 'INVALIDATED' } }, orderBy: { attemptNumber: 'desc' }, select: { id: true, status: true, bandScore: true, percent: true } });
       const done = attempts.filter((x) => x.status !== 'IN_PROGRESS');
       return { ...d, attemptsUsed: attempts.length, inProgressAttemptId: attempts.find((x) => x.status === 'IN_PROGRESS')?.id ?? null, latestAttemptId: done[0]?.id ?? null, latestBand: done[0]?.bandScore === null || !done[0] ? null : Number(done[0].bandScore) };
+    }));
+  }
+
+  /** Published mock tests, each with the student's attempt summary and their individual/batch access status. */
+  async mockTests(studentId: string) {
+    const list = await this.prisma.assessment.findMany({
+      where: { type: 'MOCK', versions: { some: { publishedAt: { not: null } } } }, orderBy: { title: 'asc' },
+      select: { id: true, title: true, skill: true, timeLimitMin: true, maxAttempts: true },
+    });
+    return Promise.all(list.map(async (d) => {
+      const [attempts, access] = await Promise.all([
+        this.prisma.assessmentAttempt.findMany({ where: { assessmentId: d.id, studentId, status: { not: 'INVALIDATED' } }, orderBy: { attemptNumber: 'desc' }, select: { id: true, status: true, bandScore: true, percent: true } }),
+        this.mocks.statusFor(studentId, d.id),
+      ]);
+      const done = attempts.filter((x) => x.status !== 'IN_PROGRESS');
+      const best = done.reduce<number | null>((m, x) => (x.percent === null ? m : Math.max(m ?? 0, Number(x.percent))), null);
+      return {
+        ...d, attemptsUsed: attempts.length, inProgressAttemptId: attempts.find((x) => x.status === 'IN_PROGRESS')?.id ?? null,
+        latestAttemptId: done[0]?.id ?? null, bestPercent: best, bestBand: done[0]?.bandScore === null || !done[0] ? null : Number(done[0].bandScore),
+        access,
+      };
     }));
   }
 

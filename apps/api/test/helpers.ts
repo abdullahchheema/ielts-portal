@@ -25,9 +25,12 @@ export async function login(app: NestExpressApplication, email: string, password
 export const loginAdmin = (app: NestExpressApplication) => login(app, 'admin@test.local', 'TestAdminPass123');
 
 /** Registers a student, force-verifies the email, logs in. */
-export async function createStudent(app: NestExpressApplication, prisma: PrismaClient, opts: { email?: string } = {}) {
+export async function createStudent(app: NestExpressApplication, prisma: PrismaClient, opts: { email?: string; phone?: string } = {}) {
   const email = opts.email ?? `stu-${uniq()}@test.local`;
-  await http(app).post('/auth/register').send({ email, password: PASSWORD, firstName: 'Stu', lastName: 'Dent', phone: '03001234567' }).expect(201);
+  // A unique phone per student: isSelfReferral() matches on phone, and every student sharing the
+  // same literal number would make any two test-created students look like the same person.
+  const phone = opts.phone ?? `03${Math.floor(100_000_000 + Math.random() * 899_999_999)}`;
+  await http(app).post('/auth/register').send({ email, password: PASSWORD, firstName: 'Stu', lastName: 'Dent', phone }).expect(201);
   const user = await prisma.user.findUniqueOrThrow({ where: { email }, include: { student: true } });
   const token = `verify-${user.id}-abcdefghijklmnop`;
   await prisma.emailVerificationToken.create({ data: { userId: user.id, tokenHash: sha256(token), expiresAt: new Date(Date.now() + 3600_000) } });

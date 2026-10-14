@@ -1,7 +1,7 @@
 'use client';
 
-import { ModulePage } from '@/components/student';
+import { IeltsModulePage } from '@/components/student';
 
 export default function Page() {
-  return <ModulePage match="listening" title="Listening" blurb="Strategies, note completion, multiple choice and map questions, with timed practice tests." />;
+  return <IeltsModulePage moduleKey="LISTENING" title="Listening" blurb="Foundations, every question type, all four parts, and skill labs — with timed practice." />;
 }

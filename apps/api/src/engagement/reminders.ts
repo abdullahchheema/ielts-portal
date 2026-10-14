@@ -17,7 +17,7 @@ export interface SessionForReminder { id: string; topic: string; title: string |
 export function dueReminders(sessions: SessionForReminder[], offsets: readonly number[], now: Date) {
   const out: { sessionId: string; offsetMinutes: number; key: string; title: string; body: string }[] = [];
   for (const s of sessions) {
-    if (s.status === 'CANCELLED' || s.status === 'COMPLETED' || s.status === 'LIVE') continue;
+    if (s.status === 'CANCELLED' || s.status === 'COMPLETED' || s.status === 'IN_PROGRESS') continue;
     const minutesLeft = (s.startsAt.getTime() - now.getTime()) / 60_000;
     if (minutesLeft <= 0) continue;
     for (const offset of offsets) {

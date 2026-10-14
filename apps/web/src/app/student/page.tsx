@@ -13,11 +13,10 @@ import { api } from '@/lib/api';
 import { band, date } from '@/lib/format';
 
 interface Dashboard {
-  profile: { firstName: string; currentBand: string | null; targetBand: string | null; ieltsExamDate: string | null; ielts?: IeltsSummaryLike };
+  profile: { firstName: string; currentBand: string | null; targetBand: string | null; ieltsExamDate: string | null; academicOrGeneral: string | null; ielts?: IeltsSummaryLike };
   overallProgressPercent: number;
   courses: { enrollmentId: string; status: string; progressPercent: string; skills: Record<'listening' | 'reading' | 'writing' | 'speaking', number | null> }[];
 }
-
 const SKILLS = ['listening', 'reading', 'writing', 'speaking'] as const;
 
 export default function DashboardPage() {
@@ -46,6 +45,12 @@ export default function DashboardPage() {
       <FeedbackPrompt />
 
       {home.data && <HomeHero home={home.data} />}
+
+      {enrolled && !profile.academicOrGeneral && (
+        <Alert kind="info">
+          Choose your IELTS track so we can show you the right Reading and Writing content. <Link href="/student/profile" className="font-medium underline">Choose Academic or General Training</Link>
+        </Alert>
+      )}
 
       {enrolled && <Section title="Today"><TodaysPlan /></Section>}
 

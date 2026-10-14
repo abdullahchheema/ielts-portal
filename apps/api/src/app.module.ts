@@ -27,7 +27,6 @@ import { PaymentRiskModule } from './payment-risk/payment-risk.service';
 import { ReconciliationModule } from './reconciliation/reconciliation';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { MocksModule } from './mocks/mocks.service';
-import { CurriculumAssignmentsModule } from './curriculum/curriculum-assignments';
 import { Controller, Get, Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { EventEmitterModule } from '@nestjs/event-emitter';
@@ -57,6 +56,8 @@ import { LearningModule } from './learning/learning.module';
 import { NotificationsModule } from './notifications/notifications.service';
 import { SettingsModule } from './settings/settings.module';
 import { TeachersModule } from './teachers/teachers.module';
+import { CurriculumModule } from './curriculum/curriculum.service';
+import { TeacherCurriculumModule } from './curriculum/teacher-curriculum.service';
 
 @Controller('health')
 class HealthController {
@@ -71,9 +72,10 @@ class HealthController {
 
 @Module({
   imports: [
-    AnalyticsModule, AiModule, JobsModule, QuestionBankModule, WritingModule, SpeakingModule, MockExamsModule, SimulatorModule, InsightsModule, StudyPlanModule, VocabularyModule, GrammarModule, EngagementModule, RecordingsModule, LeaderboardModule, TeacherWorkspaceModule, NotesModule, SearchModule, CommandCenterModule, SupportAssistantModule, TutorModule, PaymentRiskModule, ReconciliationModule, StudentLifecycleModule, FeedbackModule, EnrollmentSurveyModule, ScopeModule, DailyActivityModule, MocksModule, CurriculumAssignmentsModule,
+    AnalyticsModule, AiModule, JobsModule, QuestionBankModule, WritingModule, SpeakingModule, MockExamsModule, SimulatorModule, InsightsModule, StudyPlanModule, VocabularyModule, GrammarModule, EngagementModule, RecordingsModule, LeaderboardModule, TeacherWorkspaceModule, NotesModule, SearchModule, CommandCenterModule, SupportAssistantModule, TutorModule, PaymentRiskModule, ReconciliationModule, StudentLifecycleModule, FeedbackModule, EnrollmentSurveyModule, ScopeModule, DailyActivityModule, MocksModule,
     ConfigModule, PrismaModule, IntegrationsModule, AuditModule, EventEmitterModule.forRoot(), JwtModule.register({}),
     AuthModule, RolesModule, SettingsModule, NotificationsModule, CoursesModule, BatchesModule, CommerceModule, LearningModule, AssessmentsModule, GradingModule, LiveModule, SupportModule, ReportsModule, LifecycleModule, CertificatesModule, AdminModule, TeachersModule,
+    CurriculumModule, TeacherCurriculumModule,
   ],
   controllers: [HealthController],
   providers: [

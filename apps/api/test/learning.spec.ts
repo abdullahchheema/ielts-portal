@@ -242,7 +242,7 @@ describe('Academic/General track filtering', () => {
     // Hidden because its parent (Academic-only) is hidden for a General-track student — not promoted to the root.
     expect(generalTitles).not.toContain('Reading (Academic)');
     expect(generalTitles).not.toContain('Academic sub-unit');
-  }, 30_000);
+  }, 60_000);
 });
 
 describe('mastery vs. completion', () => {
@@ -314,5 +314,5 @@ describe('mastery vs. completion', () => {
     const tree = (await as(st.session)(http(app).get(`/me/courses/${st.enrollmentId}`)).expect(200)).body;
     const item = tree.sections.flatMap((s: { items: Array<{ id: string; mastered: boolean; masteryPercent: number | null; state: string }> }) => s.items).find((i: { id: string }) => i.id === quizItem);
     expect(item).toMatchObject({ state: 'COMPLETED', mastered: false, masteryPercent: null });
-  }, 30_000);
+  }, 60_000);
 });

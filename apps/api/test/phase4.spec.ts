@@ -80,7 +80,7 @@ describe('class lifecycle and cancellation', () => {
   it('a class can be started and ended by its teacher', async () => {
     const batchId = await createOpenBatch(app, admin);
     const session = await prisma.liveSession.create({ data: { batchId, topic: `Live ${uniq()}`, startsAt: new Date(), endsAt: new Date(Date.now() + 3_600_000) } });
-    expect((await post(admin, `/mentor/sessions/${session.id}/status`, { action: 'START' }).expect(200)).body.status).toBe('LIVE');
+    expect((await post(admin, `/mentor/sessions/${session.id}/status`, { action: 'START' }).expect(200)).body.status).toBe('IN_PROGRESS');
     expect((await post(admin, `/mentor/sessions/${session.id}/status`, { action: 'END' }).expect(200)).body.status).toBe('COMPLETED');
   });
 });
@@ -93,17 +93,17 @@ describe('class recordings', () => {
     const session = await pastSession(batchId, 1);
     const rec = (await post(admin, `/mentor/sessions/${session.id}/recordings`, { externalUrl: 'https://video.example.com/class-1', durationSec: 600 }).expect(201)).body;
 
-    const mine = (await get(member.session, '/me/recordings').expect(200)).body;
+    const mine = (await get(member.session, '/me/class-recordings').expect(200)).body;
     expect(mine.map((r: { id: string }) => r.id)).toContain(rec.id);
-    const play = (await post(member.session, `/me/recordings/${rec.id}/play`).expect(200)).body;
+    const play = (await post(member.session, `/me/class-recordings/${rec.id}/play`).expect(200)).body;
     expect(play.url).toBe('https://video.example.com/class-1');
 
-    await post(outsider.session, `/me/recordings/${rec.id}/play`).expect(404);
-    const theirs = (await get(outsider.session, '/me/recordings').expect(200)).body;
+    await post(outsider.session, `/me/class-recordings/${rec.id}/play`).expect(404);
+    const theirs = (await get(outsider.session, '/me/class-recordings').expect(200)).body;
     expect(theirs.map((r: { id: string }) => r.id)).not.toContain(rec.id);
 
-    await post(member.session, `/me/recordings/${rec.id}/progress`, { positionSec: 300 }).expect(200);
-    const back = (await post(member.session, `/me/recordings/${rec.id}/progress`, { positionSec: 100 }).expect(200)).body;
+    await post(member.session, `/me/class-recordings/${rec.id}/progress`, { positionSec: 300 }).expect(200);
+    const back = (await post(member.session, `/me/class-recordings/${rec.id}/progress`, { positionSec: 100 }).expect(200)).body;
     expect(back.positionSec).toBe(300);
   });
 

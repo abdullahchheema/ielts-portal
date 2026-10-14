@@ -29,6 +29,9 @@ export class AdminBatchesController {
   @RequirePermission('batch.view') @Get('batches/:id')
   get(@Param('id', uuid) id: string) { return this.batches.get(id); }
 
+  @RequirePermission('batch.analytics.view') @Get('batches/:id/analytics')
+  analytics(@Param('id', uuid) id: string) { return this.batches.analytics(id); }
+
   @RequirePermission('batch.create') @Post('batches')
   create(@Body(new ZodPipe(createBatchSchema)) body: CreateBatchInput, @CurrentUser() u: AuthUser, @Req() req: Request) {
     return this.batches.create(body, actor(u, req));

@@ -21,14 +21,14 @@ export default function AlumniRecordingsPage() {
   async function play(id: string) {
     setActionError(null);
     try {
-      const out = await api<{ url: string }>(`/me/recordings/${id}/play`, { method: 'POST' });
+      const out = await api<{ url: string }>(`/me/class-recordings/${id}/play`, { method: 'POST' });
       setPlaying({ id, url: out.url });
     } catch (e) { setActionError(errorMessage(e)); }
   }
 
   async function saveProgress(id: string, positionSec: number, completed = false) {
     try {
-      await api(`/me/recordings/${id}/progress`, { method: 'POST', body: { positionSec: Math.floor(positionSec), completed } });
+      await api(`/me/class-recordings/${id}/progress`, { method: 'POST', body: { positionSec: Math.floor(positionSec), completed } });
       await qc.invalidateQueries({ queryKey: ['alumni-home'] });
     } catch { /* progress is best-effort; playback keeps working */ }
   }

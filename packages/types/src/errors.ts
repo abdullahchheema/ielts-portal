@@ -69,6 +69,10 @@ export const ErrorCodes = {
   // ai
   AI_UNAVAILABLE: 'AI_UNAVAILABLE',
   AI_LIMIT_REACHED: 'AI_LIMIT_REACHED',
+  // curriculum, mocks, recordings
+  TRACK_REQUIRED: 'TRACK_REQUIRED',
+  RECORDING_INVALID_URL: 'RECORDING_INVALID_URL',
+  MEETING_INVALID_URL: 'MEETING_INVALID_URL',
 } as const;
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];

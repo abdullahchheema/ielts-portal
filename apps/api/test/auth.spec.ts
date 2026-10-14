@@ -20,7 +20,7 @@ const cookieValue = (res: request.Response, name: string) => {
 async function registerAndLogin(email = uniq()) {
   await request(app.getHttpServer())
     .post('/auth/register')
-    .send({ email, password, firstName: 'Test', lastName: 'User' })
+    .send({ email, password, firstName: 'Test', lastName: 'User', phone: '03001234567' })
     .expect(201);
   const user = await prisma.user.findUniqueOrThrow({ where: { email } });
   const token = 'verify-token-' + user.id + '-xxxxxxxxxxxx';
@@ -53,7 +53,7 @@ afterAll(async () => {
 describe('auth', () => {
   it('rejects a duplicate email with EMAIL_ALREADY_REGISTERED', async () => {
     const email = uniq();
-    const body = { email, password, firstName: 'A', lastName: 'B' };
+    const body = { email, password, firstName: 'A', lastName: 'B', phone: '03001234567' };
     await request(app.getHttpServer()).post('/auth/register').send(body).expect(201);
     const res = await request(app.getHttpServer()).post('/auth/register').send(body).expect(409);
     expect(res.body.error.code).toBe('EMAIL_ALREADY_REGISTERED');
@@ -71,7 +71,7 @@ describe('auth', () => {
 
   it('blocks login until email is verified', async () => {
     const email = uniq();
-    await request(app.getHttpServer()).post('/auth/register').send({ email, password, firstName: 'A', lastName: 'B' }).expect(201);
+    await request(app.getHttpServer()).post('/auth/register').send({ email, password, firstName: 'A', lastName: 'B', phone: '03001234567' }).expect(201);
     const res = await request(app.getHttpServer()).post('/auth/login').send({ email, password }).expect(403);
     expect(res.body.error.code).toBe('ACCOUNT_NOT_VERIFIED');
   });
