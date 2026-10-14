@@ -219,7 +219,7 @@ export class CoursesService {
       }
       const sequence = input.sequence ?? (await tx.courseSection.count({ where: { courseVersionId: versionId, parentSectionId: input.parentSectionId ?? null } }));
       const section = await tx.courseSection.create({
-        data: { courseVersionId: versionId, parentSectionId: input.parentSectionId ?? null, title: input.title, description: input.description, sequence },
+        data: { courseVersionId: versionId, parentSectionId: input.parentSectionId ?? null, title: input.title, description: input.description, sequence, module: input.module },
       });
       await this.audit.record({ ...actor, action: 'SECTION_CREATED', entityType: 'CourseSection', entityId: section.id, after: section }, tx);
       return section;
@@ -293,7 +293,8 @@ export class CoursesService {
           sectionId, title: input.title, contentType: input.contentType, sequence, isRequired: input.isRequired,
           estimatedMinutes: input.estimatedMinutes, releaseType: input.releaseType,
           releaseValue: (input.releaseValue ?? undefined) as Prisma.InputJsonValue | undefined,
-          status: input.status, metadataJson: (input.metadata ?? undefined) as Prisma.InputJsonValue | undefined,
+          status: input.status, metadataJson: (input.metadata ?? undefined) as Prisma.InputJsonValue | undefined, module: input.module,
+          masteryPercent: input.masteryPercent,
         },
       });
       await this.audit.record({ ...actor, action: 'CONTENT_ITEM_CREATED', entityType: 'ContentItem', entityId: item.id, after: item }, tx);

@@ -24,11 +24,15 @@ export const updateCourseSchema = createCourseSchema.partial().extend({
   status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional(),
 });
 
+/** Academic/General Training track, same values as QuestionSet.module. BOTH is visible to every student. */
+export const COURSE_MODULES = ['ACADEMIC', 'GENERAL', 'BOTH'] as const;
+
 export const createSectionSchema = z.object({
   parentSectionId: z.string().uuid().nullable().optional(),
   title: z.string().trim().min(1).max(160),
   description: z.string().max(2000).optional(),
   sequence: z.number().int().min(0).optional(),
+  module: z.enum(COURSE_MODULES).default('BOTH'),
 });
 export const updateSectionSchema = createSectionSchema.partial().extend({
   status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional(),
@@ -53,6 +57,9 @@ export const createItemSchema = z.object({
   releaseValue: releaseValueSchema.optional(),
   status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).default('PUBLISHED'),
   metadata: z.record(z.unknown()).optional(),
+  module: z.enum(COURSE_MODULES).default('BOTH'),
+  /** Score needed on this item's own linked assessment to count as Mastered rather than just Completed. Unset = no mastery tier. */
+  masteryPercent: z.number().int().min(1).max(100).optional(),
 });
 export const updateItemSchema = createItemSchema.partial();
 

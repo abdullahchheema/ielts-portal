@@ -149,6 +149,10 @@ describe('mock composer and full simulator', () => {
 
     const batchId = await createOpenBatch(app, admin);
     const st = await enrollStudent(app, prisma, admin, batchId);
+    // Mock-test access control (spec): the academy opens the mocks for the whole batch.
+    for (const m of [listening, reading]) {
+      await post(admin, `/mentor/assessments/${m.assessmentId}/mock-activations`, { batchId, availableFrom: new Date(Date.now() - 1000).toISOString() }).expect(201);
+    }
     const available = (await get(st.session, '/simulator/available').expect(200)).body;
     expect(available.listening.map((x: { id: string }) => x.id)).toContain(listening.assessmentId);
     expect(available.reading.map((x: { id: string }) => x.id)).toContain(reading.assessmentId);

@@ -27,7 +27,7 @@ export const loginAdmin = (app: NestExpressApplication) => login(app, 'admin@tes
 /** Registers a student, force-verifies the email, logs in. */
 export async function createStudent(app: NestExpressApplication, prisma: PrismaClient, opts: { email?: string } = {}) {
   const email = opts.email ?? `stu-${uniq()}@test.local`;
-  await http(app).post('/auth/register').send({ email, password: PASSWORD, firstName: 'Stu', lastName: 'Dent' }).expect(201);
+  await http(app).post('/auth/register').send({ email, password: PASSWORD, firstName: 'Stu', lastName: 'Dent', phone: '03001234567' }).expect(201);
   const user = await prisma.user.findUniqueOrThrow({ where: { email }, include: { student: true } });
   const token = `verify-${user.id}-abcdefghijklmnop`;
   await prisma.emailVerificationToken.create({ data: { userId: user.id, tokenHash: sha256(token), expiresAt: new Date(Date.now() + 3600_000) } });

@@ -24,10 +24,11 @@ export const progressBodySchema = z.object({
 export type ProgressBody = z.infer<typeof progressBodySchema>;
 
 export interface SectionNode {
-  id: string; title: string; description: string | null; sequence: number; parentSectionId: string | null;
+  id: string; title: string; description: string | null; sequence: number; parentSectionId: string | null; module: string;
   items: Array<{
-    id: string; title: string; contentType: ContentType; isRequired: boolean; estimatedMinutes: number | null;
+    id: string; title: string; contentType: ContentType; isRequired: boolean; estimatedMinutes: number | null; module: string;
     state: ItemState; progressPercent: number; lock?: Omit<Extract<ReleaseState, { unlocked: false }>, 'unlocked'>;
+    masteryPercent: number | null; mastered: boolean; masteredAt: Date | null;
   }>;
   children: SectionNode[];
   totals: { required: number; completedRequired: number };
@@ -77,12 +78,21 @@ export class LearningService {
     const state = await this.courseState(enrollment);
     return {
       enrollment: { id: enrollment.id, status: enrollment.status, progressPercent: enrollment.progressPercent, accessEndsAt: enrollment.accessEndsAt },
-      course: enrollment.course, batch: enrollment.batch, sections: state.tree,
+      course: enrollment.course, batch: enrollment.batch, sections: state.tree, track: state.track,
     };
   }
 
-  /** Builds the section/item tree with per-item lock state and progress for one enrollment. */
+  /**
+   * Builds the section/item tree with per-item lock state and progress for one enrollment.
+   * Track filtering (spec: Academic/General Training separation): BOTH is always visible; a
+   * student who has chosen a track sees only BOTH + their track; a student who has not chosen
+   * yet sees everything, so the frontend can prompt them to choose rather than hiding content.
+   */
   private async courseState(enrollment: Pick<Enrollment, 'id' | 'courseVersionId' | 'studentId'> & { batch: { startAt: Date } }) {
+    const student = await this.prisma.studentProfile.findUnique({ where: { id: enrollment.studentId }, select: { academicOrGeneral: true } });
+    const track = student?.academicOrGeneral ?? null;
+    const visible = (m: string) => !track || m === 'BOTH' || m === track;
+
     const [sections, progressRows] = await Promise.all([
       this.prisma.courseSection.findMany({
         where: { courseVersionId: enrollment.courseVersionId, status: 'PUBLISHED' },
@@ -100,8 +110,8 @@ export class LearningService {
     const nodes = new Map<string, SectionNode>();
     for (const s of sections) {
       nodes.set(s.id, {
-        id: s.id, title: s.title, description: s.description, sequence: s.sequence, parentSectionId: s.parentSectionId,
-        items: s.items.map((i) => {
+        id: s.id, title: s.title, description: s.description, sequence: s.sequence, parentSectionId: s.parentSectionId, module: s.module,
+        items: s.items.filter((i) => visible(i.module)).map((i) => {
           const release = evaluateRelease({ releaseType: i.releaseType, releaseValue: i.releaseValue }, {
             now, batchStartAt: enrollment.batch.startAt, completedItemIds: completed, publishedItemIds: published, bestScorePercentByItemId: bestScores,
           });
@@ -111,17 +121,24 @@ export class LearningService {
           const state: ItemState = done ? 'COMPLETED' : !release.unlocked ? 'LOCKED' : p?.status === 'IN_PROGRESS' ? 'IN_PROGRESS' : 'NOT_STARTED';
           const lock = !release.unlocked && !done ? { code: release.code, reason: release.reason, availableAt: release.availableAt, requiredItemId: release.requiredItemId } : undefined;
           return {
-            id: i.id, title: i.title, contentType: i.contentType, isRequired: i.isRequired, estimatedMinutes: i.estimatedMinutes,
+            id: i.id, title: i.title, contentType: i.contentType, isRequired: i.isRequired, estimatedMinutes: i.estimatedMinutes, module: i.module,
             state, progressPercent: p?.progressPercent ?? 0, lock,
+            masteryPercent: i.masteryPercent, mastered: !!p?.masteredAt, masteredAt: p?.masteredAt ?? null,
           };
         }),
         children: [], totals: { required: 0, completedRequired: 0 },
       });
     }
+    // A section whose own module doesn't match the student's track is dropped, taking its whole
+    // subtree with it: filtered after the tree is built (not in the query), and a node is only
+    // linked under a visible parent, so a hidden ancestor makes everything below it unreachable
+    // from `roots` too, rather than promoting an otherwise-visible child to the top level.
     const roots: SectionNode[] = [];
     for (const n of nodes.values()) {
-      const parent = n.parentSectionId ? nodes.get(n.parentSectionId) : undefined;
-      (parent ? parent.children : roots).push(n);
+      if (!visible(n.module)) continue;
+      if (n.parentSectionId === null) { roots.push(n); continue; }
+      const parent = nodes.get(n.parentSectionId);
+      if (parent && visible(parent.module)) parent.children.push(n);
     }
     const sum = (n: SectionNode) => {
       let required = n.items.filter((i) => i.isRequired).length;
@@ -131,7 +148,7 @@ export class LearningService {
       return n.totals;
     };
     roots.forEach(sum);
-    return { tree: roots, published };
+    return { tree: roots, published, track };
   }
 
   // ───────── single item ─────────
@@ -188,13 +205,29 @@ export class LearningService {
     return out;
   }
 
-  /** Marks an item completed as a side effect of something else (a passed assessment) and refreshes course progress. */
+  /**
+   * Marks an item completed as a side effect of something else (a passed assessment) and refreshes
+   * course progress. Mastery (spec: never from completion alone) layers on top: an item only gains
+   * `masteredAt` when it carries its own `masteryPercent` threshold and the student's best score on
+   * its linked assessment clears it — set once and never cleared by a later lower score.
+   */
   async markCompletedBySystem(studentId: string, enrollmentId: string, itemId: string) {
     const now = new Date();
+    const item = await this.prisma.contentItem.findUnique({ where: { id: itemId }, select: { masteryPercent: true, metadataJson: true } });
+    let masteredAt: Date | undefined;
+    if (item?.masteryPercent != null) {
+      const best = (await this.bestScores(studentId, [{ id: itemId, metadataJson: item.metadataJson }])).get(itemId);
+      if (best !== undefined && best >= item.masteryPercent) {
+        const existing = await this.prisma.contentProgress.findUnique({
+          where: { studentId_enrollmentId_contentItemId: { studentId, enrollmentId, contentItemId: itemId } }, select: { masteredAt: true },
+        });
+        masteredAt = existing?.masteredAt ?? now;
+      }
+    }
     await this.prisma.contentProgress.upsert({
       where: { studentId_enrollmentId_contentItemId: { studentId, enrollmentId, contentItemId: itemId } },
-      create: { studentId, enrollmentId, contentItemId: itemId, status: 'COMPLETED', progressPercent: 100, startedAt: now, completedAt: now },
-      update: { status: 'COMPLETED', progressPercent: 100, completedAt: now },
+      create: { studentId, enrollmentId, contentItemId: itemId, status: 'COMPLETED', progressPercent: 100, startedAt: now, completedAt: now, masteredAt },
+      update: { status: 'COMPLETED', progressPercent: 100, completedAt: now, ...(masteredAt ? { masteredAt } : {}) },
     });
     return this.recalculateEnrollment(enrollmentId, studentId);
   }

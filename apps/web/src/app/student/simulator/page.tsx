@@ -4,13 +4,60 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Alert, Badge, Button, Card, Checkbox, Empty, Field, Loading, PageHeader, Section, Select, Table, Td } from '@/components/ui';
+import { Alert, Badge, Button, Card, Checkbox, Empty, Field, Loading, PageHeader, Section, Select, Table, Td, Textarea } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { date } from '@/lib/format';
 
-interface Mock { id: string; title: string; timeLimitMin: number | null }
+type AccessStatus = 'ACTIVATED' | 'APPROVED' | 'EXPIRED' | 'PENDING' | 'DECLINED' | 'NONE';
+interface Access { canAttempt: boolean; status: AccessStatus; availableFrom: string | null; availableUntil: string | null; instructions: string | null; requestId: string | null; decisionNote: string | null }
+interface Mock { id: string; title: string; timeLimitMin: number | null; access: Access }
 interface Exam { id: string; status: string; stage: string; overallEstimate: string | null; missingSkills: string[]; createdAt: string; completedAt: string | null }
+
+const STATUS_TONE: Record<AccessStatus, 'green' | 'amber' | 'red' | 'slate'> = {
+  ACTIVATED: 'green', APPROVED: 'green', EXPIRED: 'slate', PENDING: 'amber', DECLINED: 'red', NONE: 'slate',
+};
+const STATUS_LABEL: Record<AccessStatus, string> = {
+  ACTIVATED: 'Open for your batch', APPROVED: 'Access approved', EXPIRED: 'Approval window ended',
+  PENDING: 'Request pending', DECLINED: 'Request declined', NONE: 'Not requested',
+};
+
+function RequestRow({ m }: { m: Mock }) {
+  const qc = useQueryClient();
+  const [reason, setReason] = useState('');
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function request() {
+    setBusy(true); setError(null);
+    try {
+      await api(`/assessments/${m.id}/mock-access-requests`, { method: 'POST', body: { reason: reason.trim() || undefined } });
+      await qc.invalidateQueries({ queryKey: ['sim-available'] });
+    } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="flex flex-col gap-1 rounded-lg border border-border p-3 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="font-medium text-fg">{m.title}{m.timeLimitMin ? ` · ${m.timeLimitMin} min` : ''}</span>
+        <Badge status={m.access.status} text={STATUS_LABEL[m.access.status]} tone={STATUS_TONE[m.access.status]} />
+      </div>
+      {m.access.status === 'DECLINED' && m.access.decisionNote && <p className="text-fg-subtle">Declined: {m.access.decisionNote}</p>}
+      {m.access.status === 'PENDING' ? (
+        <p className="text-fg-subtle">Waiting for a teacher or admin to review your request.</p>
+      ) : !m.access.canAttempt && (
+        open ? (
+          <div className="mt-1 flex flex-col gap-2">
+            <Textarea rows={2} placeholder="Optional note for your reviewer" value={reason} onChange={(e) => setReason(e.target.value)} />
+            {error && <Alert>{error}</Alert>}
+            <div className="flex gap-2"><Button size="sm" busy={busy} onClick={request}>Send request</Button><Button size="sm" variant="secondary" onClick={() => setOpen(false)}>Cancel</Button></div>
+          </div>
+        ) : <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>Request access</Button>
+      )}
+    </div>
+  );
+}
 
 /** Full IELTS simulator: listening and reading from the library, then writing and speaking. */
 export default function SimulatorPage() {
@@ -34,6 +81,8 @@ export default function SimulatorPage() {
   }
 
   const noMocks = available.data && available.data.listening.length === 0 && available.data.reading.length === 0;
+  const listeningReady = available.data?.listening.filter((m) => m.access.canAttempt) ?? [];
+  const readingReady = available.data?.reading.filter((m) => m.access.canAttempt) ?? [];
 
   return (
     <>
@@ -44,24 +93,41 @@ export default function SimulatorPage() {
       {noMocks && <Empty title="No mock tests are open yet">Your academy will open a listening and a reading mock here when they are ready.</Empty>}
 
       {available.data && !noMocks && (
+        <div className="mb-8 grid gap-4 md:grid-cols-2">
+          <Section title="Listening mocks">
+            <div className="space-y-2">{available.data.listening.map((m) => <RequestRow key={m.id} m={m} />)}</div>
+          </Section>
+          <Section title="Reading mocks">
+            <div className="space-y-2">{available.data.reading.map((m) => <RequestRow key={m.id} m={m} />)}</div>
+          </Section>
+        </div>
+      )}
+
+      {available.data && !noMocks && (listeningReady.length === 0 || readingReady.length === 0) && (
+        <Alert kind="info">You need access to at least one listening mock and one reading mock before you can start the simulator.</Alert>
+      )}
+
+      {available.data && listeningReady.length > 0 && readingReady.length > 0 && (
         <Card className="mb-8 max-w-2xl space-y-4">
           <h2 className="font-semibold text-fg">Start a simulator</h2>
-          <Field label="Listening mock">
-            {(p) => (
-              <Select {...p} value={listening} onChange={(e) => setListening(e.target.value)}>
-                <option value="">Choose a listening mock</option>
-                {available.data.listening.map((m) => <option key={m.id} value={m.id}>{m.title}{m.timeLimitMin ? ` · ${m.timeLimitMin} min` : ''}</option>)}
-              </Select>
-            )}
-          </Field>
-          <Field label="Reading mock">
-            {(p) => (
-              <Select {...p} value={reading} onChange={(e) => setReading(e.target.value)}>
-                <option value="">Choose a reading mock</option>
-                {available.data.reading.map((m) => <option key={m.id} value={m.id}>{m.title}{m.timeLimitMin ? ` · ${m.timeLimitMin} min` : ''}</option>)}
-              </Select>
-            )}
-          </Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Listening mock">
+              {(p) => (
+                <Select {...p} value={listening} onChange={(e) => setListening(e.target.value)}>
+                  <option value="">Choose a listening mock</option>
+                  {listeningReady.map((m) => <option key={m.id} value={m.id}>{m.title}{m.timeLimitMin ? ` · ${m.timeLimitMin} min` : ''}</option>)}
+                </Select>
+              )}
+            </Field>
+            <Field label="Reading mock">
+              {(p) => (
+                <Select {...p} value={reading} onChange={(e) => setReading(e.target.value)}>
+                  <option value="">Choose a reading mock</option>
+                  {readingReady.map((m) => <option key={m.id} value={m.id}>{m.title}{m.timeLimitMin ? ` · ${m.timeLimitMin} min` : ''}</option>)}
+                </Select>
+              )}
+            </Field>
+          </div>
           <Checkbox label="Include the speaking section" checked={includeSpeaking} onChange={(e) => setIncludeSpeaking(e.target.checked)} />
           <div className="flex justify-end">
             <Button onClick={start} busy={busy} disabled={!listening || !reading}>Start simulator</Button>

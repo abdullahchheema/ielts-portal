@@ -12,8 +12,8 @@ import { band, date, label, money } from '@/lib/format';
 
 interface Version { id: string; versionNumber: number; status: string; publishedAt: string | null }
 interface CourseDetail { id: string; title: string; code: string; slug: string; status: string; price: string; currency: string; description: string | null; durationWeeks: number | null; defaultAccessDays: number; versions: Version[] }
-interface Item { id: string; title: string; contentType: string; isRequired: boolean; releaseType: string; releaseValue: { date?: string; days?: number; requiredItemId?: string; minScorePercent?: number } | null; metadataJson: { body?: string; url?: string; fileName?: string; assessmentId?: string } | null; estimatedMinutes: number | null }
-interface Section { id: string; courseVersionId: string; title: string; items: Item[]; children: Section[] }
+interface Item { id: string; title: string; contentType: string; isRequired: boolean; releaseType: string; releaseValue: { date?: string; days?: number; requiredItemId?: string; minScorePercent?: number } | null; metadataJson: { body?: string; url?: string; fileName?: string; assessmentId?: string } | null; estimatedMinutes: number | null; module: string; masteryPercent: number | null }
+interface Section { id: string; courseVersionId: string; title: string; module: string; items: Item[]; children: Section[] }
 interface Tree { id: string; status: string; sections: Section[] }
 
 const TYPES = ['TEXT', 'VIDEO', 'PDF', 'AUDIO', 'QUIZ', 'ASSIGNMENT', 'LISTENING_TEST', 'READING_TEST', 'WRITING_TASK', 'SPEAKING_TASK', 'LIVE_SESSION', 'EXTERNAL_LINK', 'DOWNLOAD', 'MOCK_TEST'];
@@ -25,18 +25,24 @@ interface AssessmentRow { id: string; title: string; type: string; versions: { p
 const allItems = (sections: Section[]): Item[] => sections.flatMap((s) => [...s.items, ...allItems(s.children)]);
 
 // ───────── dialogs ─────────
+const COURSE_MODULES = [{ v: 'BOTH', label: 'Both tracks' }, { v: 'ACADEMIC', label: 'Academic only' }, { v: 'GENERAL', label: 'General Training only' }];
+
 function SectionDialog({ open, onClose, versionId, parentId, onSaved }: { open: boolean; onClose: () => void; versionId: string; parentId: string | null; onSaved: () => void }) {
   const [title, setTitle] = useState('');
+  const [courseModule, setCourseModule] = useState('BOTH');
   const [error, setError] = useState<string | null>(null);
   const m = useMutation({
-    mutationFn: () => api(`/admin/course-versions/${versionId}/sections`, { method: 'POST', body: { title, parentSectionId: parentId } }),
-    onSuccess: () => { setTitle(''); onSaved(); onClose(); }, onError: (e) => setError(errorMessage(e)),
+    mutationFn: () => api(`/admin/course-versions/${versionId}/sections`, { method: 'POST', body: { title, parentSectionId: parentId, module: courseModule } }),
+    onSuccess: () => { setTitle(''); setCourseModule('BOTH'); onSaved(); onClose(); }, onError: (e) => setError(errorMessage(e)),
   });
   return (
     <Dialog open={open} onClose={onClose} title={parentId ? 'New subsection' : 'New section'}>
       <div className="space-y-4">
         {error && <Alert>{error}</Alert>}
         <Field label="Title">{(p) => <Input {...p} value={title} onChange={(e) => setTitle(e.target.value)} />}</Field>
+        <Field label="Track" hint="Use Academic/General only when authoring separate Reading or Writing content for each track.">
+          {(p) => <Select {...p} value={courseModule} onChange={(e) => setCourseModule(e.target.value)}>{COURSE_MODULES.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}</Select>}
+        </Field>
         <div className="flex justify-end gap-2"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button busy={m.isPending} disabled={!title.trim()} onClick={() => m.mutate()}>Add</Button></div>
       </div>
     </Dialog>
@@ -44,7 +50,7 @@ function SectionDialog({ open, onClose, versionId, parentId, onSaved }: { open: 
 }
 
 function ItemDialog({ open, onClose, sectionId, item, siblings, onSaved }: { open: boolean; onClose: () => void; sectionId: string; item: Item | null; siblings: Item[]; onSaved: () => void }) {
-  const [f, setF] = useState({ title: '', contentType: 'TEXT', isRequired: true, estimatedMinutes: '', releaseType: 'IMMEDIATE', date: '', days: '', requiredItemId: '', minScore: '70', body: '', url: '', assessmentId: '' });
+  const [f, setF] = useState({ title: '', contentType: 'TEXT', isRequired: true, estimatedMinutes: '', releaseType: 'IMMEDIATE', date: '', days: '', requiredItemId: '', minScore: '70', body: '', url: '', assessmentId: '', module: 'BOTH', masteryPercent: '' });
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     if (!open) return;
@@ -53,7 +59,8 @@ function ItemDialog({ open, onClose, sectionId, item, siblings, onSaved }: { ope
       title: item.title, contentType: item.contentType, isRequired: item.isRequired, estimatedMinutes: item.estimatedMinutes?.toString() ?? '',
       releaseType: item.releaseType, date: item.releaseValue?.date?.slice(0, 16) ?? '', days: item.releaseValue?.days?.toString() ?? '',
       requiredItemId: item.releaseValue?.requiredItemId ?? '', minScore: item.releaseValue?.minScorePercent?.toString() ?? '70', body: item.metadataJson?.body ?? '', url: item.metadataJson?.url ?? '', assessmentId: item.metadataJson?.assessmentId ?? '',
-    } : { title: '', contentType: 'TEXT', isRequired: true, estimatedMinutes: '', releaseType: 'IMMEDIATE', date: '', days: '', requiredItemId: '', minScore: '70', body: '', url: '', assessmentId: '' });
+      module: item.module, masteryPercent: item.masteryPercent?.toString() ?? '',
+    } : { title: '', contentType: 'TEXT', isRequired: true, estimatedMinutes: '', releaseType: 'IMMEDIATE', date: '', days: '', requiredItemId: '', minScore: '70', body: '', url: '', assessmentId: '', module: 'BOTH', masteryPercent: '' });
   }, [open, item]);
 
   const m = useMutation({
@@ -64,7 +71,10 @@ function ItemDialog({ open, onClose, sectionId, item, siblings, onSaved }: { ope
         : f.releaseType === 'SCORE_BASED' ? { requiredItemId: f.requiredItemId, minScorePercent: Number(f.minScore) }
         : undefined;
       const metadata = { ...(item?.metadataJson ?? {}), ...(f.contentType === 'TEXT' ? { body: f.body } : {}), ...(['VIDEO', 'EXTERNAL_LINK'].includes(f.contentType) ? { url: f.url } : {}), ...(ASSESSMENT_TYPES.includes(f.contentType) && f.assessmentId ? { assessmentId: f.assessmentId } : {}) };
-      const body = { title: f.title, contentType: f.contentType, isRequired: f.isRequired, estimatedMinutes: f.estimatedMinutes ? Number(f.estimatedMinutes) : undefined, releaseType: f.releaseType, releaseValue, metadata };
+      const body = {
+        title: f.title, contentType: f.contentType, isRequired: f.isRequired, estimatedMinutes: f.estimatedMinutes ? Number(f.estimatedMinutes) : undefined, releaseType: f.releaseType, releaseValue, metadata,
+        module: f.module, masteryPercent: ASSESSMENT_TYPES.includes(f.contentType) && f.masteryPercent ? Number(f.masteryPercent) : undefined,
+      };
       return item ? api(`/admin/items/${item.id}`, { method: 'PATCH', body }) : api(`/admin/sections/${sectionId}/items`, { method: 'POST', body });
     },
     onSuccess: () => { onSaved(); onClose(); }, onError: (e) => setError(errorMessage(e)),
@@ -84,6 +94,14 @@ function ItemDialog({ open, onClose, sectionId, item, siblings, onSaved }: { ope
         {f.contentType === 'TEXT' && <Field label="Text">{(p) => <Textarea {...p} rows={5} value={f.body} onChange={(e) => set('body', e.target.value)} />}</Field>}
         {['VIDEO', 'EXTERNAL_LINK'].includes(f.contentType) && <Field label="URL" hint="Direct .mp4 links play inline; other links open in a new tab.">{(p) => <Input {...p} type="url" value={f.url} onChange={(e) => set('url', e.target.value)} />}</Field>}
         {ASSESSMENT_TYPES.includes(f.contentType) && <Field label="Assessment" hint="Build it under Academics → Assessments. Only published assessments can be taken.">{(p) => <Select {...p} value={f.assessmentId} onChange={(e) => set('assessmentId', e.target.value)}><option value="">Select…</option>{assessments.data?.map((a) => <option key={a.id} value={a.id}>{a.title} ({label(a.type)}){a.versions.some((v) => v.publishedAt) ? '' : ' — draft'}</option>)}</Select>}</Field>}
+        {ASSESSMENT_TYPES.includes(f.contentType) && (
+          <Field label="Mastery threshold" hint="Leave blank for an ordinary item (Completed only). Set a score to require it on this assessment before the item counts as Mastered.">
+            {(p) => <Input {...p} type="number" min={1} max={100} placeholder="e.g. 80" value={f.masteryPercent} onChange={(e) => set('masteryPercent', e.target.value)} />}
+          </Field>
+        )}
+        <Field label="Track" hint="Use Academic/General only for content specific to one track.">
+          {(p) => <Select {...p} value={f.module} onChange={(e) => set('module', e.target.value)}>{COURSE_MODULES.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}</Select>}
+        </Field>
         <Checkbox checked={f.isRequired} onChange={(e) => set('isRequired', e.target.checked)} label="Required for course completion" />
         <div className="grid grid-cols-2 gap-3">
           <Field label="Release">{(p) => <Select {...p} value={f.releaseType} onChange={(e) => set('releaseType', e.target.value)}>{RELEASES.map((r) => <option key={r} value={r}>{label(r)}</option>)}</Select>}</Field>
@@ -156,7 +174,10 @@ function SectionNode({ s, siblings, all, editable, actions }: {
   return (
     <li className="rounded-lg border border-border bg-surface p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="font-semibold text-fg">{s.title}</h3>
+        <h3 className="flex items-center gap-2 font-semibold text-fg">
+          {s.title}
+          {s.module !== 'BOTH' && <Badge status={s.module} text={s.module === 'ACADEMIC' ? 'Academic' : 'General Training'} tone="blue" />}
+        </h3>
         {editable && (
           <div className="flex flex-wrap gap-1 text-xs">
             <Button variant="ghost" size="xs" disabled={idx === 0} aria-label={`Move ${s.title} up`} onClick={() => move(siblings, s.id, -1, `/admin/course-versions/${s.courseVersionId}/sections/reorder`)}>↑</Button>
@@ -173,7 +194,7 @@ function SectionNode({ s, siblings, all, editable, actions }: {
           {s.items.map((i, n) => (
             <li key={i.id} className="flex flex-wrap items-center justify-between gap-2 py-1.5">
               <span>
-                {i.title} <span className="text-xs text-fg-muted">· {label(i.contentType)}{i.isRequired ? '' : ' · optional'}{i.releaseType !== 'IMMEDIATE' ? ` · ${label(i.releaseType)}` : ''}{i.metadataJson?.fileName ? ` · 📎 ${i.metadataJson.fileName}` : ''}</span>
+                {i.title} <span className="text-xs text-fg-muted">· {label(i.contentType)}{i.isRequired ? '' : ' · optional'}{i.releaseType !== 'IMMEDIATE' ? ` · ${label(i.releaseType)}` : ''}{i.metadataJson?.fileName ? ` · 📎 ${i.metadataJson.fileName}` : ''}{i.masteryPercent ? ` · mastery ≥${i.masteryPercent}%` : ''}{i.module !== 'BOTH' ? ` · ${i.module === 'ACADEMIC' ? 'Academic' : 'General'}` : ''}</span>
               </span>
               {editable && (
                 <span className="flex flex-wrap items-center gap-1 text-xs">

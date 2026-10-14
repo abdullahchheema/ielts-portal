@@ -14,12 +14,14 @@ type State = 'LOCKED' | 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
 interface Item {
   id: string; title: string; contentType: string; isRequired: boolean; estimatedMinutes: number | null; state: State;
   lock?: { code: string; reason: string; availableAt?: string };
+  masteryPercent: number | null; mastered: boolean;
 }
 interface Section { id: string; title: string; items: Item[]; children: Section[]; totals: { required: number; completedRequired: number } }
 interface Course {
   enrollment: { id: string; progressPercent: string };
   course: { title: string };
   sections: Section[];
+  track: 'ACADEMIC' | 'GENERAL' | null;
 }
 interface Content {
   id: string; title: string; contentType: string;
@@ -53,8 +55,12 @@ function Tree({ sections, activeId, onSelect, depth = 0 }: { sections: Section[]
                   aria-current={activeId === i.id ? 'true' : undefined}
                   className={`flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-sm ${activeId === i.id ? 'bg-primary-soft text-primary-hover' : i.state === 'LOCKED' ? 'text-fg-subtle hover:bg-canvas' : 'text-fg hover:bg-surface-muted'}`}
                 >
-                  <span aria-hidden className={i.state === 'COMPLETED' ? 'text-success' : ''}>{ICON[i.state]}</span>
-                  <span className="flex-1">{i.title}<span className="sr-only"> ({i.state.toLowerCase().replace('_', ' ')})</span></span>
+                  <span aria-hidden className={i.state === 'COMPLETED' ? 'text-success' : ''}>{i.mastered ? '★' : ICON[i.state]}</span>
+                  <span className="flex-1">
+                    {i.title}
+                    {i.mastered && <span className="ml-1.5 text-xs font-medium text-success">Mastered</span>}
+                    <span className="sr-only"> ({i.mastered ? 'mastered' : i.state.toLowerCase().replace('_', ' ')})</span>
+                  </span>
                 </button>
               </li>
             ))}
@@ -133,6 +139,11 @@ function Viewer({ item, enrollmentId, next, onNext }: { item: Item; enrollmentId
 
       {c.contentType === 'EXTERNAL_LINK' && c.content.url && <a href={c.content.url} target="_blank" rel="noopener noreferrer" className="text-primary underline">Open resource ↗</a>}
 
+      {item.masteryPercent && (
+        <div className="mt-2">
+          <Alert kind="info">{item.mastered ? `Mastered — you scored at or above the ${item.masteryPercent}% threshold on this assessment.` : `Score ${item.masteryPercent}% or higher on this assessment to master this unit. Completing it without reaching that score keeps it at Completed.`}</Alert>
+        </div>
+      )}
       {c.assessment && <div className="mt-2"><AssessmentCard a={c.assessment} /></div>}
       {c.assignment && <div className="mt-2"><AssignmentPanel a={c.assignment} itemId={item.id} /></div>}
       {!canComplete && !c.assessment && !c.assignment && <div className="mt-2"><Alert kind="info">Your teacher has not attached the {label(c.contentType).toLowerCase()} to this item yet.</Alert></div>}
@@ -145,6 +156,26 @@ function Viewer({ item, enrollmentId, next, onNext }: { item: Item; enrollmentId
         {complete.isError && <span className="text-sm text-danger">{errorMessage(complete.error)}</span>}
       </div>
     </Card>
+  );
+}
+
+/** Reading/Writing show both Academic and General Training content until the student picks one (spec). */
+function TrackPrompt({ enrollmentId }: { enrollmentId: string }) {
+  const qc = useQueryClient();
+  const choose = useMutation({
+    mutationFn: (academicOrGeneral: 'ACADEMIC' | 'GENERAL') => api('/me/profile', { method: 'PATCH', body: { academicOrGeneral } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['course', enrollmentId] }),
+  });
+  return (
+    <Alert kind="info">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <span>You&apos;re seeing both Academic and General Training reading and writing content. Choose your track to see only what applies to you.</span>
+        <div className="flex gap-2">
+          <Button size="sm" busy={choose.isPending} onClick={() => choose.mutate('ACADEMIC')}>Academic</Button>
+          <Button size="sm" variant="secondary" busy={choose.isPending} onClick={() => choose.mutate('GENERAL')}>General Training</Button>
+        </div>
+      </div>
+    </Alert>
   );
 }
 
@@ -171,7 +202,8 @@ function LearnPage() {
         <div className="mb-4"><ProgressBar value={Number(data.enrollment.progressPercent)} label="Progress" /></div>
         <Tree sections={sections} activeId={active?.id ?? null} onSelect={(i) => setActiveId(i.id)} />
       </aside>
-      <section aria-live="polite">
+      <section aria-live="polite" className="space-y-4">
+        {!data.track && <TrackPrompt enrollmentId={enrollmentId} />}
         {active ? <Viewer key={active.id} item={active} enrollmentId={enrollmentId} next={next} onNext={(i) => setActiveId(i.id)} /> : <Alert kind="info">This course has no content yet.</Alert>}
       </section>
     </div>

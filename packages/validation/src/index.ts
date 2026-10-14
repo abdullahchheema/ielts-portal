@@ -89,6 +89,8 @@ export * from './question-bank';
 export * from './referrals';
 export * from './ai-practice';
 export * from './survey';
+export * from './mock-access';
+export * from './curriculum-assignments';
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;

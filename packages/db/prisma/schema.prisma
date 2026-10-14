@@ -278,6 +278,9 @@ model User {
   correctionsDecided    AttendanceCorrection[] @relation("CorrectionDecider")
   followUpAssigned      FollowUpTask[]         @relation("FollowUpAssignee")
   followUpCreated       FollowUpTask[]         @relation("FollowUpCreator")
+  mockRequestsReviewed  MockAccessRequest[]    @relation("MockRequestReviewer")
+  mockActivationsCreated MockActivation[]      @relation("MockActivationActivator")
+  curriculumAssignmentsMade CurriculumAssignment[] @relation("CurriculumAssigner")
   recordingsUploaded    ClassRecording[]       @relation("RecordingUploader")
   lifecycleTransitionsActed StudentLifecycleTransition[] @relation("LifecycleActor")
   dailyActivity             DailyActivitySummary[]        @relation("DailyActivityUser")
@@ -354,6 +357,8 @@ model StudentProfile {
   feedbackRequests FeedbackRequest[]
   feedbackResponses FeedbackResponse[]
   enrollmentSurvey EnrollmentSurvey?
+  mockAccessRequests MockAccessRequest[]
+  curriculumAssignments CurriculumAssignment[]
 
   @@map("student_profiles")
 }
@@ -686,6 +691,8 @@ model CourseSection {
   description     String?
   sequence        Int           @default(0)
   status          ContentStatus @default(PUBLISHED)
+  /** Academic/General Training track, same convention as QuestionSet.module. BOTH is visible to every student. */
+  module          String        @default("BOTH")
 
   version  CourseVersion   @relation(fields: [courseVersionId], references: [id])
   parent   CourseSection?  @relation("SectionTree", fields: [parentSectionId], references: [id])
@@ -709,10 +716,15 @@ model ContentItem {
   status           ContentStatus @default(PUBLISHED)
   metadataJson     Json?         @map("metadata_json")
   createdAt        DateTime      @default(now()) @map("created_at")
+  /** Academic/General Training track, same convention as QuestionSet.module. BOTH is visible to every student. */
+  module           String        @default("BOTH")
+  /** NULL = ordinary item (Completed is the only tier). Set to require this score on its own linked assessment before ContentProgress.masteredAt is set. */
+  masteryPercent   Int?          @map("mastery_percent")
 
   section     CourseSection     @relation(fields: [sectionId], references: [id])
   progress    ContentProgress[]
   assignment  Assignment?
+  curriculumAssignments CurriculumAssignment[]
 
   @@index([sectionId, sequence])
   @@map("content_items")
@@ -748,6 +760,9 @@ model Batch {
   healthSnapshot BatchHealthSnapshot?
   feedbackRequests FeedbackRequest[]
   feedbackResponses FeedbackResponse[]
+  mockAccessRequests MockAccessRequest[]
+  mockActivations    MockActivation[]
+  curriculumAssignments CurriculumAssignment[]
 
   @@map("batches")
 }
@@ -777,6 +792,8 @@ model ContentProgress {
   lastPosition     Int?           @map("last_position")
   startedAt        DateTime?      @map("started_at")
   completedAt      DateTime?      @map("completed_at")
+  /** Set once, the first time this item's mastery-check threshold is cleared. Never cleared by a later lower score. */
+  masteredAt       DateTime?      @map("mastered_at")
   updatedAt        DateTime       @updatedAt @map("updated_at")
 
   enrollment  Enrollment     @relation(fields: [enrollmentId], references: [id])
@@ -1031,6 +1048,8 @@ model Assessment {
   attempts      AssessmentAttempt[]
   simListeningExams ExamAttempt[] @relation("SimListening")
   simReadingExams   ExamAttempt[] @relation("SimReading")
+  mockAccessRequests MockAccessRequest[]
+  mockActivations    MockActivation[]
 
   @@map("assessments")
 }
@@ -1144,6 +1163,84 @@ model AssessmentAttempt {
   @@index([studentId, status])
   @@index([submittedAt])
   @@map("assessment_attempts")
+}
+
+/**
+ * One student's request for access to one mock test (spec: mock-test access control). Distinct
+ * from MockActivation, which opens a mock for an entire batch at once without per-student requests.
+ * Enforcement lives in AttemptsService.resolveAccess() — library_visible alone never granted access.
+ */
+model MockAccessRequest {
+  id             String    @id @default(uuid()) @db.Uuid
+  assessmentId   String    @map("assessment_id") @db.Uuid
+  studentId      String    @map("student_id") @db.Uuid
+  batchId        String?   @map("batch_id") @db.Uuid
+  status         String    @default("PENDING")
+  reason         String?
+  reviewedById   String?   @map("reviewed_by") @db.Uuid
+  reviewedAt     DateTime? @map("reviewed_at")
+  decisionNote   String?   @map("decision_note")
+  availableFrom  DateTime? @map("available_from")
+  availableUntil DateTime? @map("available_until")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  assessment Assessment     @relation(fields: [assessmentId], references: [id])
+  student    StudentProfile @relation(fields: [studentId], references: [id])
+  batch      Batch?         @relation(fields: [batchId], references: [id])
+  reviewedBy User?          @relation("MockRequestReviewer", fields: [reviewedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([studentId])
+  @@index([batchId])
+  @@map("mock_access_requests")
+}
+
+/** Opens one mock test for every student in a batch at once, without each of them requesting it individually. */
+model MockActivation {
+  id             String    @id @default(uuid()) @db.Uuid
+  assessmentId   String    @map("assessment_id") @db.Uuid
+  batchId        String    @map("batch_id") @db.Uuid
+  status         String    @default("ACTIVE")
+  availableFrom  DateTime  @map("available_from")
+  availableUntil DateTime? @map("available_until")
+  instructions   String?
+  activatedById  String?   @map("activated_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  assessment  Assessment @relation(fields: [assessmentId], references: [id])
+  batch       Batch      @relation(fields: [batchId], references: [id])
+  activatedBy User?      @relation("MockActivationActivator", fields: [activatedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([batchId, assessmentId])
+  @@index([batchId])
+  @@map("mock_activations")
+}
+
+/**
+ * A teacher assigns one piece of shared content to a specific batch or a named student, with its
+ * own due date and instructions. Distinct from `Assignment`, which is a 1:1 fixture on a
+ * ContentItem that applies to every enrolled student once published — this targets one batch or
+ * one student at a time.
+ */
+model CurriculumAssignment {
+  id            String    @id @default(uuid()) @db.Uuid
+  contentItemId String    @map("content_item_id") @db.Uuid
+  batchId       String?   @map("batch_id") @db.Uuid
+  studentId     String?   @map("student_id") @db.Uuid
+  requirement   String    @default("REQUIRED")
+  dueAt         DateTime? @map("due_at")
+  instructions  String?
+  assignedById  String?   @map("assigned_by") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  contentItem ContentItem    @relation(fields: [contentItemId], references: [id])
+  batch       Batch?         @relation(fields: [batchId], references: [id])
+  student     StudentProfile? @relation(fields: [studentId], references: [id])
+  assignedBy  User?          @relation("CurriculumAssigner", fields: [assignedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([contentItemId])
+  @@index([batchId])
+  @@index([studentId])
+  @@map("curriculum_assignments")
 }
 
 model AttemptAnswer {

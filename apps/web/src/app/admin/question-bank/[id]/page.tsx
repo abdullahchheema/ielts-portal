@@ -3,6 +3,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
+import { IELTS_ITEM_TYPES, IeltsItemType, ITEM_TYPE_KEYS } from '@ielts/validation';
 import { Accordion, Alert, Badge, Button, Card, Dialog, Empty, Field, Input, Loading, PageHeader, Section, Select, Textarea, useConfirm } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
@@ -17,7 +18,7 @@ interface SetDetail {
   version: number; stimulus: { passage?: string } | null; questions: Question[];
 }
 
-const ITEM_TYPES = ['MCQ_SINGLE', 'MCQ_MULTI', 'TFNG', 'YNNG', 'MATCHING_HEADINGS', 'MATCHING_INFORMATION', 'MAP_LABELLING', 'SENTENCE_COMPLETION', 'SUMMARY_COMPLETION', 'NOTE_COMPLETION', 'TABLE_COMPLETION', 'FORM_COMPLETION', 'WRITING_TASK1', 'WRITING_TASK2', 'SPEAKING_PART1', 'SPEAKING_PART2', 'SPEAKING_PART3'];
+const ITEM_TYPES = ITEM_TYPE_KEYS;
 const NEXT: Record<string, string[]> = { DRAFT: ['APPROVED', 'ARCHIVED'], APPROVED: ['DRAFT', 'PUBLISHED', 'ARCHIVED'], PUBLISHED: ['ARCHIVED'], ARCHIVED: [] };
 const LABEL: Record<string, string> = { APPROVED: 'Approve', DRAFT: 'Return to draft', PUBLISHED: 'Publish', ARCHIVED: 'Archive' };
 
@@ -109,7 +110,9 @@ function AddQuestion({ setId, onDone, onClose }: { setId: string; onDone: () => 
   const [f, setF] = useState({ ieltsType: 'TFNG', prompt: '', marks: '1', answer: 'TRUE', accepted: '', options: 'Option A | true\nOption B | false' });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const grader = f.ieltsType.startsWith('MCQ') || f.ieltsType.startsWith('MATCHING') || f.ieltsType === 'MAP_LABELLING' ? 'OPTIONS' : f.ieltsType === 'TFNG' ? 'TFNG' : f.ieltsType === 'YNNG' ? 'YNNG' : f.ieltsType.includes('COMPLETION') || f.ieltsType === 'FORM_COMPLETION' ? 'COMPLETION' : 'NONE';
+  // Which editor to show: the real grader behind each item type, from the shared taxonomy, not re-derived from its name.
+  const baseGrader = IELTS_ITEM_TYPES[f.ieltsType as IeltsItemType].grader;
+  const grader = baseGrader === 'MCQ_SINGLE' || baseGrader === 'MCQ_MULTI' || baseGrader === 'MATCHING' ? 'OPTIONS' : baseGrader;
 
   async function save() {
     setBusy(true); setError(null);

@@ -9,11 +9,13 @@ import { AuthUser, CurrentUser } from '../common/decorators';
 import { ZodPipe } from '../common/zod.pipe';
 import { roundHalfBand } from '../analytics/band';
 import { SchedulerService } from '../jobs/scheduler.service';
+import { MocksService } from '../mocks/mocks.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { QuestionBankService } from '../question-bank/question-bank.service';
 import { SpeakingService } from '../speaking/speaking.service';
 import { WritingService } from '../writing/writing.service';
 import { AssessmentsModule } from '../assessments/assessments.module';
+import { MocksModule } from '../mocks/mocks.service';
 import { QuestionBankModule } from '../question-bank/question-bank.module';
 import { WritingModule } from '../writing/writing.module';
 import { SpeakingModule } from '../speaking/speaking.module';
@@ -48,22 +50,24 @@ export class SimulatorService implements OnModuleInit {
     private readonly bank: QuestionBankService,
     private readonly scheduler: SchedulerService,
     private readonly events: EventEmitter2,
+    private readonly mocks: MocksService,
   ) {}
 
   onModuleInit() {
     this.scheduler.register('simulator.advance', ADVANCE_EVERY_MS * 5, () => this.advanceDue());
   }
 
-  /** Library mocks a student may take in the simulator. */
-  async available() {
+  /** Library mocks a student may take in the simulator, each with the student's own access status. */
+  async available(studentId: string) {
     const rows = await this.prisma.assessment.findMany({
       where: { type: 'MOCK', origin: 'BANK', libraryVisible: true, skill: { in: ['LISTENING', 'READING'] }, versions: { some: { publishedAt: { not: null } } } },
       orderBy: { title: 'asc' }, take: 200,
       select: { id: true, title: true, skill: true, timeLimitMin: true },
     });
+    const withAccess = await Promise.all(rows.map(async (r) => ({ ...r, access: await this.mocks.statusFor(studentId, r.id) })));
     return {
-      listening: rows.filter((r) => r.skill === 'LISTENING'),
-      reading: rows.filter((r) => r.skill === 'READING'),
+      listening: withAccess.filter((r) => r.skill === 'LISTENING'),
+      reading: withAccess.filter((r) => r.skill === 'READING'),
     };
   }
 
@@ -75,6 +79,10 @@ export class SimulatorService implements OnModuleInit {
     if (!l || l.skill !== 'LISTENING' || !l.libraryVisible || !r || r.skill !== 'READING' || !r.libraryVisible) {
       throw notFound('Mock exam');
     }
+    // Checked here, before the exam row is created, not only inside AttemptsService.start(): failing after
+    // the row exists would leave a permanently "in progress" exam the student could never replace.
+    await this.mocks.assertAttemptAllowed(studentId, input.listeningAssessmentId);
+    await this.mocks.assertAttemptAllowed(studentId, input.readingAssessmentId);
     const exam = await this.prisma.examAttempt.create({
       data: { studentId, includeSpeaking: input.includeSpeaking, listeningAssessmentId: input.listeningAssessmentId, readingAssessmentId: input.readingAssessmentId, stage: 'LISTENING' },
       select: { id: true },
@@ -276,7 +284,7 @@ const sid = (u: AuthUser) => { if (!u.studentId) throw forbidden(); return u.stu
 export class SimulatorController {
   constructor(private readonly sim: SimulatorService) {}
 
-  @Get('available') available(@CurrentUser() u: AuthUser) { sid(u); return this.sim.available(); }
+  @Get('available') available(@CurrentUser() u: AuthUser) { return this.sim.available(sid(u)); }
   @Get('exams') list(@CurrentUser() u: AuthUser) { return this.sim.list(sid(u)); }
 
   @HttpCode(201) @Post('exams')
@@ -291,7 +299,7 @@ export class SimulatorController {
 }
 
 @Module({
-  imports: [AssessmentsModule, QuestionBankModule, WritingModule, SpeakingModule],
+  imports: [AssessmentsModule, QuestionBankModule, WritingModule, SpeakingModule, MocksModule],
   controllers: [SimulatorController],
   providers: [SimulatorService],
   exports: [SimulatorService],

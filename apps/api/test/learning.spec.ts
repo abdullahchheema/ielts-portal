@@ -2,7 +2,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PrismaClient } from '@ielts/db';
 import { createApp } from '../src/app';
-import { Session, as, createOpenBatch, createStudent, newCourse, daysFromNow, http, loginAdmin, uniq } from './helpers';
+import { Session, as, createOpenBatch, createStudent, enrollStudent, newCourse, daysFromNow, http, loginAdmin, uniq } from './helpers';
 
 let app: NestExpressApplication;
 let prisma: PrismaClient;
@@ -199,4 +199,120 @@ describe('student profile', () => {
     expect(Number(p.targetBand)).toBe(7);
     expect(p.academicOrGeneral).toBe('ACADEMIC');
   });
+});
+
+describe('Academic/General track filtering', () => {
+  it('shows everything until a track is chosen, then only BOTH plus the chosen track — and hides a whole subtree under a hidden parent', async () => {
+    const nc = await newCourse(app, admin, prisma, 1000);
+    const versionId = nc.versionId;
+    const listening = (await post(`/admin/course-versions/${versionId}/sections`, { title: 'Listening', module: 'BOTH' }).expect(201)).body.id as string;
+    const readingAcademic = (await post(`/admin/course-versions/${versionId}/sections`, { title: 'Reading (Academic)', module: 'ACADEMIC' }).expect(201)).body.id as string;
+    const readingGeneral = (await post(`/admin/course-versions/${versionId}/sections`, { title: 'Reading (General)', module: 'GENERAL' }).expect(201)).body.id as string;
+    // A BOTH-tagged child under an ACADEMIC-only parent: must not be promoted to the top level when the parent is hidden.
+    const childUnderAcademic = (await post(`/admin/course-versions/${versionId}/sections`, { title: 'Academic sub-unit', parentSectionId: readingAcademic, module: 'BOTH' }).expect(201)).body.id as string;
+    await post(`/admin/sections/${listening}/items`, { title: 'L1', contentType: 'TEXT', metadata: { body: 'x' } }).expect(201);
+    await post(`/admin/sections/${readingAcademic}/items`, { title: 'RA1', contentType: 'TEXT', metadata: { body: 'x' } }).expect(201);
+    await post(`/admin/sections/${readingGeneral}/items`, { title: 'RG1', contentType: 'TEXT', metadata: { body: 'x' } }).expect(201);
+    await post(`/admin/sections/${childUnderAcademic}/items`, { title: 'Sub1', contentType: 'TEXT', metadata: { body: 'x' } }).expect(201);
+    await post(`/admin/course-versions/${versionId}/publish`).expect(200);
+
+    const batchId = await createOpenBatch(app, admin);
+    const st = await enrollStudent(app, prisma, admin, batchId);
+    // The enrollment application defaults to ACADEMIC; clear it to exercise the "not chosen yet" state.
+    await prisma.studentProfile.update({ where: { id: st.studentId }, data: { academicOrGeneral: null } });
+    const titlesOf = (sections: Array<{ title: string; children: unknown[] }>): string[] => sections.flatMap((s) => [s.title, ...titlesOf(s.children as never)]);
+
+    // No track chosen yet: everything visible, track is null.
+    const before = (await as(st.session)(http(app).get(`/me/courses/${st.enrollmentId}`)).expect(200)).body;
+    expect(before.track).toBeNull();
+    expect(titlesOf(before.sections)).toEqual(expect.arrayContaining(['Listening', 'Reading (Academic)', 'Reading (General)', 'Academic sub-unit']));
+
+    await as(st.session)(http(app).patch('/me/profile')).send({ academicOrGeneral: 'ACADEMIC' }).expect(200);
+    const academic = (await as(st.session)(http(app).get(`/me/courses/${st.enrollmentId}`)).expect(200)).body;
+    expect(academic.track).toBe('ACADEMIC');
+    const academicTitles = titlesOf(academic.sections);
+    expect(academicTitles).toEqual(expect.arrayContaining(['Listening', 'Reading (Academic)', 'Academic sub-unit']));
+    expect(academicTitles).not.toContain('Reading (General)');
+
+    await as(st.session)(http(app).patch('/me/profile')).send({ academicOrGeneral: 'GENERAL' }).expect(200);
+    const general = (await as(st.session)(http(app).get(`/me/courses/${st.enrollmentId}`)).expect(200)).body;
+    expect(general.track).toBe('GENERAL');
+    const generalTitles = titlesOf(general.sections);
+    expect(generalTitles).toEqual(expect.arrayContaining(['Listening', 'Reading (General)']));
+    // Hidden because its parent (Academic-only) is hidden for a General-track student — not promoted to the root.
+    expect(generalTitles).not.toContain('Reading (Academic)');
+    expect(generalTitles).not.toContain('Academic sub-unit');
+  }, 30_000);
+});
+
+describe('mastery vs. completion', () => {
+  it('never masters from completion alone — only a score at or above the item\'s threshold does, and it is never un-mastered by a later lower score', async () => {
+    const a = (await post('/admin/assessments', { title: `Quiz ${uniq()}`, type: 'QUIZ' }).expect(201)).body;
+    const versionId = (await as(admin)(http(app).get(`/admin/assessments/${a.id}`)).expect(200)).body.versions[0].id as string;
+    const sectionId = (await post(`/admin/assessment-versions/${versionId}/sections`, { title: 'Part 1' }).expect(201)).body.id as string;
+    const q = (body: object) => post(`/admin/assessment-sections/${sectionId}/questions`, body).expect(201);
+    await q({ type: 'TFNG', prompt: { text: 'Q1' }, answerKey: { value: 'TRUE' } });
+    await q({ type: 'TFNG', prompt: { text: 'Q2' }, answerKey: { value: 'TRUE' } });
+    await post(`/admin/assessment-versions/${versionId}/publish`).expect(200);
+
+    const nc = await newCourse(app, admin, prisma, 1000);
+    const sec = (await post(`/admin/course-versions/${nc.versionId}/sections`, { title: 'Reading' }).expect(201)).body.id as string;
+    const quizItem = (await post(`/admin/sections/${sec}/items`, { title: 'The quiz', contentType: 'QUIZ', metadata: { assessmentId: a.id }, masteryPercent: 80 }).expect(201)).body.id as string;
+    await post(`/admin/course-versions/${nc.versionId}/publish`).expect(200);
+    const batchId = await createOpenBatch(app, admin);
+    const st = await enrollStudent(app, prisma, admin, batchId);
+    const stApi = { get: (p: string) => as(st.session)(http(app).get(p)), post: (p: string, b: object = {}) => as(st.session)(http(app).post(p)).send(b), put: (p: string, b: object) => as(st.session)(http(app).put(p)).send(b) };
+
+    const findItem = (tree: { sections: Array<{ items: Array<{ id: string; mastered: boolean; masteryPercent: number | null; state: string }> }> }) =>
+      tree.sections.flatMap((s) => s.items).find((i) => i.id === quizItem)!;
+
+    async function attempt(correctCount: 0 | 1 | 2) {
+      const started = (await stApi.post(`/assessments/${a.id}/start`).expect(201)).body;
+      const questions = started.paper.flatMap((s: { questions: Array<{ id: string; prompt: { text: string } }> }) => s.questions);
+      const answers = questions.map((qn: { id: string; prompt: { text: string } }, idx: number) => ({ questionVersionId: qn.id, answer: { value: idx < correctCount ? 'TRUE' : 'FALSE' } }));
+      await stApi.put(`/attempts/${started.attempt.id}/answers`, { revision: 0, answers }).expect(200);
+      await stApi.post(`/attempts/${started.attempt.id}/submit`).expect(200);
+    }
+
+    // 1 of 2 correct (50%) clears "passed" (passPercent defaults to 0) but not the 80% mastery bar: Completed, not Mastered.
+    await attempt(1);
+    const afterHalf = findItem((await stApi.get(`/me/courses/${st.enrollmentId}`)).body);
+    expect(afterHalf.state).toBe('COMPLETED');
+    expect(afterHalf.mastered).toBe(false);
+
+    // 2 of 2 correct (100%) clears the 80% bar: Mastered.
+    await attempt(2);
+    const afterFull = findItem((await stApi.get(`/me/courses/${st.enrollmentId}`)).body);
+    expect(afterFull.mastered).toBe(true);
+
+    // A later 0% attempt must not un-master it.
+    await attempt(0);
+    const afterZero = findItem((await stApi.get(`/me/courses/${st.enrollmentId}`)).body);
+    expect(afterZero.mastered).toBe(true);
+    expect(afterZero.state).toBe('COMPLETED');
+  }, 60_000);
+
+  it('an item with no mastery threshold stays a plain Completed/Mastered=false item regardless of score', async () => {
+    const a = (await post('/admin/assessments', { title: `Quiz ${uniq()}` , type: 'QUIZ' }).expect(201)).body;
+    const versionId = (await as(admin)(http(app).get(`/admin/assessments/${a.id}`)).expect(200)).body.versions[0].id as string;
+    const sectionId = (await post(`/admin/assessment-versions/${versionId}/sections`, { title: 'Part 1' }).expect(201)).body.id as string;
+    await post(`/admin/assessment-sections/${sectionId}/questions`, { type: 'TFNG', prompt: { text: 'Q1' }, answerKey: { value: 'TRUE' } }).expect(201);
+    await post(`/admin/assessment-versions/${versionId}/publish`).expect(200);
+
+    const nc = await newCourse(app, admin, prisma, 1000);
+    const sec = (await post(`/admin/course-versions/${nc.versionId}/sections`, { title: 'Reading' }).expect(201)).body.id as string;
+    const quizItem = (await post(`/admin/sections/${sec}/items`, { title: 'The quiz', contentType: 'QUIZ', metadata: { assessmentId: a.id } }).expect(201)).body.id as string;
+    await post(`/admin/course-versions/${nc.versionId}/publish`).expect(200);
+    const batchId = await createOpenBatch(app, admin);
+    const st = await enrollStudent(app, prisma, admin, batchId);
+
+    const started = (await as(st.session)(http(app).post(`/assessments/${a.id}/start`)).expect(201)).body;
+    const q0 = started.paper[0].questions[0];
+    await as(st.session)(http(app).put(`/attempts/${started.attempt.id}/answers`)).send({ revision: 0, answers: [{ questionVersionId: q0.id, answer: { value: 'TRUE' } }] }).expect(200);
+    await as(st.session)(http(app).post(`/attempts/${started.attempt.id}/submit`)).expect(200);
+
+    const tree = (await as(st.session)(http(app).get(`/me/courses/${st.enrollmentId}`)).expect(200)).body;
+    const item = tree.sections.flatMap((s: { items: Array<{ id: string; mastered: boolean; masteryPercent: number | null; state: string }> }) => s.items).find((i: { id: string }) => i.id === quizItem);
+    expect(item).toMatchObject({ state: 'COMPLETED', mastered: false, masteryPercent: null });
+  }, 30_000);
 });

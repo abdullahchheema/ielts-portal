@@ -19,6 +19,7 @@ const PERMISSIONS = [
   'attendance.correct', 'knowledge.manage', 'ai.support.use', 'payment.reconcile',
   'referral.manage', 'feedback.view', 'lifecycle.manage', 'engagement.followup',
   'question.manage', 'class.manage', 'certificate.revoke',
+  'mock.review', 'curriculum.assign',
 ] as const;
 
 const ROLES: Record<string, { description: string; permissions: readonly string[] | 'ALL' }> = {
@@ -28,7 +29,8 @@ const ROLES: Record<string, { description: string; permissions: readonly string[
     permissions: ['course.view', 'course.create', 'course.edit', 'course.publish', 'content.manage',
       'batch.view', 'batch.create', 'batch.edit', 'mentor.assign', 'teaching.view', 'teacher.manage', 'student.view',
       'enrollment.view', 'enrollment.create', 'report.academic.view', 'dashboard.view', 'assessment.manage',
-      'attendance.correct', 'knowledge.manage', 'ai.support.use', 'feedback.view', 'lifecycle.manage', 'engagement.followup', 'question.manage', 'class.manage', 'certificate.revoke'],
+      'attendance.correct', 'knowledge.manage', 'ai.support.use', 'feedback.view', 'lifecycle.manage', 'engagement.followup', 'question.manage', 'class.manage', 'certificate.revoke',
+      'mock.review', 'curriculum.assign'],
   },
   CONTENT_MANAGER: {
     description: 'Lessons, files and practice material',
@@ -49,7 +51,7 @@ const ROLES: Record<string, { description: string; permissions: readonly string[
   },
   MENTOR: {
     description: 'Assigned batches, grading and feedback',
-    permissions: ['teaching.view', 'submission.view', 'submission.grade', 'class.manage'],
+    permissions: ['teaching.view', 'submission.view', 'submission.grade', 'class.manage', 'mock.review', 'curriculum.assign'],
   },
   STUDENT: { description: 'Learner', permissions: [] },
 };

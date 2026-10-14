@@ -26,6 +26,8 @@ import { TutorModule } from './tutor/tutor';
 import { PaymentRiskModule } from './payment-risk/payment-risk.service';
 import { ReconciliationModule } from './reconciliation/reconciliation';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { MocksModule } from './mocks/mocks.service';
+import { CurriculumAssignmentsModule } from './curriculum/curriculum-assignments';
 import { Controller, Get, Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { EventEmitterModule } from '@nestjs/event-emitter';
@@ -69,7 +71,7 @@ class HealthController {
 
 @Module({
   imports: [
-    AnalyticsModule, AiModule, JobsModule, QuestionBankModule, WritingModule, SpeakingModule, MockExamsModule, SimulatorModule, InsightsModule, StudyPlanModule, VocabularyModule, GrammarModule, EngagementModule, RecordingsModule, LeaderboardModule, TeacherWorkspaceModule, NotesModule, SearchModule, CommandCenterModule, SupportAssistantModule, TutorModule, PaymentRiskModule, ReconciliationModule, StudentLifecycleModule, FeedbackModule, EnrollmentSurveyModule, ScopeModule, DailyActivityModule,
+    AnalyticsModule, AiModule, JobsModule, QuestionBankModule, WritingModule, SpeakingModule, MockExamsModule, SimulatorModule, InsightsModule, StudyPlanModule, VocabularyModule, GrammarModule, EngagementModule, RecordingsModule, LeaderboardModule, TeacherWorkspaceModule, NotesModule, SearchModule, CommandCenterModule, SupportAssistantModule, TutorModule, PaymentRiskModule, ReconciliationModule, StudentLifecycleModule, FeedbackModule, EnrollmentSurveyModule, ScopeModule, DailyActivityModule, MocksModule, CurriculumAssignmentsModule,
     ConfigModule, PrismaModule, IntegrationsModule, AuditModule, EventEmitterModule.forRoot(), JwtModule.register({}),
     AuthModule, RolesModule, SettingsModule, NotificationsModule, CoursesModule, BatchesModule, CommerceModule, LearningModule, AssessmentsModule, GradingModule, LiveModule, SupportModule, ReportsModule, LifecycleModule, CertificatesModule, AdminModule, TeachersModule,
   ],

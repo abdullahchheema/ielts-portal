@@ -2,7 +2,7 @@
 
 import { SkeletonTable } from '@/components/ui';
 
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import { Accordion, Alert, Badge, Button, Card, Dialog, Empty, Field, Input, Loading, PageHeader, ProgressBar, Select, SimpleList, SimpleListItem, Table, Tabs, Td } from '@/components/ui';
@@ -13,7 +13,7 @@ import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { band, date, label } from '@/lib/format';
 
-interface Student { enrollmentId: string; status: string; progressPercent: string; enrolledAt: string | null; student: { firstName: string; lastName: string; currentBand: string | null; targetBand: string | null } }
+interface Student { enrollmentId: string; status: string; progressPercent: string; enrolledAt: string | null; student: { id: string; firstName: string; lastName: string; currentBand: string | null; targetBand: string | null } }
 interface Session { id: string; topic: string; startsAt: string; endsAt: string; provider: string | null; meetingUrl: string | null; recordingUrl: string | null; _count: { attendance: number } }
 interface Sheet { session: { id: string; topic: string }; roster: { studentId: string; name: string; status: string | null; minutesAttended: number | null }[] }
 interface ResultRow { studentId: string; name: string; targetBand: number | null; progressPercent: number; skills: Record<string, { latest: number | null; best: number | null }>; lastMock: { title: string; percent: number | null; at: string } | null; ielts?: IeltsSummaryLike }
@@ -121,13 +121,89 @@ function Results({ batchId }: { batchId: string }) {
   );
 }
 
+interface TreeItem { id: string; title: string; contentType: string }
+interface TreeSection { id: string; title: string; items: TreeItem[]; children: TreeSection[] }
+interface CurriculumAssignmentRow { id: string; requirement: string; dueAt: string | null; instructions: string | null; batchId: string | null; studentId: string | null; contentItem: { title: string; contentType: string }; student: { firstName: string; lastName: string } | null }
+
+const flattenItems = (sections: TreeSection[]): TreeItem[] => sections.flatMap((s) => [...s.items, ...flattenItems(s.children)]);
+
+function CurriculumTab({ batchId, students }: { batchId: string; students: Student[] }) {
+  const qc = useQueryClient();
+  const tree = useQuery({ queryKey: ['mentor-curriculum', batchId], queryFn: () => api<{ sections: TreeSection[] }>(`/mentor/batches/${batchId}/curriculum`) });
+  const assignments = useQuery({ queryKey: ['mentor-curriculum-assignments', batchId], queryFn: () => api<CurriculumAssignmentRow[]>(`/mentor/batches/${batchId}/curriculum-assignments`) });
+  const [contentItemId, setContentItemId] = useState('');
+  const [target, setTarget] = useState('BATCH');
+  const [requirement, setRequirement] = useState('REQUIRED');
+  const [dueAt, setDueAt] = useState('');
+  const [instructions, setInstructions] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const items = tree.data ? flattenItems(tree.data.sections) : [];
+  const assign = useMutation({
+    mutationFn: () => api('/mentor/curriculum-assignments', {
+      method: 'POST',
+      body: {
+        contentItemId, requirement, instructions: instructions.trim() || undefined, dueAt: dueAt ? new Date(dueAt).toISOString() : undefined,
+        ...(target === 'BATCH' ? { batchId } : { studentId: target }),
+      },
+    }),
+    onSuccess: () => { setContentItemId(''); setInstructions(''); setDueAt(''); qc.invalidateQueries({ queryKey: ['mentor-curriculum-assignments', batchId] }); },
+    onError: (e) => setError(errorMessage(e)),
+  });
+  const remove = useMutation({
+    mutationFn: (id: string) => api(`/mentor/curriculum-assignments/${id}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['mentor-curriculum-assignments', batchId] }),
+  });
+
+  return (
+    <div className="space-y-6">
+      <Card className="space-y-3">
+        <h3 className="font-semibold text-fg">Assign content</h3>
+        {error && <Alert>{error}</Alert>}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Content item">
+            {(p) => <Select {...p} value={contentItemId} onChange={(e) => setContentItemId(e.target.value)}><option value="">Select…</option>{items.map((i) => <option key={i.id} value={i.id}>{i.title} ({label(i.contentType)})</option>)}</Select>}
+          </Field>
+          <Field label="Assign to">
+            {(p) => (
+              <Select {...p} value={target} onChange={(e) => setTarget(e.target.value)}>
+                <option value="BATCH">Whole batch</option>
+                {students.map((s) => <option key={s.student.id} value={s.student.id}>{s.student.firstName} {s.student.lastName}</option>)}
+              </Select>
+            )}
+          </Field>
+          <Field label="Requirement">{(p) => <Select {...p} value={requirement} onChange={(e) => setRequirement(e.target.value)}><option value="REQUIRED">Required</option><option value="RECOMMENDED">Recommended</option></Select>}</Field>
+          <Field label="Due (optional)">{(p) => <Input {...p} type="date" value={dueAt} onChange={(e) => setDueAt(e.target.value)} />}</Field>
+        </div>
+        <Field label="Instructions (optional)">{(p) => <Input {...p} value={instructions} onChange={(e) => setInstructions(e.target.value)} />}</Field>
+        <div className="flex justify-end"><Button disabled={!contentItemId} busy={assign.isPending} onClick={() => assign.mutate()}>Assign</Button></div>
+      </Card>
+
+      {assignments.isLoading ? <Loading /> : !assignments.data?.length ? <Empty>No assignments yet for this batch.</Empty> : (
+        <Table head={['Item', 'Assigned to', 'Requirement', 'Due', 'Instructions', '']}>
+          {assignments.data.map((a) => (
+            <tr key={a.id}>
+              <Td className="font-medium">{a.contentItem.title}</Td>
+              <Td>{a.student ? `${a.student.firstName} ${a.student.lastName}` : 'Whole batch'}</Td>
+              <Td><Badge status={a.requirement} tone={a.requirement === 'REQUIRED' ? 'blue' : 'slate'} /></Td>
+              <Td>{a.dueAt ? date(a.dueAt) : '—'}</Td>
+              <Td className="max-w-[16rem] truncate">{a.instructions ?? '—'}</Td>
+              <Td><Button variant="ghost" tone="danger" size="xs" onClick={() => remove.mutate(a.id)}>Remove</Button></Td>
+            </tr>
+          ))}
+        </Table>
+      )}
+    </div>
+  );
+}
+
 export default function MentorBatchPage() {
   const { id } = useParams<{ id: string }>();
   const students = useQuery({ queryKey: ['mentor-students', id], queryFn: () => api<Student[]>(`/mentor/batches/${id}/students`) });
   const sessions = useQuery({ queryKey: ['sessions-mentor', id], queryFn: () => api<Session[]>(`/mentor/batches/${id}/sessions`) });
   const [sheet, setSheet] = useState<string | null>(null);
   const [newOpen, setNewOpen] = useState(false);
-  const [tab, setTab] = useState<'students' | 'classes' | 'results' | 'analytics'>('classes');
+  const [tab, setTab] = useState<'students' | 'classes' | 'results' | 'analytics' | 'curriculum'>('classes');
   if (students.isLoading) return <Loading />;
   if (students.isError) return <Alert>{errorMessage(students.error)}</Alert>;
   const now = Date.now();
@@ -142,11 +218,12 @@ export default function MentorBatchPage() {
           variant="underline"
           value={tab}
           onChange={(k) => setTab(k as typeof tab)}
-          items={[{ key: 'classes', label: 'Classes & attendance' }, { key: 'students', label: 'Students' }, { key: 'results', label: 'Results' }, { key: 'analytics', label: 'Analytics' }]}
+          items={[{ key: 'classes', label: 'Classes & attendance' }, { key: 'students', label: 'Students' }, { key: 'curriculum', label: 'Curriculum' }, { key: 'results', label: 'Results' }, { key: 'analytics', label: 'Analytics' }]}
         />
       </div>
       {tab === 'analytics' && <BatchAnalytics batchId={id} />}
 
+      {tab === 'curriculum' && <CurriculumTab batchId={id} students={students.data ?? []} />}
       {tab === 'results' && <Results batchId={id} />}
       {tab === 'classes' && <>
       {!sessions.data?.length ? <Empty>No classes scheduled yet.</Empty> : (

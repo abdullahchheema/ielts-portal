@@ -9,6 +9,7 @@ import { DailyActivityService } from '../common/daily-activity.service';
 import { APP_CONFIG, AppConfig } from '../config/config.module';
 import { LearningService } from '../learning/learning.service';
 import { StorageService } from '../integrations/storage.service';
+import { MocksService } from '../mocks/mocks.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SchedulerService } from '../jobs/scheduler.service';
 import { BandRow, GradableQuestion, QuestionType, bandFromRaw, gradeAttempt, sanitizeAnswer } from './grading';
@@ -39,6 +40,7 @@ export class AttemptsService implements OnModuleInit {
     private readonly learning: LearningService,
     private readonly bands: BandService,
     private readonly storage: StorageService,
+    private readonly mocks: MocksService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly scheduler: SchedulerService,
     private readonly events: EventEmitter2,
@@ -89,10 +91,13 @@ export class AttemptsService implements OnModuleInit {
       if (assessment.generatedForStudentId !== studentId) throw new AppError('ASSESSMENT_NOT_AVAILABLE', 404, 'This assessment is not available.');
       return { enrollmentId: null, itemId: null };
     }
-    // Library papers (mocks) are open to any student with an active enrolment, without a course item.
+    // Library papers (mocks): an active enrolment is still required, but it is not the gate —
+    // the student also needs an approved individual request or an active batch activation,
+    // enforced here rather than left to the "Start" button.
     if (assessment.libraryVisible) {
       const active = await this.prisma.enrollment.findFirst({ where: { studentId, status: 'ACTIVE', deletedAt: null }, select: { id: true } });
       if (!active) throw new AppError('ASSESSMENT_NOT_AVAILABLE', 404, 'This assessment is not available.');
+      await this.mocks.assertAttemptAllowed(studentId, assessment.id);
       return { enrollmentId: active.id, itemId: null };
     }
     const items = await this.prisma.contentItem.findMany({

@@ -25,6 +25,9 @@ const MESSAGES: Record<string, string> = {
   ACCESS_EXPIRED: 'Your access to this course has expired.',
   FORBIDDEN: 'You do not have permission to do that.',
   VERSION_PUBLISHED_IMMUTABLE: 'Published versions are read-only. Create a new version to make changes.',
+  MOCK_ACCESS_REQUIRED: 'Request access to this mock test first.',
+  MOCK_NOT_AVAILABLE: 'Your approved window for this mock test has not started yet or has ended.',
+  MOCK_REQUEST_ALREADY_PENDING: 'You already have a pending request for this mock test.',
 };
 
 export function errorMessage(e: unknown): string {
