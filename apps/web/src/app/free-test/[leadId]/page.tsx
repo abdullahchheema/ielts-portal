@@ -4,8 +4,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Badge, Button, Card, Field, Loading, PageHeader, Select, Textarea } from '@/components/ui';
+import { Alert, Badge, Button, Card, Field, Loading, PageHeader, ProgressBar, Select, Textarea } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
+import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { extensionFor, useRecorder } from '@/lib/use-recorder';
 
@@ -27,7 +28,7 @@ interface Option { id: string; label: string }
 interface Question { id: string; type: string; prompt: { text: string }; marks: number; options?: Option[] }
 interface Section { id: string; title: string; content: { passage?: string; instructions?: string; audioUrl?: string }; questions: Question[] }
 type Answers = Record<string, unknown>;
-interface SectionPaper { attempt: { id: string; revision: number }; assessment: { title: string }; paper: Section[]; answers: Answers }
+interface SectionPaper { attempt: { id: string; revision: number; remainingSeconds: number | null }; assessment: { title: string; timeLimitMin: number | null }; paper: Section[]; answers: Answers }
 
 const TFNG = [['TRUE', 'True'], ['FALSE', 'False'], ['NOT_GIVEN', 'Not given']];
 const YNNG = [['YES', 'Yes'], ['NO', 'No'], ['NOT_GIVEN', 'Not given']];
@@ -146,6 +147,8 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
   const [status, setStatus] = useState<'saved' | 'saving' | 'offline' | 'conflict'>('saved');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [remaining, setRemaining] = useState<number | null>(null);
+  const [focusedId, setFocusedId] = useState<string | null>(null);
   const revision = useRef(0);
   const dirty = useRef(new Set<string>());
   const answersRef = useRef<Answers>({});
@@ -153,7 +156,10 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
   const hydrated = useRef(false);
 
   useEffect(() => {
-    if (data && !hydrated.current) { hydrated.current = true; revision.current = data.attempt.revision; setAnswers(data.answers); }
+    if (data && !hydrated.current) {
+      hydrated.current = true; revision.current = data.attempt.revision;
+      setAnswers(data.answers); setRemaining(data.attempt.remainingSeconds ?? null);
+    }
   }, [data]);
   useEffect(() => { answersRef.current = answers; }, [answers]);
 
@@ -176,47 +182,120 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
   useEffect(() => { const t = setInterval(flush, 10_000); return () => clearInterval(t); }, [flush]);
   useEffect(() => { const t = setTimeout(flush, 1500); return () => clearTimeout(t); }, [answers, flush]);
 
-  async function submitAndContinue() {
+  const submitAndContinue = useCallback(async () => {
     setSubmitting(true); setError(null);
     try { await flush(); await api(`/free-test/${leadId}/section/submit`, { method: 'POST' }); onAdvance(); }
     catch (e) { setError(errorMessage(e)); } finally { setSubmitting(false); }
+  }, [flush, leadId, onAdvance]);
+
+  // Countdown; auto-submit at zero, mirroring the authenticated attempt page.
+  useEffect(() => {
+    if (remaining === null || submitting) return;
+    if (remaining <= 0) { submitAndContinue(); return; }
+    const t = setTimeout(() => setRemaining((r) => (r === null ? r : r - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [remaining, submitting, submitAndContinue]);
+
+  function jumpTo(id: string) {
+    document.getElementById(`q-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setFocusedId(id);
+    window.setTimeout(() => setFocusedId((cur) => (cur === id ? null : cur)), 1500);
   }
 
   if (isLoading || !data) return <Loading />;
 
   const total = data.paper.reduce((n, s) => n + s.questions.length, 0);
   const answered = Object.keys(answers).filter((k) => answers[k] !== null && answers[k] !== undefined).length;
+  const mm = remaining !== null ? `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}` : null;
+  const low = remaining !== null && remaining < 300;
+  let runningIndex = 0;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div><h2 className="font-semibold text-fg">{data.assessment.title}</h2><p className="text-xs text-fg-muted">{answered}/{total} answered</p></div>
-        <div className="flex items-center gap-4 text-sm">
-          <span aria-live="polite" className={status === 'offline' || status === 'conflict' ? 'text-danger' : 'text-fg-muted'}>
-            {status === 'saved' ? 'All changes saved' : status === 'saving' ? 'Saving…' : status === 'offline' ? 'Offline — will retry' : 'Changed elsewhere'}
-          </span>
-          <Button onClick={submitAndContinue} busy={submitting || parentBusy}>Submit section and continue</Button>
+      <div className="sticky top-0 z-10 -mx-4 space-y-3 border-b border-border bg-surface/90 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-display font-semibold text-fg">{data.assessment.title}</h2>
+            <p className="text-xs text-fg-muted">{answered}/{total} answered</p>
+          </div>
+          <div className="flex items-center gap-4 text-sm">
+            <span aria-live="polite" className={status === 'offline' || status === 'conflict' ? 'text-danger' : 'text-fg-muted'}>
+              {status === 'saved' ? 'All changes saved' : status === 'saving' ? 'Saving…' : status === 'offline' ? 'Offline — will retry' : 'Changed elsewhere'}
+            </span>
+            {mm && <span role="timer" aria-label="Time remaining" className={cx('rounded-md px-2.5 py-1 font-mono text-base font-semibold tabular-nums', low ? 'bg-danger-soft text-danger' : 'bg-surface-muted text-fg')}>{mm}</span>}
+            <Button onClick={submitAndContinue} busy={submitting || parentBusy}>Submit section and continue</Button>
+          </div>
+        </div>
+        <ProgressBar value={total ? (answered / total) * 100 : 0} />
+        <div className="-mx-1 flex gap-4 overflow-x-auto px-1 pb-1">
+          {data.paper.map((s) => (
+            <div key={s.id} className="flex shrink-0 items-center gap-1.5">
+              <span className="text-[11px] font-medium text-fg-subtle">{s.title.replace(/^(Part|Reading Passage)\s*/i, '')}</span>
+              <div className="flex gap-1">
+                {s.questions.map((q) => {
+                  const num = ++runningIndex;
+                  const isAnswered = answers[q.id] !== null && answers[q.id] !== undefined;
+                  return (
+                    <button
+                      key={q.id}
+                      type="button"
+                      onClick={() => jumpTo(q.id)}
+                      aria-label={`Go to question ${num}`}
+                      className={cx(
+                        'grid size-6 shrink-0 place-items-center rounded-md text-[11px] font-semibold tabular-nums ring-1 ring-inset transition-colors',
+                        isAnswered ? 'bg-primary-soft text-primary ring-primary/30 hover:bg-primary/20' : 'bg-surface text-fg-subtle ring-border-strong hover:bg-surface-muted',
+                      )}
+                    >
+                      {num}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
       {error && <Alert>{error}</Alert>}
-      {data.paper.map((s) => (
-        <section key={s.id} aria-labelledby={`s-${s.id}`}>
-          <h3 id={`s-${s.id}`} className="mb-2 text-lg font-semibold">{s.title}</h3>
-          {s.content.instructions && <p className="mb-3 text-sm text-fg-muted">{s.content.instructions}</p>}
-          {s.content.audioUrl && <audio controls className="mb-4 w-full" src={s.content.audioUrl} />}
-          <div className={s.content.passage ? 'grid gap-6 lg:grid-cols-2' : ''}>
-            {s.content.passage && <Card className="max-h-[70vh] overflow-auto whitespace-pre-wrap text-sm leading-relaxed lg:sticky lg:top-24">{s.content.passage}</Card>}
-            <ol className="space-y-4">
-              {s.questions.map((q, i) => (
-                <li key={q.id}><Card>
-                  <p className="mb-3 text-sm font-medium"><span className="mr-2 text-fg-subtle">{i + 1}.</span>{q.prompt.text}</p>
-                  <QuestionInput q={q} value={answers[q.id]} onChange={(v) => { dirty.current.add(q.id); setAnswers((a) => ({ ...a, [q.id]: v })); }} />
-                </Card></li>
-              ))}
-            </ol>
-          </div>
-        </section>
-      ))}
+      {data.paper.map((s, sIdx) => {
+        const offset = data.paper.slice(0, sIdx).reduce((n, p) => n + p.questions.length, 0);
+        return (
+          <section key={s.id} aria-labelledby={`s-${s.id}`}>
+            <div className="mb-3 flex items-center gap-2">
+              <span className="rounded-full bg-primary-soft px-2.5 py-0.5 text-xs font-semibold text-primary">Part {sIdx + 1} of {data.paper.length}</span>
+              <h3 id={`s-${s.id}`} className="text-lg font-semibold text-fg">{s.title}</h3>
+            </div>
+            {s.content.instructions && (
+              <div className="mb-3 rounded-lg bg-info-soft px-4 py-2.5 text-sm text-sky-800">{s.content.instructions}</div>
+            )}
+            {s.content.audioUrl && (
+              <Card className="mb-4 !p-4">
+                <p className="mb-2 text-xs font-medium text-fg-muted">🎧 Listen to the recording — it plays once, just like the real test.</p>
+                <audio controls className="w-full" src={s.content.audioUrl} />
+              </Card>
+            )}
+            <div className={s.content.passage ? 'grid gap-6 lg:grid-cols-2' : ''}>
+              {s.content.passage && (
+                <Card className="max-h-[70vh] overflow-auto bg-surface-muted/40 text-sm leading-relaxed whitespace-pre-wrap lg:sticky lg:top-44">
+                  {s.content.passage}
+                </Card>
+              )}
+              <ol className="space-y-4">
+                {s.questions.map((q, i) => (
+                  <li key={q.id} id={`q-${q.id}`} className="scroll-mt-44">
+                    <Card className={cx('transition-shadow duration-300', focusedId === q.id && 'shadow-lg ring-2 ring-primary ring-offset-2 ring-offset-surface')}>
+                      <p className="mb-3 flex items-start gap-2.5 text-sm font-medium text-fg">
+                        <span className="grid size-5.5 shrink-0 place-items-center rounded-full bg-surface-muted text-xs font-semibold text-fg-muted tabular-nums">{offset + i + 1}</span>
+                        <span>{q.prompt.text}</span>
+                      </p>
+                      <QuestionInput q={q} value={answers[q.id]} onChange={(v) => { dirty.current.add(q.id); setAnswers((a) => ({ ...a, [q.id]: v })); }} />
+                    </Card>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </section>
+        );
+      })}
     </div>
   );
 }
