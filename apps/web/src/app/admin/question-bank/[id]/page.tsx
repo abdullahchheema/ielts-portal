@@ -94,6 +94,13 @@ export default function QuestionSetPage() {
       />
       {error && <Alert>{error}</Alert>}
 
+      {data.stimulus?.sections?.length && data.skill === 'LISTENING' && (
+        <Section className="mb-4" title="Audio for the whole module">
+          <p className="mb-2 text-xs text-fg-muted">Use this if one recording covers every part (the normal case for a real Listening test). Only use the per-part audio below if you have separate files per part instead.</p>
+          <AudioAttach setId={id} editable={editable} attached={!!data.stimulus?.audioKey} audioUrl={data.stimulus?.audioUrl} onDone={refresh} />
+        </Section>
+      )}
+
       {data.stimulus?.sections?.length ? (
         data.stimulus.sections.map((sec, i) => (
           <Section key={i} className="mb-4" title={sec.title}>
@@ -102,7 +109,12 @@ export default function QuestionSetPage() {
               {sec.passage && <Accordion items={[{ key: 'passage', title: 'Passage', content: <p className="whitespace-pre-wrap text-sm text-fg">{sec.passage}</p> }]} defaultOpen="passage" />}
               {sec.images?.map((img) => <img key={img.id} src={img.url} alt={img.altText ?? ''} className="max-h-96 rounded-md ring-1 ring-border" />)}
               {editable && <SectionImageAttach setId={id} sectionIndex={i} onDone={refresh} />}
-              {data.skill === 'LISTENING' && <AudioAttach setId={id} sectionIndex={i} editable={editable} attached={!!sec.audioKey} audioUrl={sec.audioUrl} onDone={refresh} />}
+              {data.skill === 'LISTENING' && (
+                <div>
+                  <p className="mb-1 text-xs text-fg-subtle">Audio for this part only (leave empty if the whole-module recording above covers it)</p>
+                  <AudioAttach setId={id} sectionIndex={i} editable={editable} attached={!!sec.audioKey} audioUrl={sec.audioUrl} onDone={refresh} />
+                </div>
+              )}
             </div>
           </Section>
         ))

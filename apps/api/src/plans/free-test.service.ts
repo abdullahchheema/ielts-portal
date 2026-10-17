@@ -154,8 +154,18 @@ export class FreeTestService {
     // own questions — this is what makes the existing section-by-section renderer (AttemptsService's
     // paper(), the free-test SectionStage) show each passage directly above its own questions instead
     // of one giant block. A single-passage set keeps the original one-section shape.
+    //
+    // Audio: a real Listening test is normally one continuous recording for every part, not a
+    // separate file per part — that whole-module file (stimulus.audioKey, attached without a section
+    // index) plays once, attached to the first part only, so the student gets a single player instead
+    // of the same recording repeated behind every part. A part with its own audioKey (a genuinely
+    // separate file for that part) always takes priority over the whole-module one.
     const parts = stimulus.sections?.length
-      ? stimulus.sections.map((s, i) => ({ title: s.title, instructions: s.instructions, passage: s.passage, audioKey: s.audioKey, bankSectionIndex: i as number | null }))
+      ? stimulus.sections.map((s, i) => ({
+          title: s.title, instructions: s.instructions, passage: s.passage,
+          audioKey: s.audioKey ?? (i === 0 ? stimulus.audioKey : undefined),
+          bankSectionIndex: i as number | null,
+        }))
       : [{ title: set.title, instructions: undefined, passage: stimulus.passage, audioKey: stimulus.audioKey, bankSectionIndex: null as number | null }];
 
     for (const part of parts) {

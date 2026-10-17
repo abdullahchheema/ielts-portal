@@ -193,4 +193,38 @@ describe('free-test content lives only in the question bank', () => {
     // Out of range — this set only has 2 sections (indices 0-1).
     await as(admin)(http(app).post(`/admin/question-sets/${setId}/images?sectionIndex=5`)).attach('file', JPEG, { filename: 'x.jpg', contentType: 'image/jpeg' }).expect(404);
   });
+
+  it('a single whole-module audio file (no sectionIndex) plays once, attached to only the first part of a multi-part Listening module', async () => {
+    const title = `Free Listening one-track ${uniq()}`;
+    const payload = {
+      sets: [{
+        title, skill: 'LISTENING', module: 'BOTH', difficulty: 3,
+        sections: [
+          { title: 'Part 1', questions: [{ ieltsType: 'TFNG', prompt: { text: `P1 ${uniq()}` }, marks: 1, answerKey: { value: 'TRUE' } }] },
+          { title: 'Part 2', questions: [{ ieltsType: 'TFNG', prompt: { text: `P2 ${uniq()}` }, marks: 1, answerKey: { value: 'TRUE' } }] },
+        ],
+      }],
+    };
+    const commit = (await post('/admin/question-sets/import/commit', payload).expect(201)).body;
+    const setId = commit.created[0].setId as string;
+
+    // Attached with no sectionIndex — the whole-module recording, not a per-part one.
+    await as(admin)(http(app).post(`/admin/question-sets/${setId}/audio`)).attach('file', MP3, { filename: 'full.mp3', contentType: 'audio/mpeg' }).expect(200);
+    await post(`/admin/question-sets/${setId}/status`, { status: 'APPROVED' }).expect(200);
+    await post(`/admin/question-sets/${setId}/status`, { status: 'PUBLISHED', studentFacing: true }).expect(200);
+
+    let wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
+    for (let i = 0; i < 5 && !wrapped.wrapperAssessmentId; i++) {
+      await http(app).post('/free-test/claim').send({ email: `lead-${uniq()}@test.local`, phone: randomPhone() }).expect(201);
+      wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
+    }
+    expect(wrapped.wrapperAssessmentId).not.toBeNull();
+
+    const assessment = (await get(`/admin/assessments/${wrapped.wrapperAssessmentId}`).expect(200)).body;
+    const versionId = assessment.versions[0].id;
+    const full = (await get(`/admin/assessment-versions/${versionId}`).expect(200)).body;
+    const [p1, p2] = full.sections.sort((a: { title: string }, b: { title: string }) => a.title.localeCompare(b.title));
+    expect(p1.content.audioKey).toBeTruthy(); // the whole-module file landed on the first part
+    expect(p2.content?.audioKey).toBeFalsy(); // not duplicated onto the second part
+  });
 });
