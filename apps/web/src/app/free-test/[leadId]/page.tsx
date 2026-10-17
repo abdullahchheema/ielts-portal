@@ -98,7 +98,7 @@ export default function FreeTestPage() {
   const done = exam.status === 'COMPLETED';
 
   return (
-    <>
+    <div className="mx-auto w-full max-w-6xl px-4 py-7 sm:px-6 sm:py-9 lg:px-10 lg:py-12">
       <PageHeader
         title="Your free test"
         subtitle={done ? 'Finished. Scores below are estimates.' : `Stage: ${exam.stage.toLowerCase()}`}
@@ -106,7 +106,7 @@ export default function FreeTestPage() {
       />
       {error && <Alert>{error}</Alert>}
 
-      <ol className="mb-6 flex flex-wrap gap-2 text-sm">
+      <ol className="mb-8 flex flex-wrap gap-2 text-sm">
         {ORDER.filter((s) => s !== 'SPEAKING' || exam.includeSpeaking).map((s, i) => (
           <li key={s} className={`rounded-full px-3 py-1 ${i < currentIndex || done ? 'bg-success-soft text-success' : s === exam.stage ? 'bg-primary-soft text-primary' : 'bg-surface-muted text-fg-subtle'}`}>
             {s === 'DONE' ? 'Results' : s[0] + s.slice(1).toLowerCase()}
@@ -137,7 +137,7 @@ export default function FreeTestPage() {
           <p className="text-xs text-fg-subtle">These are practice estimates, not official IELTS results.</p>
         </Card>
       )}
-    </>
+    </div>
   );
 }
 
@@ -211,12 +211,12 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
   let runningIndex = 0;
 
   return (
-    <div className="space-y-6">
-      <div className="sticky top-0 z-10 -mx-4 space-y-3 border-b border-border bg-surface/90 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
+    <div className="space-y-8">
+      <div className="sticky top-0 z-10 -mx-4 space-y-4 border-b border-border bg-surface/95 px-4 py-4 shadow-sm backdrop-blur sm:-mx-6 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="font-display font-semibold text-fg">{data.assessment.title}</h2>
-            <p className="text-xs text-fg-muted">{answered}/{total} answered</p>
+            <p className="mt-0.5 text-xs text-fg-muted">{answered}/{total} answered</p>
           </div>
           <div className="flex items-center gap-4 text-sm">
             <span aria-live="polite" className={status === 'offline' || status === 'conflict' ? 'text-danger' : 'text-fg-muted'}>
@@ -227,10 +227,10 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
           </div>
         </div>
         <ProgressBar value={total ? (answered / total) * 100 : 0} />
-        <div className="-mx-1 flex gap-4 overflow-x-auto px-1 pb-1">
+        <div className="no-scrollbar flex gap-5 overflow-x-auto rounded-xl bg-surface-muted/60 px-3 py-2.5">
           {data.paper.map((s) => (
-            <div key={s.id} className="flex shrink-0 items-center gap-1.5">
-              <span className="text-[11px] font-medium text-fg-subtle">{s.title.replace(/^(Part|Reading Passage)\s*/i, '')}</span>
+            <div key={s.id} className="flex shrink-0 items-center gap-2">
+              <span className="text-[11px] font-medium whitespace-nowrap text-fg-subtle">{s.title.replace(/^(Part|Reading Passage)\s*/i, '')}</span>
               <div className="flex gap-1">
                 {s.questions.map((q) => {
                   const num = ++runningIndex;
@@ -259,29 +259,29 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
       {data.paper.map((s, sIdx) => {
         const offset = data.paper.slice(0, sIdx).reduce((n, p) => n + p.questions.length, 0);
         return (
-          <section key={s.id} aria-labelledby={`s-${s.id}`}>
-            <div className="mb-3 flex items-center gap-2">
+          <section key={s.id} aria-labelledby={`s-${s.id}`} className="space-y-4">
+            <div className="flex items-center gap-2">
               <span className="rounded-full bg-primary-soft px-2.5 py-0.5 text-xs font-semibold text-primary">Part {sIdx + 1} of {data.paper.length}</span>
               <h3 id={`s-${s.id}`} className="text-lg font-semibold text-fg">{s.title}</h3>
             </div>
             {s.content.instructions && (
-              <div className="mb-3 rounded-lg bg-info-soft px-4 py-2.5 text-sm text-sky-800">{s.content.instructions}</div>
+              <div className="rounded-lg bg-info-soft px-4 py-2.5 text-sm text-sky-800">{s.content.instructions}</div>
             )}
             {s.content.audioUrl && (
-              <Card className="mb-4 !p-4">
+              <Card className="!p-4">
                 <p className="mb-2 text-xs font-medium text-fg-muted">🎧 Listen to the recording — it plays once, just like the real test.</p>
                 <audio controls className="w-full" src={s.content.audioUrl} />
               </Card>
             )}
             <div className={s.content.passage ? 'grid gap-6 lg:grid-cols-2' : ''}>
               {s.content.passage && (
-                <Card className="max-h-[70vh] overflow-auto bg-surface-muted/40 text-sm leading-relaxed whitespace-pre-wrap lg:sticky lg:top-44">
+                <Card className="max-h-[70vh] overflow-auto bg-surface-muted/40 text-sm leading-relaxed whitespace-pre-wrap lg:sticky lg:top-48">
                   {s.content.passage}
                 </Card>
               )}
               <ol className="space-y-4">
                 {s.questions.map((q, i) => (
-                  <li key={q.id} id={`q-${q.id}`} className="scroll-mt-44">
+                  <li key={q.id} id={`q-${q.id}`} className="scroll-mt-48">
                     <Card className={cx('transition-shadow duration-300', focusedId === q.id && 'shadow-lg ring-2 ring-primary ring-offset-2 ring-offset-surface')}>
                       <p className="mb-3 flex items-start gap-2.5 text-sm font-medium text-fg">
                         <span className="grid size-5.5 shrink-0 place-items-center rounded-full bg-surface-muted text-xs font-semibold text-fg-muted tabular-nums">{offset + i + 1}</span>

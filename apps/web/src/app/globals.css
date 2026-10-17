@@ -188,6 +188,11 @@
   .data-table td:empty { display: none; }
 }
 
+/* Hides the scrollbar on an overflow-x-auto strip (e.g. the free-test question navigator) while
+   keeping it scrollable -- the native bar reads as a stray gray block at this height. */
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
 /* Long-form legal/content prose (Terms, Privacy). */
 .legal-prose h2 { font-size: var(--text-h3); margin-top: 2.25rem; margin-bottom: 0.75rem; }
 .legal-prose h2:first-child { margin-top: 0; }
