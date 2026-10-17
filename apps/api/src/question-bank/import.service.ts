@@ -6,7 +6,7 @@ import { QuestionType, normalizeText, validateQuestionDefinition } from '../asse
 import { AuditService } from '../audit/audit.service';
 import { AppError } from '../common/app-error';
 import { PrismaService } from '../prisma/prisma.service';
-import { Actor, graderType, writeVersion } from './question-bank.service';
+import { Actor, graderType, usesKey } from './question-bank.service';
 
 /**
  * Bulk import of question sets + questions from a structured JSON payload. Two-step: `preview()`
@@ -46,44 +46,74 @@ export class QuestionImportService {
     };
   }
 
+  /**
+   * Builds every row in memory first (ids generated client-side, same trick the direct authoring
+   * API uses for ORDERING's option ids), then writes each table in one bulk `createMany` — a
+   * handful of round-trips total instead of ~3 per question. A large import (dozens of questions)
+   * done one row at a time was slow enough over a cross-region connection to time out the request
+   * entirely; this makes the write cost roughly constant regardless of import size.
+   */
   async commit(input: BulkImportInput, actor: Actor): Promise<ImportCommitResult> {
     const preview = await this.preview(input);
     const blocking = preview.sets.find((s) => s.issues.length > 0);
     if (blocking) throw new AppError('VALIDATION_ERROR', 422, `Set "${blocking.title}" has ${blocking.issues.length} invalid question(s). Fix them and re-import.`);
 
-    return this.prisma.$transaction(async (tx) => {
-      const created: ImportCommitResult['created'] = [];
-      for (const set of input.sets) {
-        const row = await tx.questionSet.create({
-          data: {
-            title: set.title, skill: set.skill, module: set.module, topic: set.topic ?? null, difficulty: set.difficulty,
-            source: set.source ?? null, stimulus: set.stimulus ?? Prisma.JsonNull, status: 'DRAFT', studentFacing: false,
-            createdById: actor.userId ?? null,
-          },
-        });
-        let sequence = 0;
-        for (const q of set.questions) {
-          const grader = graderType(q.ieltsType);
-          // Pre-generate option ids so ORDERING's correctOrder (given as labels in the import file)
-          // can be translated to real ids before persistence — the same id-up-front trick the direct
-          // authoring API uses when a caller supplies option ids itself.
-          const optionsWithIds = (q.options ?? []).map((o) => ({ id: randomUUID(), label: o.label, isCorrect: o.isCorrect }));
-          let answerKey = q.answerKey ?? null;
-          if (grader === 'ORDERING' && answerKey?.correctOrder) {
-            const idByLabel = new Map(optionsWithIds.map((o) => [o.label, o.id]));
-            answerKey = { ...answerKey, correctOrder: answerKey.correctOrder.map((label) => idByLabel.get(label) ?? label) };
-          }
-          const question = await tx.question.create({ data: { questionSetId: row.id, questionType: grader, ieltsType: q.ieltsType, sequence: sequence++ } });
-          await writeVersion(tx, question.id, 1, {
-            prompt: q.prompt as Prisma.InputJsonValue, marks: q.marks, answerKey: answerKey as Prisma.InputJsonValue | null,
-            options: optionsWithIds, grader, partialCredit: q.partialCredit,
-          });
+    const setRows: Prisma.QuestionSetCreateManyInput[] = [];
+    const questionRows: Prisma.QuestionCreateManyInput[] = [];
+    const versionRows: Prisma.QuestionVersionCreateManyInput[] = [];
+    const optionRows: Prisma.QuestionOptionCreateManyInput[] = [];
+    const created: ImportCommitResult['created'] = [];
+
+    for (const set of input.sets) {
+      const setId = randomUUID();
+      setRows.push({
+        id: setId, title: set.title, skill: set.skill, module: set.module, topic: set.topic ?? null, difficulty: set.difficulty,
+        source: set.source ?? null, stimulus: set.stimulus ?? Prisma.JsonNull, status: 'DRAFT', studentFacing: false,
+        createdById: actor.userId ?? null,
+      });
+      let sequence = 0;
+      for (const q of set.questions) {
+        const grader = graderType(q.ieltsType);
+        // Pre-generate option ids so ORDERING's correctOrder (given as labels in the import file)
+        // can be translated to real ids before persistence.
+        const optionsWithIds = (q.options ?? []).map((o) => ({ id: randomUUID(), label: o.label, isCorrect: o.isCorrect }));
+        let answerKey = q.answerKey ?? null;
+        if (grader === 'ORDERING' && answerKey?.correctOrder) {
+          const idByLabel = new Map(optionsWithIds.map((o) => [o.label, o.id]));
+          answerKey = { ...answerKey, correctOrder: answerKey.correctOrder.map((label) => idByLabel.get(label) ?? label) };
         }
-        await this.audit.record({ ...actor, action: 'ADMIN_IMPORTED_QUESTION_SET', entityType: 'QuestionSet', entityId: row.id, after: { title: row.title, questionCount: set.questions.length } }, tx);
-        created.push({ setId: row.id, title: row.title, questionCount: set.questions.length });
+        const questionId = randomUUID();
+        const versionId = randomUUID();
+        questionRows.push({ id: questionId, questionSetId: setId, questionType: grader, ieltsType: q.ieltsType, sequence: sequence++ });
+
+        // Same storage rules writeVersion() applies for a single question — replicated here since
+        // createMany can't call a per-row helper.
+        const matchingWithMappings = grader === 'MATCHING' && Array.isArray((answerKey as { mappings?: unknown[] } | null)?.mappings)
+          && ((answerKey as { mappings?: unknown[] } | null)?.mappings?.length ?? 0) > 0;
+        const storeAnswerKey = usesKey(grader) || grader === 'ORDERING' || matchingWithMappings;
+        const storeOptions = !matchingWithMappings && !usesKey(grader);
+        versionRows.push({
+          id: versionId, questionId, version: 1, prompt: q.prompt as Prisma.InputJsonValue,
+          answerKey: storeAnswerKey && answerKey ? (answerKey as Prisma.InputJsonValue) : Prisma.DbNull,
+          marks: new Prisma.Decimal(q.marks), partialCredit: q.partialCredit ?? false,
+        });
+        if (storeOptions && optionsWithIds.length) {
+          optionRows.push(...optionsWithIds.map((o, i) => ({ id: o.id, questionVersionId: versionId, label: o.label, isCorrect: o.isCorrect, sequence: i })));
+        }
       }
-      return { created };
+      created.push({ setId, title: set.title, questionCount: set.questions.length });
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.questionSet.createMany({ data: setRows });
+      if (questionRows.length) await tx.question.createMany({ data: questionRows });
+      if (versionRows.length) await tx.questionVersion.createMany({ data: versionRows });
+      if (optionRows.length) await tx.questionOption.createMany({ data: optionRows });
+      for (const c of created) {
+        await this.audit.record({ ...actor, action: 'ADMIN_IMPORTED_QUESTION_SET', entityType: 'QuestionSet', entityId: c.setId, after: { title: c.title, questionCount: c.questionCount } }, tx);
+      }
     });
+    return { created };
   }
 
   /** One normalized-prompt -> source question map, built once per preview call. Bounded by the

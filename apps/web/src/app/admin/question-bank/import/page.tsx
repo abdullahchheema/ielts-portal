@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { Alert, Button, Empty, PageHeader, Table, Td } from '@/components/ui';
+import { Alert, Button, Empty, FileInput, PageHeader, Table, Td } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 
@@ -14,15 +14,18 @@ interface CommitResult { created: { setId: string; title: string; questionCount:
 
 export default function ImportPage() {
   const [raw, setRaw] = useState('');
+  const [file, setFile] = useState<File | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [commitResult, setCommitResult] = useState<CommitResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [previewBusy, setPreviewBusy] = useState(false);
+  const [commitBusy, setCommitBusy] = useState(false);
 
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    setFile(file);
     const reader = new FileReader();
     reader.onload = () => { setRaw(String(reader.result ?? '')); setPreview(null); setCommitResult(null); setError(null); setParseError(null); };
     reader.readAsText(file);
@@ -46,20 +49,20 @@ export default function ImportPage() {
   async function runPreview() {
     const body = parsed();
     if (!body) return;
-    setBusy(true); setError(null); setCommitResult(null);
+    setPreviewBusy(true); setError(null); setCommitResult(null);
     try {
       setPreview(await api<PreviewResult>('/admin/question-sets/import/preview', { method: 'POST', body }));
-    } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
+    } catch (e) { setError(errorMessage(e)); } finally { setPreviewBusy(false); }
   }
 
   async function runCommit() {
     const body = parsed();
     if (!body) return;
-    setBusy(true); setError(null);
+    setCommitBusy(true); setError(null);
     try {
       setCommitResult(await api<CommitResult>('/admin/question-sets/import/commit', { method: 'POST', body }));
       setPreview(null);
-    } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
+    } catch (e) { setError(errorMessage(e)); } finally { setCommitBusy(false); }
   }
 
   const canCommit = preview !== null && preview.totalIssues === 0;
@@ -71,13 +74,13 @@ export default function ImportPage() {
       <div className="space-y-4 rounded-lg border border-border bg-surface p-4">
         <div>
           <label className="mb-1 block text-sm font-medium">JSON file</label>
-          <input type="file" accept="application/json,.json" onChange={onFile} className="block w-full text-sm" />
+          <FileInput accept="application/json,.json" file={file} onChange={onFile} />
         </div>
         {parseError && <Alert>{parseError}</Alert>}
         {error && <Alert>{error}</Alert>}
         <div className="flex gap-2">
-          <Button onClick={runPreview} busy={busy} disabled={!raw.trim()}>Preview</Button>
-          <Button onClick={runCommit} busy={busy} disabled={!canCommit} variant={canCommit ? 'primary' : 'secondary'}>
+          <Button onClick={runPreview} busy={previewBusy} disabled={!raw.trim()}>Preview</Button>
+          <Button onClick={runCommit} busy={commitBusy} disabled={!canCommit} variant={canCommit ? 'primary' : 'secondary'}>
             Commit {preview ? `(${preview.totalQuestions} questions)` : ''}
           </Button>
         </div>
