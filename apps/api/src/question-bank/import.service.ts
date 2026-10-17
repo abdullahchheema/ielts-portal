@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@ielts/db';
-import { BulkImportInput, ImportCommitResult, ImportPreviewResult, ImportQuestionIssue, ImportSetPreview } from '@ielts/validation';
+import { BulkImportInput, ImportCommitResult, ImportPreviewResult, ImportQuestionIssue, ImportSetPreview, flattenSetQuestions } from '@ielts/validation';
 import { QuestionType, normalizeText, validateQuestionDefinition } from '../assessments/grading';
 import { AuditService } from '../audit/audit.service';
 import { AppError } from '../common/app-error';
@@ -23,7 +23,8 @@ export class QuestionImportService {
     const sets: ImportSetPreview[] = input.sets.map((set, setIndex) => {
       const issues: ImportQuestionIssue[] = [];
       const duplicates: ImportSetPreview['duplicates'] = [];
-      set.questions.forEach((q, questionIndex) => {
+      const flat = flattenSetQuestions(set);
+      flat.forEach(({ question: q }, questionIndex) => {
         const grader = graderType(q.ieltsType);
         if (grader !== 'NONE') {
           const problems = validateQuestionDefinition({
@@ -36,7 +37,7 @@ export class QuestionImportService {
         const match = norm ? existingByNormalizedText.get(norm) : undefined;
         if (match) duplicates.push({ questionIndex, matchedQuestionId: match.questionId, matchedPrompt: match.promptText });
       });
-      return { setIndex, title: set.title, questionCount: set.questions.length, issues, duplicates };
+      return { setIndex, title: set.title, questionCount: flat.length, issues, duplicates };
     });
     return {
       sets,
@@ -66,13 +67,18 @@ export class QuestionImportService {
 
     for (const set of input.sets) {
       const setId = randomUUID();
+      // A sectioned set (several passages) stores its sections' own metadata — title, instructions,
+      // passage — as stimulus.sections[]; audio is attached afterward, per section, via attachSetAudio.
+      const stimulus = set.sections
+        ? { sections: set.sections.map(({ title, instructions, passage, cueCard }) => ({ title, instructions, passage, cueCard })) }
+        : (set.stimulus ?? Prisma.JsonNull);
       setRows.push({
         id: setId, title: set.title, skill: set.skill, module: set.module, topic: set.topic ?? null, difficulty: set.difficulty,
-        source: set.source ?? null, stimulus: set.stimulus ?? Prisma.JsonNull, status: 'DRAFT', studentFacing: false,
+        source: set.source ?? null, stimulus, status: 'DRAFT', studentFacing: false,
         createdById: actor.userId ?? null,
       });
       let sequence = 0;
-      for (const q of set.questions) {
+      for (const { question: q, sectionIndex } of flattenSetQuestions(set)) {
         const grader = graderType(q.ieltsType);
         // Pre-generate option ids so ORDERING's correctOrder (given as labels in the import file)
         // can be translated to real ids before persistence.
@@ -84,7 +90,7 @@ export class QuestionImportService {
         }
         const questionId = randomUUID();
         const versionId = randomUUID();
-        questionRows.push({ id: questionId, questionSetId: setId, questionType: grader, ieltsType: q.ieltsType, sequence: sequence++ });
+        questionRows.push({ id: questionId, questionSetId: setId, questionType: grader, ieltsType: q.ieltsType, sequence: sequence++, bankSectionIndex: sectionIndex });
 
         // Same storage rules writeVersion() applies for a single question — replicated here since
         // createMany can't call a per-row helper.
@@ -101,7 +107,7 @@ export class QuestionImportService {
           optionRows.push(...optionsWithIds.map((o, i) => ({ id: o.id, questionVersionId: versionId, label: o.label, isCorrect: o.isCorrect, sequence: i })));
         }
       }
-      created.push({ setId, title: set.title, questionCount: set.questions.length });
+      created.push({ setId, title: set.title, questionCount: sequence });
     }
 
     await this.prisma.$transaction(async (tx) => {

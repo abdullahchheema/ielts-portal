@@ -74,8 +74,10 @@ export class QuestionBankService {
   }
 
   /** Listening audio for a set, stored alongside its stimulus. Must be attached before publishing —
-   *  same rule as the assessment-side equivalent — since a published set is otherwise immutable. */
-  async attachSetAudio(setId: string, file: { buffer: Buffer; size: number } | undefined, actor: Actor) {
+   *  same rule as the assessment-side equivalent — since a published set is otherwise immutable. For
+   *  a multi-passage set, `sectionIndex` says which of `stimulus.sections[]` the file belongs to
+   *  (a real Listening paper often has a separate track per section); omitted for a single-passage set. */
+  async attachSetAudio(setId: string, file: { buffer: Buffer; size: number } | undefined, actor: Actor, sectionIndex?: number) {
     if (!file) throw new AppError('VALIDATION_ERROR', 422, 'Attach an MP3 file.', { file: 'Required.' });
     if (file.size > MAX_AUDIO_BYTES) throw new AppError('FILE_TOO_LARGE', 413, 'The audio file is larger than 100 MB.');
     const set = await this.prisma.questionSet.findUnique({ where: { id: setId } });
@@ -85,9 +87,17 @@ export class QuestionBankService {
     if (!sniffed || sniffed.mime !== 'audio/mpeg') throw new AppError('UNSUPPORTED_FILE_TYPE', 415, 'Only MP3 audio is accepted.');
     const audioKey = `question-sets/${setId}/${randomUUID()}.mp3`;
     await this.storage.put(audioKey, file.buffer, 'audio/mpeg');
-    const stimulus = { ...((set.stimulus as object) ?? {}), audioKey };
+    const current = (set.stimulus as { sections?: Record<string, unknown>[] } | null) ?? {};
+    let stimulus: object;
+    if (sectionIndex !== undefined) {
+      if (!current.sections?.[sectionIndex]) throw notFound('Section');
+      const sections = current.sections.map((s, i) => (i === sectionIndex ? { ...s, audioKey } : s));
+      stimulus = { ...current, sections };
+    } else {
+      stimulus = { ...current, audioKey };
+    }
     await this.prisma.questionSet.update({ where: { id: setId }, data: { stimulus } });
-    await this.audit.record({ ...actor, action: 'ADMIN_ADDED_QUESTION_SET_AUDIO', entityType: 'QuestionSet', entityId: setId, after: { audioKey } });
+    await this.audit.record({ ...actor, action: 'ADMIN_ADDED_QUESTION_SET_AUDIO', entityType: 'QuestionSet', entityId: setId, after: { audioKey, sectionIndex } });
     return { ok: true };
   }
 
@@ -151,7 +161,21 @@ export class QuestionBankService {
       },
     });
     if (!set) throw notFound('Question set');
-    return set;
+    return { ...set, stimulus: await this.resolveStimulusAudio(set.stimulus) };
+  }
+
+  /** Swaps every raw `audioKey` in a set's stimulus (top-level, or per-section) for a short-lived
+   *  signed `audioUrl` — the admin UI never needs to handle a raw storage key. */
+  private async resolveStimulusAudio(stimulus: unknown) {
+    const s = stimulus as { audioKey?: string; sections?: { audioKey?: string }[] } | null;
+    if (!s) return s;
+    const [audioUrl, sections] = await Promise.all([
+      s.audioKey ? this.storage.signedUrl(s.audioKey, 3600) : undefined,
+      s.sections
+        ? Promise.all(s.sections.map(async (sec) => (sec.audioKey ? { ...sec, audioUrl: await this.storage.signedUrl(sec.audioKey, 3600) } : sec)))
+        : undefined,
+    ]);
+    return { ...s, ...(audioUrl ? { audioUrl } : {}), ...(sections ? { sections } : {}) };
   }
 
   async createSet(input: QuestionSetCreateInput, actor: Actor) {

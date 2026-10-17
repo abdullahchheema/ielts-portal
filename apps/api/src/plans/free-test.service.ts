@@ -142,16 +142,33 @@ export class FreeTestService {
     const set = await this.prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
     if (set.wrapperAssessmentId) return set.wrapperAssessmentId;
 
-    const assessment = await this.assessmentsAdmin.create({ title: set.title, type: 'DIAGNOSTIC', skill, passPercent: 0, showAnswers: true }, SYSTEM_ACTOR);
+    // IELTS-standard section timing — the same values this codebase already uses for mock-exam
+    // composition (`/admin/mock-exams/compose`'s durationMin).
+    const timeLimitMin = skill === 'LISTENING' ? 30 : 60;
+    const assessment = await this.assessmentsAdmin.create({ title: set.title, type: 'DIAGNOSTIC', skill, passPercent: 0, showAnswers: true, timeLimitMin }, SYSTEM_ACTOR);
     const full = await this.assessmentsAdmin.get(assessment.id);
     const versionId = full.versions[0].id;
-    const stimulus = (set.stimulus ?? {}) as { passage?: string; audioKey?: string };
-    const section = await this.assessmentsAdmin.createSection(versionId, { title: set.title, content: stimulus.passage ? { passage: stimulus.passage } : undefined }, SYSTEM_ACTOR);
-    if (stimulus.audioKey) {
-      await this.prisma.assessmentSection.update({ where: { id: section.id }, data: { content: { passage: stimulus.passage, audioKey: stimulus.audioKey } } });
+    const stimulus = (set.stimulus ?? {}) as { passage?: string; audioKey?: string; sections?: { title: string; instructions?: string; passage?: string; audioKey?: string }[] };
+
+    // A multi-passage set (sections[]) gets one AssessmentSection per passage, each copying only its
+    // own questions — this is what makes the existing section-by-section renderer (AttemptsService's
+    // paper(), the free-test SectionStage) show each passage directly above its own questions instead
+    // of one giant block. A single-passage set keeps the original one-section shape.
+    const parts = stimulus.sections?.length
+      ? stimulus.sections.map((s, i) => ({ title: s.title, instructions: s.instructions, passage: s.passage, audioKey: s.audioKey, bankSectionIndex: i as number | null }))
+      : [{ title: set.title, instructions: undefined, passage: stimulus.passage, audioKey: stimulus.audioKey, bankSectionIndex: null as number | null }];
+
+    for (const part of parts) {
+      const content = part.passage || part.instructions ? { passage: part.passage, instructions: part.instructions } : undefined;
+      const section = await this.assessmentsAdmin.createSection(versionId, { title: part.title, content }, SYSTEM_ACTOR);
+      if (part.audioKey) {
+        await this.prisma.assessmentSection.update({ where: { id: section.id }, data: { content: { passage: part.passage, instructions: part.instructions, audioKey: part.audioKey } } });
+      }
+      const questionIds = (await this.prisma.question.findMany({
+        where: { questionSetId: setId, bankSectionIndex: part.bankSectionIndex }, orderBy: { sequence: 'asc' }, select: { id: true },
+      })).map((q) => q.id);
+      await this.bank.copyIntoSection(section.id, questionIds, SYSTEM_ACTOR);
     }
-    const questionIds = (await this.prisma.question.findMany({ where: { questionSetId: setId }, orderBy: { sequence: 'asc' }, select: { id: true } })).map((q) => q.id);
-    await this.bank.copyIntoSection(section.id, questionIds, SYSTEM_ACTOR);
     await this.assessmentsAdmin.publishVersion(versionId, SYSTEM_ACTOR);
 
     // Only the first builder's id sticks; a concurrent duplicate build (rare — only possible the very

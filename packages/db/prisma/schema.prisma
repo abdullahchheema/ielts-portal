@@ -1126,6 +1126,10 @@ model Question {
   questionSetId    String?   @map("question_set_id") @db.Uuid
   ieltsType        String?   @map("ielts_type")
   sourceQuestionId String?   @map("source_question_id") @db.Uuid
+  // Which entry of the owning QuestionSet's stimulus.sections[] this bank question belongs to, for
+  // multi-passage modules (one Reading/Listening module = several passages, each with its own
+  // questions). Null for single-passage sets (the pre-existing, still-supported shape).
+  bankSectionIndex Int?      @map("bank_section_index")
   // ── IELTS-facing taxonomy, separate from the grader above (spec §11–§16, §28–§29) ──
   skillKey           String? @map("skill_key")
   ieltsQuestionType  String? @map("ielts_question_type") // the IELTS-facing label, e.g. MATCHING_HEADINGS

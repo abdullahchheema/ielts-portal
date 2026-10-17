@@ -103,6 +103,7 @@ describe('free-test content lives only in the question bank', () => {
     expect(assessment.type).toBe('DIAGNOSTIC');
     expect(assessment.skill).toBe('LISTENING');
     expect(assessment.title).toBe(title);
+    expect(assessment.timeLimitMin).toBe(30); // IELTS-standard Listening timing
     const versionId = assessment.versions[0].id;
     const full = (await get(`/admin/assessment-versions/${versionId}`).expect(200)).body;
     expect(full.sections).toHaveLength(1);
@@ -116,5 +117,54 @@ describe('free-test content lives only in the question bank', () => {
     for (let i = 0; i < 3; i++) await http(app).post('/free-test/claim').send({ email: `lead-${uniq()}@test.local`, phone: randomPhone() }).expect(201);
     const wrapperCount = await prisma.assessment.count({ where: { title, type: 'DIAGNOSTIC' } });
     expect(wrapperCount).toBe(1);
+  });
+
+  it('a multi-passage Reading module imports as sections, and the wrapper Assessment gets one section per passage with only that passage\'s questions', async () => {
+    const title = `Free Reading multi ${uniq()}`;
+    const payload = {
+      sets: [{
+        title, skill: 'READING', module: 'ACADEMIC', difficulty: 3,
+        sections: [
+          {
+            title: 'Passage 1', instructions: 'For questions 1, write TRUE or FALSE.', passage: `Passage one text ${uniq()}`,
+            questions: [{ ieltsType: 'TFNG', prompt: { text: `P1 Q1 ${uniq()}` }, marks: 1, answerKey: { value: 'TRUE' } }],
+          },
+          {
+            title: 'Passage 2', instructions: 'For question 2, choose the correct letter.', passage: `Passage two text ${uniq()}`,
+            questions: [{ ieltsType: 'MCQ_SINGLE', prompt: { text: `P2 Q2 ${uniq()}` }, marks: 1, options: [{ label: 'A', isCorrect: true }, { label: 'B', isCorrect: false }] }],
+          },
+        ],
+      }],
+    };
+    const commit = (await post('/admin/question-sets/import/commit', payload).expect(201)).body;
+    const setId = commit.created[0].setId as string;
+    expect(commit.created[0].questionCount).toBe(2);
+
+    const stored = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
+    expect((stored.stimulus as { sections: unknown[] }).sections).toHaveLength(2);
+    const questions = await prisma.question.findMany({ where: { questionSetId: setId }, orderBy: { sequence: 'asc' } });
+    expect(questions.map((q) => q.bankSectionIndex)).toEqual([0, 1]);
+
+    await post(`/admin/question-sets/${setId}/status`, { status: 'APPROVED' }).expect(200);
+    await post(`/admin/question-sets/${setId}/status`, { status: 'PUBLISHED', studentFacing: true }).expect(200);
+
+    let wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
+    for (let i = 0; i < 5 && !wrapped.wrapperAssessmentId; i++) {
+      await http(app).post('/free-test/claim').send({ email: `lead-${uniq()}@test.local`, phone: randomPhone() }).expect(201);
+      wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
+    }
+    expect(wrapped.wrapperAssessmentId).not.toBeNull();
+
+    const assessment = (await get(`/admin/assessments/${wrapped.wrapperAssessmentId}`).expect(200)).body;
+    expect(assessment.timeLimitMin).toBe(60); // IELTS-standard Reading timing
+    const versionId = assessment.versions[0].id;
+    const full = (await get(`/admin/assessment-versions/${versionId}`).expect(200)).body;
+    expect(full.sections).toHaveLength(2);
+    const [s1, s2] = full.sections.sort((a: { title: string }, b: { title: string }) => a.title.localeCompare(b.title));
+    expect(s1.title).toBe('Passage 1');
+    expect(s1.questions).toHaveLength(1);
+    expect(s1.content.instructions).toContain('TRUE or FALSE');
+    expect(s2.title).toBe('Passage 2');
+    expect(s2.questions).toHaveLength(1);
   });
 });

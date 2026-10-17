@@ -92,8 +92,11 @@ export class AdminQuestionSetsController {
   }
 
   @RequirePermission('question.manage') @HttpCode(200) @Post(':id/audio') @audioUpload
-  attachSetAudio(@Param('id', uuid) id: string, @UploadedFile() file: ImageFile, @CurrentUser() u: AuthUser, @Req() req: Request) {
-    return this.bank.attachSetAudio(id, file, actor(u, req));
+  attachSetAudio(
+    @Param('id', uuid) id: string, @UploadedFile() file: ImageFile, @Query('sectionIndex') sectionIndex: string | undefined,
+    @CurrentUser() u: AuthUser, @Req() req: Request,
+  ) {
+    return this.bank.attachSetAudio(id, file, actor(u, req), sectionIndex !== undefined ? Number(sectionIndex) : undefined);
   }
 
   @RequirePermission('question.manage') @HttpCode(201) @Post('questions/:questionId/images') @imageUpload
