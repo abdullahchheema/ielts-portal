@@ -116,12 +116,22 @@ describe('deleting a question set', () => {
     expect(await prisma.question.count({ where: { questionSetId: setId } })).toBe(0);
   });
 
-  it('refuses to delete a set that has been approved or published — archive it instead', async () => {
+  it('refuses to delete a set that is approved or published — archive it first', async () => {
     const res = (await post('/admin/question-sets/import/commit', validPayload()).expect(201)).body;
     const setId = res.created[0].setId as string;
     await post(`/admin/question-sets/${setId}/status`, { status: 'APPROVED' }).expect(200);
 
     await as(admin)(http(app).delete(`/admin/question-sets/${setId}`)).expect(409);
     expect(await prisma.questionSet.findUnique({ where: { id: setId } })).not.toBeNull();
+  });
+
+  it('permanently removes an ARCHIVED set — archiving already took it out of circulation', async () => {
+    const res = (await post('/admin/question-sets/import/commit', validPayload()).expect(201)).body;
+    const setId = res.created[0].setId as string;
+    await post(`/admin/question-sets/${setId}/status`, { status: 'APPROVED' }).expect(200);
+    await post(`/admin/question-sets/${setId}/status`, { status: 'ARCHIVED' }).expect(200);
+
+    await as(admin)(http(app).delete(`/admin/question-sets/${setId}`)).expect(200);
+    expect(await prisma.questionSet.findUnique({ where: { id: setId } })).toBeNull();
   });
 });

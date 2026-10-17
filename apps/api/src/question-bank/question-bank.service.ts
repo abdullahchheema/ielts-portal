@@ -196,13 +196,15 @@ export class QuestionBankService {
     });
   }
 
-  /** Permanently removes a set and everything in it. Only ever allowed for a DRAFT — anything that
-   *  has been approved/published may already be relied on elsewhere (a free-test wrapper, a mock); for
-   *  those, archiving (which already exists) is the correct way to take it out of circulation. */
+  /** Permanently removes a set and everything in it. Allowed for a DRAFT (never published) or an
+   *  ARCHIVED set (already taken out of circulation, so nothing still depends on it existing — a
+   *  free-test wrapper or a mock only ever holds its own independent copy of the questions, never a
+   *  live reference). APPROVED/PUBLISHED sets must be archived first: that's the deliberate step that
+   *  confirms it's really done being used before it can be deleted. */
   async deleteSet(id: string, actor: Actor) {
     const set = await this.prisma.questionSet.findUnique({ where: { id }, include: { questions: { select: { id: true } } } });
     if (!set) throw notFound('Question set');
-    if (set.status !== 'DRAFT') throw conflict('CONFLICT', 'Only a draft set can be deleted. Archive it instead to take it out of circulation.');
+    if (set.status !== 'DRAFT' && set.status !== 'ARCHIVED') throw conflict('CONFLICT', 'Archive this set first, then delete it.');
     const questionIds = set.questions.map((q) => q.id);
     await this.prisma.$transaction(async (tx) => {
       const versionIds = (await tx.questionVersion.findMany({ where: { questionId: { in: questionIds } }, select: { id: true } })).map((v) => v.id);

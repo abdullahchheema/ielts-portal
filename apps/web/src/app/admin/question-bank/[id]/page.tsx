@@ -62,7 +62,7 @@ export default function QuestionSetPage() {
     try { await api(`/admin/question-sets/questions/${qid}`, { method: 'DELETE' }); await refresh(); } catch (e) { setError(errorMessage(e)); }
   }
   async function remove() {
-    if (!(await confirm({ message: 'Permanently delete this draft set and all of its questions? This cannot be undone.', confirmLabel: 'Delete set' }))) return;
+    if (!(await confirm({ message: 'Permanently delete this set and all of its questions? This cannot be undone.', confirmLabel: 'Delete set' }))) return;
     setActionBusy('delete');
     try {
       await api(`/admin/question-sets/${id}`, { method: 'DELETE' });
@@ -88,7 +88,7 @@ export default function QuestionSetPage() {
             <Button key={s} variant={s === 'PUBLISHED' ? 'primary' : 'secondary'} onClick={() => move(s)} busy={actionBusy === s} disabled={!!actionBusy}>{LABEL[s]}</Button>
           ))}
           {!editable && <Button variant="secondary" onClick={clone} busy={actionBusy === 'clone'} disabled={!!actionBusy}>Clone to edit</Button>}
-          {data.status === 'DRAFT' && <Button variant="danger" onClick={remove} busy={actionBusy === 'delete'} disabled={!!actionBusy}>Delete</Button>}
+          {(data.status === 'DRAFT' || data.status === 'ARCHIVED') && <Button variant="danger" onClick={remove} busy={actionBusy === 'delete'} disabled={!!actionBusy}>Delete</Button>}
         </div>}
       />
       {error && <Alert>{error}</Alert>}

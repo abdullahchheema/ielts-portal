@@ -31,7 +31,7 @@ export default function QuestionBankPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function removeSet(id: string) {
-    if (!(await confirm({ message: 'Permanently delete this draft set and all of its questions? This cannot be undone.', confirmLabel: 'Delete set' }))) return;
+    if (!(await confirm({ message: 'Permanently delete this set and all of its questions? This cannot be undone.', confirmLabel: 'Delete set' }))) return;
     setDeletingId(id); setError(null);
     try {
       await api(`/admin/question-sets/${id}`, { method: 'DELETE' });
@@ -85,7 +85,7 @@ export default function QuestionBankPage() {
                 <Td>{s.questionCount}</Td>
                 <Td><Badge status={s.status} />{s.studentFacing && <span className="ml-2 text-xs text-success">Student-facing</span>}</Td>
                 <Td>v{s.version}</Td>
-                <Td>{s.status === 'DRAFT' && <Button variant="ghost" tone="danger" size="xs" onClick={() => removeSet(s.id)} busy={deletingId === s.id} disabled={!!deletingId}>Delete</Button>}</Td>
+                <Td>{(s.status === 'DRAFT' || s.status === 'ARCHIVED') && <Button variant="ghost" tone="danger" size="xs" onClick={() => removeSet(s.id)} busy={deletingId === s.id} disabled={!!deletingId}>Delete</Button>}</Td>
               </tr>
             ))}
           </Table>
