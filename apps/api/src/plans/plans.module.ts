@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AssessmentsModule } from '../assessments/assessments.module';
+import { QuestionBankModule } from '../question-bank/question-bank.module';
 import { SimulatorModule } from '../simulator/simulator.service';
 import { SpeakingModule } from '../speaking/speaking.module';
 import { WritingModule } from '../writing/writing.module';
@@ -18,7 +19,7 @@ import { PremiumServicesService } from './premium-services.service';
 // not provided here — so modules that depend on it (assessments, writing, speaking...) never need
 // to import PlansModule, which would cycle back through AssessmentsModule below.
 @Module({
-  imports: [AssessmentsModule, SimulatorModule, WritingModule, SpeakingModule],
+  imports: [AssessmentsModule, SimulatorModule, WritingModule, SpeakingModule, QuestionBankModule],
   controllers: [
     PublicPlansController, StudentPlanController, AdminPlansController, AdminStudentPlansController,
     FreeTestController, AdminFreeTestPoolController, AdminFreeTestLeadsController,

@@ -1,9 +1,9 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { z } from 'zod';
 import {
-  AssignStudentPlanInput, ChangePlanInput, PLAN_NAMES, ReplaceEntitlementsInput, UpdatePlanInput,
-  assignStudentPlanSchema, changePlanSchema, replaceEntitlementsSchema, updatePlanSchema,
+  AssignStudentPlanInput, BulkImportInput, ChangePlanInput, PLAN_NAMES, ReplaceEntitlementsInput, UpdatePlanInput,
+  assignStudentPlanSchema, bulkImportSchema, changePlanSchema, replaceEntitlementsSchema, updatePlanSchema,
 } from '@ielts/validation';
 import { AuthUser, CurrentUser, Public, RequirePermission, clientMeta } from '../common/decorators';
 import { forbidden } from '../common/app-error';
@@ -97,6 +97,15 @@ export class AdminFreeTestPoolController {
 
   @RequirePermission('plan.manage') @Get()
   stats() { return this.svc.poolStats(); }
+
+  @RequirePermission('plan.manage') @Get('modules')
+  listModules() { return this.svc.listModules(); }
+
+  /** One upload, any mix of skills — each set becomes its own independent rotation module. */
+  @RequirePermission('plan.manage') @HttpCode(201) @Post('modules')
+  importModules(@Body(new ZodPipe(bulkImportSchema)) body: BulkImportInput, @CurrentUser() u: AuthUser, @Req() req: Request) {
+    return this.svc.importModules(body, actor(u, req));
+  }
 }
 
 @Controller('admin/free-test-leads')

@@ -10,6 +10,6 @@ import { AttemptsService } from './attempts.service';
   imports: [LearningModule, AnalyticsModule, MocksModule],
   controllers: [AdminAssessmentsController, StudentAssessmentsController],
   providers: [AssessmentsAdminService, AttemptsService],
-  exports: [AttemptsService],
+  exports: [AttemptsService, AssessmentsAdminService],
 })
 export class AssessmentsModule {}

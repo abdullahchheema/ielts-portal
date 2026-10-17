@@ -56,7 +56,7 @@ function AdminShell({ children }: { children: ReactNode }) {
         ] },
         { title: 'Plans', items: [
           { href: '/admin/plans', label: 'Plans', icon: Crown, show: c('plan.manage') },
-          { href: '/admin/free-tests', label: 'Free test', icon: Sparkles, show: c('plan.manage') },
+          { href: '/admin/free-tests', label: 'Free test modules', icon: Sparkles, show: c('plan.manage') },
           { href: '/admin/premium-services', label: 'Premium services', icon: Crown, show: c('premium.service.manage') },
         ] },
         { title: 'Support', items: [{ href: '/admin/tickets', label: 'Tickets', icon: MessagesSquare, show: c('ticket.manage') }] },
