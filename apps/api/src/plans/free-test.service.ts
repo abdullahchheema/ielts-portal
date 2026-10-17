@@ -2,106 +2,156 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import { Prisma } from '@ielts/db';
-import type { SaveAnswersInput } from '@ielts/validation';
+import type { AddSpeakingResponseInput, SaveAnswersInput, SaveWritingInput } from '@ielts/validation';
 import { AppError, conflict, notFound } from '../common/app-error';
 import { PrismaService } from '../prisma/prisma.service';
 import { AttemptsService } from '../assessments/attempts.service';
+import { SimulatorService } from '../simulator/simulator.service';
+import { SpeakingService } from '../speaking/speaking.service';
+import { WritingService } from '../writing/writing.service';
 
 /** Ghost accounts' email domain. Status stays PENDING_VERIFICATION forever, so the normal
  *  "verify your email before logging in" gate already makes them unreachable through /auth/login. */
 const GHOST_EMAIL_DOMAIN = 'free-lead.internal';
 const LEAD_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-export interface FreeTestResult {
-  score: { raw: number | null; max: number | null; percent: number | null; band: number | null };
-  assessment: { title: string };
-  completedAt: Date | null;
-  status: string;
-}
-
 /**
- * The anonymous free-test flow. Identity is email+phone (normalized), with no account created —
- * a lightweight "ghost" StudentProfile/User lets the free attempt reuse the existing, battle-tested
- * AttemptsService lifecycle (start/save/submit) unchanged. The one place this service does NOT
- * delegate is the final result: that is a hand-written, hard-coded projection of score fields only,
- * so a free lead can never see per-question correctness or answer keys no matter how the underlying
- * assessment's `showAnswers` flag is configured — the restriction lives in the backend, not the UI.
+ * The anonymous free-test flow. Identity is email+phone (normalized), with no account created — a
+ * lightweight "ghost" StudentProfile/User lets the free attempt reuse the existing, battle-tested
+ * engines unchanged. The free test is a full 4-skill mock, orchestrated as an `ExamAttempt` exactly
+ * like the authenticated full exam simulator (see SimulatorService): Listening and Reading are each
+ * picked from whichever DIAGNOSTIC-type assessments are published for that skill (no fixed set —
+ * publish as many as you like, the least-used one is picked each time); Writing and Speaking are
+ * picked by SimulatorService's own existing logic, unchanged, from the question bank.
+ *
+ * `SimulatorService.get()`/`.advance()` do no gating beyond "does this studentId own this exam," so
+ * once the ExamAttempt exists they can be called directly for the ghost. Only `.start()` gates on
+ * enrollment/mocks-approval — this service never calls it, creating the exam and its first section
+ * itself instead, the same way `.start()` does internally, just without that gate (DIAGNOSTIC-type
+ * assessments need no enrollment or approval, which is exactly why Phase 4 used them originally).
+ *
+ * No AI-evaluation bypass exists here, and none should be added: the ghost has no plan (defaults to
+ * FREE), so Writing/Speaking never get an AI estimate — `missingSkills` will list them and
+ * `overallEstimate` stays null, which is the spec-correct behaviour for the Free tier, not a bug.
  */
 @Injectable()
 export class FreeTestService {
-  constructor(private readonly prisma: PrismaService, private readonly attempts: AttemptsService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly attempts: AttemptsService,
+    private readonly sim: SimulatorService,
+    private readonly writing: WritingService,
+    private readonly speaking: SpeakingService,
+  ) {}
 
   private normalize(email: string, phone: string) {
     return { emailNormalized: email.trim().toLowerCase(), phoneNormalized: phone.replace(/\D/g, '') };
   }
 
-  /** Claim (or resume, or reclaim after expiry) a free-test slot. Never grants a second entitlement
-   *  to the same identity once it has been COMPLETED. */
+  /** Claim (or resume, or reclaim after expiry) a free test. Never grants a second entitlement to
+   *  the same identity once it has been COMPLETED. */
   async claim(email: string, phone: string, meta: { ip?: string; userAgent?: string }) {
     const { emailNormalized, phoneNormalized } = this.normalize(email, phone);
     if (!phoneNormalized || phoneNormalized.length < 6) throw new AppError('VALIDATION_ERROR', 422, 'Enter a valid phone number.', { phone: 'Invalid phone number.' });
 
-    const existing = await this.prisma.freeAssessmentLead.findUnique({
-      where: { emailNormalized_phoneNormalized: { emailNormalized, phoneNormalized } },
-      include: { assignedConfig: true },
-    });
-
+    const existing = await this.prisma.freeAssessmentLead.findUnique({ where: { emailNormalized_phoneNormalized: { emailNormalized, phoneNormalized } } });
     if (existing) {
       if (existing.status === 'COMPLETED') throw conflict('FREE_TEST_USED', 'You have already taken the free test. Register for a paid plan to unlock full results and more tests.');
       if (existing.status === 'EXPIRED') return this.reclaim(existing.id, meta);
-      return { leadId: existing.id, assessmentId: existing.assignedConfig.assessmentId, resumable: !!existing.attemptId };
+      return { leadId: existing.id, resumable: !!existing.examAttemptId };
     }
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
-        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('free_test_assign'))`;
-        const config = await this.pickBalancedConfig(tx);
-        const ghostStudentId = await this.createGhostStudent(tx, email, phone);
-        const lead = await tx.freeAssessmentLead.create({
-          data: {
-            email, phone, emailNormalized, phoneNormalized, assignedConfigId: config.id, ghostStudentId,
-            ipAddress: meta.ip, userAgent: meta.userAgent, expiresAt: new Date(Date.now() + LEAD_TTL_MS),
-          },
-        });
-        return { leadId: lead.id, assessmentId: config.assessmentId, resumable: false };
+      // Not one big transaction: createExam() calls AttemptsService.start(), which opens its own
+      // transaction and needs the ghost student's row already committed and visible — not still
+      // sitting inside an uncommitted outer transaction, which would fail its FK check.
+      const ghostStudentId = await this.createGhostStudent(email, phone);
+      const examAttemptId = await this.createExam(ghostStudentId);
+      const lead = await this.prisma.freeAssessmentLead.create({
+        data: {
+          email, phone, emailNormalized, phoneNormalized, ghostStudentId, examAttemptId,
+          ipAddress: meta.ip, userAgent: meta.userAgent, expiresAt: new Date(Date.now() + LEAD_TTL_MS),
+        },
       });
+      return { leadId: lead.id, resumable: false };
     } catch (e) {
       // Two near-simultaneous claims for the same identity: the loser's insert hits the unique
       // index. Recover by returning the winner's lead instead of a spurious 500.
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-        const after = await this.prisma.freeAssessmentLead.findUnique({
-          where: { emailNormalized_phoneNormalized: { emailNormalized, phoneNormalized } }, include: { assignedConfig: true },
-        });
-        if (after) return { leadId: after.id, assessmentId: after.assignedConfig.assessmentId, resumable: !!after.attemptId };
+        const after = await this.prisma.freeAssessmentLead.findUnique({ where: { emailNormalized_phoneNormalized: { emailNormalized, phoneNormalized } } });
+        if (after) return { leadId: after.id, resumable: !!after.examAttemptId };
       }
       throw e;
     }
   }
 
   private async reclaim(leadId: string, meta: { ip?: string; userAgent?: string }) {
+    const lead = await this.prisma.freeAssessmentLead.findUniqueOrThrow({ where: { id: leadId } });
+    const ghostStudentId = lead.ghostStudentId ?? await this.createGhostStudent(lead.email, lead.phone);
+    // An IN_PROGRESS exam already satisfies the one-open-exam-per-student constraint — reuse it
+    // rather than creating a second one, which that constraint would reject anyway.
+    const open = await this.prisma.examAttempt.findFirst({ where: { studentId: ghostStudentId, status: 'IN_PROGRESS' }, select: { id: true } });
+    const examAttemptId = open?.id ?? await this.createExam(ghostStudentId);
+    await this.prisma.freeAssessmentLead.update({
+      where: { id: leadId },
+      data: { ghostStudentId, examAttemptId, status: 'CLAIMED', expiresAt: new Date(Date.now() + LEAD_TTL_MS), ipAddress: meta.ip, userAgent: meta.userAgent },
+    });
+    return { leadId, resumable: !!open };
+  }
+
+  /** The least-used published DIAGNOSTIC assessment for this skill, among however many exist.
+   *  "Used" is counted from existing free-test exams only (joined through FreeAssessmentLead), so a
+   *  real student's own simulator runs on the same assessment never skew the free-test rotation. */
+  private async pickLeastUsedAssessment(tx: Prisma.TransactionClient, skill: 'LISTENING' | 'READING') {
+    const eligible = await tx.assessment.findMany({
+      where: { type: 'DIAGNOSTIC', skill, versions: { some: { publishedAt: { not: null } } } },
+      select: { id: true },
+    });
+    if (eligible.length === 0) throw new AppError('ASSESSMENT_NOT_AVAILABLE', 404, `No ${skill.toLowerCase()} module is published for the free test yet. Please check back soon.`);
+    const used = await tx.freeAssessmentLead.findMany({
+      where: { examAttemptId: { not: null } },
+      select: { examAttempt: { select: { listeningAssessmentId: true, readingAssessmentId: true } } },
+    });
+    const countOf = new Map<string, number>();
+    for (const u of used) {
+      const id = skill === 'LISTENING' ? u.examAttempt?.listeningAssessmentId : u.examAttempt?.readingAssessmentId;
+      if (id) countOf.set(id, (countOf.get(id) ?? 0) + 1);
+    }
+    return eligible.reduce((min, a) => ((countOf.get(a.id) ?? 0) < (countOf.get(min.id) ?? 0) ? a : min), eligible[0]).id;
+  }
+
+  /** Picks Listening/Reading assessments (advisory-locked so concurrent claims balance fairly) and
+   *  creates the bare ExamAttempt row, the same shape `SimulatorService.start()` creates, but without
+   *  that method's enrollment/mocks-approval gate — DIAGNOSTIC assessments need neither, exactly as
+   *  the single-assessment free test already relied on. */
+  private async createExamRow(ghostStudentId: string) {
     return this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('free_test_assign'))`;
-      const config = await this.pickBalancedConfig(tx);
-      const lead = await tx.freeAssessmentLead.update({
-        where: { id: leadId },
-        data: { assignedConfigId: config.id, attemptId: null, status: 'CLAIMED', expiresAt: new Date(Date.now() + LEAD_TTL_MS), ipAddress: meta.ip, userAgent: meta.userAgent },
+      const [listeningAssessmentId, readingAssessmentId] = await Promise.all([
+        this.pickLeastUsedAssessment(tx, 'LISTENING'),
+        this.pickLeastUsedAssessment(tx, 'READING'),
+      ]);
+      const exam = await tx.examAttempt.create({
+        data: { studentId: ghostStudentId, includeSpeaking: true, listeningAssessmentId, readingAssessmentId, stage: 'LISTENING' },
+        select: { id: true },
       });
-      return { leadId: lead.id, assessmentId: config.assessmentId, resumable: false };
+      return { examAttemptId: exam.id, listeningAssessmentId };
     });
   }
 
-  private async pickBalancedConfig(tx: Prisma.TransactionClient) {
-    const configs = await tx.freeTestConfig.findMany({ where: { active: true }, orderBy: { sequence: 'asc' } });
-    if (configs.length === 0) throw new AppError('ASSESSMENT_NOT_AVAILABLE', 404, 'The free test is not configured yet. Please check back soon.');
-    const counts = await tx.freeAssessmentLead.groupBy({ by: ['assignedConfigId'], _count: { _all: true } });
-    const countOf = new Map(counts.map((c) => [c.assignedConfigId, c._count._all]));
-    return configs.reduce((min, c) => ((countOf.get(c.id) ?? 0) < (countOf.get(min.id) ?? 0) ? c : min), configs[0]);
+  /** Starting the listening section calls AttemptsService.start(), which opens its own transaction —
+   *  so this runs after createExamRow()'s transaction has committed, never nested inside it. */
+  private async createExam(ghostStudentId: string) {
+    const { examAttemptId, listeningAssessmentId } = await this.createExamRow(ghostStudentId);
+    const started = await this.attempts.start({ studentId: ghostStudentId }, listeningAssessmentId);
+    await this.prisma.examAttempt.update({ where: { id: examAttemptId }, data: { listeningAttemptId: started.attempt.id, stageDeadlineAt: started.attempt.expiresAt } });
+    return examAttemptId;
   }
 
-  private async createGhostStudent(tx: Prisma.TransactionClient, email: string, phone: string) {
-    const studentRole = await tx.role.findUniqueOrThrow({ where: { name: 'STUDENT' } });
+  private async createGhostStudent(email: string, phone: string) {
+    const studentRole = await this.prisma.role.findUniqueOrThrow({ where: { name: 'STUDENT' } });
     const passwordHash = await argon2.hash(randomBytes(32).toString('hex'), { type: argon2.argon2id });
-    const user = await tx.user.create({
+    const user = await this.prisma.user.create({
       data: {
         email: `freelead-${randomUUID()}@${GHOST_EMAIL_DOMAIN}`, phone, passwordHash,
         student: { create: { firstName: 'Free', lastName: 'Trial' } },
@@ -113,70 +163,102 @@ export class FreeTestService {
   }
 
   private async loadLead(leadId: string) {
-    const lead = await this.prisma.freeAssessmentLead.findUnique({ where: { id: leadId }, include: { assignedConfig: { include: { assessment: true } } } });
+    const lead = await this.prisma.freeAssessmentLead.findUnique({ where: { id: leadId }, include: { examAttempt: true } });
     if (!lead) throw notFound('Free test claim');
-    if (!lead.ghostStudentId) throw new AppError('FREE_TEST_INVALID', 409, 'This free test claim is no longer valid.');
-    return lead;
+    if (!lead.ghostStudentId || !lead.examAttempt) throw new AppError('FREE_TEST_INVALID', 409, 'This free test claim is no longer valid.');
+    return { ...lead, ghostStudentId: lead.ghostStudentId, examAttempt: lead.examAttempt };
   }
 
-  async start(leadId: string) {
+  /** Current state of the free test — the same restricted DTO shape SimulatorService.get() already
+   *  returns (band/status/word-count per section, never per-question data), so no separate
+   *  hand-written projection is needed here. */
+  async get(leadId: string) {
     const lead = await this.loadLead(leadId);
-    if (lead.status === 'COMPLETED') throw conflict('FREE_TEST_USED', 'You have already taken the free test.');
-    const user = { studentId: lead.ghostStudentId! };
-    if (lead.attemptId) {
-      const attempt = await this.prisma.assessmentAttempt.findUnique({ where: { id: lead.attemptId } });
-      if (attempt?.status === 'IN_PROGRESS') return this.attempts.getAttempt(user, lead.attemptId);
-      // Already finished (e.g. expired and auto-submitted) — never hand back the unrestricted result shape.
-      return { attempt: { id: lead.attemptId, status: attempt?.status ?? 'SUBMITTED' }, result: await this.result(leadId) };
-    }
-    const started = await this.attempts.start(user, lead.assignedConfig.assessmentId);
-    await this.prisma.freeAssessmentLead.update({ where: { id: leadId }, data: { attemptId: started.attempt.id, status: 'IN_PROGRESS' } });
-    return started;
+    return this.sim.get(lead.ghostStudentId, lead.examAttempt.id);
+  }
+
+  private activeSectionAttemptId(lead: Awaited<ReturnType<FreeTestService['loadLead']>>) {
+    const attemptId = lead.examAttempt.stage === 'READING' ? lead.examAttempt.readingAttemptId : lead.examAttempt.listeningAttemptId;
+    if (!attemptId) throw new AppError('SUBMISSION_INCOMPLETE', 409, 'This section is not open yet.');
+    return attemptId;
+  }
+
+  /** The Listening/Reading paper (sections, questions, saved answers) for whichever sub-attempt is
+   *  currently active — the same shape AttemptsService.getAttempt() returns to a logged-in student. */
+  async getSection(leadId: string) {
+    const lead = await this.loadLead(leadId);
+    return this.attempts.getAttempt({ studentId: lead.ghostStudentId }, this.activeSectionAttemptId(lead));
   }
 
   async saveAnswers(leadId: string, input: SaveAnswersInput) {
     const lead = await this.loadLead(leadId);
-    if (!lead.attemptId) throw new AppError('SUBMISSION_INCOMPLETE', 409, 'Start the test first.');
-    return this.attempts.saveAnswers({ studentId: lead.ghostStudentId! }, lead.attemptId, input);
+    return this.attempts.saveAnswers({ studentId: lead.ghostStudentId }, this.activeSectionAttemptId(lead), input);
   }
 
-  async submit(leadId: string) {
+  async submitSection(leadId: string) {
     const lead = await this.loadLead(leadId);
-    if (!lead.attemptId) throw new AppError('SUBMISSION_INCOMPLETE', 409, 'Start the test first.');
-    await this.attempts.submit({ studentId: lead.ghostStudentId! }, lead.attemptId); // side effects only; response is thrown away below
-    await this.prisma.freeAssessmentLead.update({ where: { id: leadId }, data: { status: 'COMPLETED' } });
-    return this.result(leadId);
+    return this.attempts.submit({ studentId: lead.ghostStudentId }, this.activeSectionAttemptId(lead));
   }
 
-  /** The ONLY response shape a free lead ever receives for a finished attempt: overall score, never
-   *  per-question data or answer keys, regardless of the underlying assessment's showAnswers flag. */
-  async result(leadId: string): Promise<FreeTestResult> {
+  async advance(leadId: string, expectedRevision: number) {
     const lead = await this.loadLead(leadId);
-    if (!lead.attemptId) throw new AppError('SUBMISSION_INCOMPLETE', 409, 'This test has not been submitted yet.');
-    const attempt = await this.prisma.assessmentAttempt.findUniqueOrThrow({ where: { id: lead.attemptId } });
-    if (attempt.status === 'IN_PROGRESS') throw new AppError('SUBMISSION_INCOMPLETE', 409, 'This test has not been submitted yet.');
-    return {
-      score: {
-        raw: attempt.rawScore === null ? null : Number(attempt.rawScore),
-        max: attempt.maxScore === null ? null : Number(attempt.maxScore),
-        percent: attempt.percent === null ? null : Number(attempt.percent),
-        band: attempt.bandScore === null ? null : Number(attempt.bandScore),
-      },
-      assessment: { title: lead.assignedConfig.assessment.title },
-      completedAt: attempt.submittedAt,
-      status: attempt.status,
-    };
+    const result = await this.sim.advance(lead.ghostStudentId, lead.examAttempt.id, expectedRevision);
+    if (result.status === 'COMPLETED') await this.prisma.freeAssessmentLead.update({ where: { id: leadId }, data: { status: 'COMPLETED' } });
+    return result;
   }
 
-  /** Called when a visitor registers for real with the same email: links the lead's history to
-   *  the new account without granting a second free entitlement. The ghost student's attempt is
-   *  reassigned to the real student so the student can see their own free-test history later. */
+  private activeWritingResponseId(lead: Awaited<ReturnType<FreeTestService['loadLead']>>) {
+    if (!lead.examAttempt.writingResponseId) throw new AppError('SUBMISSION_INCOMPLETE', 409, 'The writing section is not open yet.');
+    return lead.examAttempt.writingResponseId;
+  }
+
+  async getWriting(leadId: string) {
+    const lead = await this.loadLead(leadId);
+    return this.writing.get(lead.ghostStudentId, this.activeWritingResponseId(lead));
+  }
+
+  async saveWriting(leadId: string, input: SaveWritingInput) {
+    const lead = await this.loadLead(leadId);
+    return this.writing.save(lead.ghostStudentId, this.activeWritingResponseId(lead), input);
+  }
+
+  async submitWriting(leadId: string) {
+    const lead = await this.loadLead(leadId);
+    return this.writing.submit(lead.ghostStudentId, this.activeWritingResponseId(lead));
+  }
+
+  async listSpeakingQuestions(part: 'PART1' | 'PART2' | 'PART3') {
+    return this.speaking.questions(part);
+  }
+
+  async addSpeakingResponse(leadId: string, body: AddSpeakingResponseInput) {
+    const lead = await this.loadLead(leadId);
+    if (!lead.examAttempt.speakingAttemptId) throw new AppError('SUBMISSION_INCOMPLETE', 409, 'The speaking section is not open yet.');
+    return this.speaking.addResponse(lead.ghostStudentId, lead.examAttempt.speakingAttemptId, body);
+  }
+
+  async uploadSpeakingAudio(leadId: string, responseId: string, file: { buffer: Buffer; size: number }) {
+    const lead = await this.loadLead(leadId);
+    return this.speaking.uploadLocal(lead.ghostStudentId, responseId, file);
+  }
+
+  /** Called when a visitor registers for real with the same email: links the lead's history to the
+   *  new account without granting a second free entitlement. All 4 owned resources are reassigned so
+   *  the real student can see their free-test history (listening/reading attempts, essay, speaking
+   *  attempt), matching how the single-assessment free test reassigned its one attempt. */
   async linkToRegisteredStudent(email: string, newStudentId: string) {
     const emailNormalized = email.trim().toLowerCase();
-    const leads = await this.prisma.freeAssessmentLead.findMany({ where: { emailNormalized, linkedStudentId: null } });
+    const leads = await this.prisma.freeAssessmentLead.findMany({ where: { emailNormalized, linkedStudentId: null }, include: { examAttempt: true } });
     for (const lead of leads) {
       await this.prisma.$transaction(async (tx) => {
-        if (lead.attemptId) await tx.assessmentAttempt.updateMany({ where: { id: lead.attemptId }, data: { studentId: newStudentId } });
+        const e = lead.examAttempt;
+        if (e) {
+          if (e.listeningAttemptId) await tx.assessmentAttempt.updateMany({ where: { id: e.listeningAttemptId }, data: { studentId: newStudentId } });
+          if (e.readingAttemptId) await tx.assessmentAttempt.updateMany({ where: { id: e.readingAttemptId }, data: { studentId: newStudentId } });
+          if (e.writingResponseId) await tx.writingResponse.updateMany({ where: { id: e.writingResponseId }, data: { studentId: newStudentId } });
+          if (e.speakingAttemptId) await tx.speakingAttempt.updateMany({ where: { id: e.speakingAttemptId }, data: { studentId: newStudentId } });
+          await tx.examAttempt.updateMany({ where: { id: e.id }, data: { studentId: newStudentId } });
+        }
         await tx.freeAssessmentLead.update({ where: { id: lead.id }, data: { linkedStudentId: newStudentId } });
       });
     }

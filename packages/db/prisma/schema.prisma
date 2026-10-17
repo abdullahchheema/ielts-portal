@@ -1084,7 +1084,6 @@ model Assessment {
   simReadingExams   ExamAttempt[] @relation("SimReading")
   mockAccessRequests MockAccessRequest[]
   mockActivations    MockActivation[]
-  freeTestConfigs    FreeTestConfig[]
 
   @@map("assessments")
 }
@@ -1227,7 +1226,6 @@ model AssessmentAttempt {
   rubricScores RubricScore[]
   simListeningExams ExamAttempt[] @relation("SimListeningAttempt")
   simReadingExams   ExamAttempt[] @relation("SimReadingAttempt")
-  freeLeads         FreeAssessmentLead[]
 
   @@unique([assessmentId, studentId, attemptNumber])
   @@index([studentId, status])
@@ -1805,43 +1803,30 @@ model StudentPlan {
   @@map("student_plans")
 }
 
-/** The three fixed free-test configurations that free leads rotate through. */
-model FreeTestConfig {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name         String
-  assessmentId String   @map("assessment_id") @db.Uuid
-  sequence     Int      @default(0)
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now()) @map("created_at")
-
-  assessment Assessment            @relation(fields: [assessmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  leads      FreeAssessmentLead[]
-
-  @@map("free_test_configs")
-}
-
-/** An anonymous visitor's claim on the free test, identified by normalized email+phone — no account. */
+/**
+ * An anonymous visitor's claim on the free test, identified by normalized email+phone — no account.
+ * The free test is a full 4-skill mock, orchestrated as an ExamAttempt exactly like the authenticated
+ * simulator (see SimulatorService) — Listening/Reading/Writing/Speaking are each picked independently
+ * from a pool of published, eligible content, not from a small fixed set of bundled "configs."
+ */
 model FreeAssessmentLead {
-  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email            String
-  phone            String
-  emailNormalized  String    @map("email_normalized")
-  phoneNormalized  String    @map("phone_normalized")
-  assignedConfigId String    @map("assigned_config_id") @db.Uuid
-  ghostStudentId   String?   @map("ghost_student_id") @db.Uuid
-  attemptId        String?   @map("attempt_id") @db.Uuid
-  status           String    @default("CLAIMED")
-  linkedStudentId  String?   @map("linked_student_id") @db.Uuid
-  ipAddress        String?   @map("ip_address")
-  userAgent        String?   @map("user_agent")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  expiresAt        DateTime? @map("expires_at")
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email           String
+  phone           String
+  emailNormalized String    @map("email_normalized")
+  phoneNormalized String    @map("phone_normalized")
+  ghostStudentId  String?   @map("ghost_student_id") @db.Uuid
+  examAttemptId   String?   @unique @map("exam_attempt_id") @db.Uuid
+  status          String    @default("CLAIMED")
+  linkedStudentId String?   @map("linked_student_id") @db.Uuid
+  ipAddress       String?   @map("ip_address")
+  userAgent       String?   @map("user_agent")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  expiresAt       DateTime? @map("expires_at")
 
-  assignedConfig FreeTestConfig     @relation(fields: [assignedConfigId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  attempt        AssessmentAttempt? @relation(fields: [attemptId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  examAttempt ExamAttempt? @relation(fields: [examAttemptId], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@unique([emailNormalized, phoneNormalized])
-  @@index([assignedConfigId])
   @@map("free_assessment_leads")
 }
 
@@ -2109,6 +2094,7 @@ model ExamAttempt {
   readingAttempt   AssessmentAttempt? @relation("SimReadingAttempt", fields: [readingAttemptId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   writingResponse  WritingResponse? @relation(fields: [writingResponseId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   speakingAttempt  SpeakingAttempt? @relation(fields: [speakingAttemptId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  freeLead         FreeAssessmentLead?
 
   @@index([studentId, createdAt], map: "exam_attempts_student_created_idx")
   @@map("exam_attempts")

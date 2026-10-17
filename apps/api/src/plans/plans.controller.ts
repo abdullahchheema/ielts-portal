@@ -2,8 +2,8 @@ import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query, R
 import type { Request } from 'express';
 import { z } from 'zod';
 import {
-  AssignStudentPlanInput, ChangePlanInput, FreeTestConfigInput, PLAN_NAMES, ReplaceEntitlementsInput, UpdateFreeTestConfigInput, UpdatePlanInput,
-  assignStudentPlanSchema, changePlanSchema, freeTestConfigSchema, replaceEntitlementsSchema, updateFreeTestConfigSchema, updatePlanSchema,
+  AssignStudentPlanInput, ChangePlanInput, PLAN_NAMES, ReplaceEntitlementsInput, UpdatePlanInput,
+  assignStudentPlanSchema, changePlanSchema, replaceEntitlementsSchema, updatePlanSchema,
 } from '@ielts/validation';
 import { AuthUser, CurrentUser, Public, RequirePermission, clientMeta } from '../common/decorators';
 import { forbidden } from '../common/app-error';
@@ -84,27 +84,19 @@ export class AdminStudentPlansController {
 }
 
 const leadsQuery = z.object({
-  status: z.enum(['CLAIMED', 'IN_PROGRESS', 'COMPLETED', 'EXPIRED']).optional(),
+  status: z.enum(['CLAIMED', 'COMPLETED', 'EXPIRED']).optional(),
   skip: z.coerce.number().int().min(0).default(0),
   take: z.coerce.number().int().min(1).max(100).default(50),
 });
 
-@Controller('admin/free-test-configs')
-export class AdminFreeTestConfigsController {
+/** Read-only: eligibility is automatic (publish a DIAGNOSTIC Listening/Reading assessment, or a
+ *  published + student-facing Writing/Speaking prompt) — there is no "add to pool" action anymore. */
+@Controller('admin/free-test-pool')
+export class AdminFreeTestPoolController {
   constructor(private readonly svc: FreeTestAdminService) {}
 
   @RequirePermission('plan.manage') @Get()
-  list() { return this.svc.listConfigs(); }
-
-  @RequirePermission('plan.manage') @Post()
-  create(@Body(new ZodPipe(freeTestConfigSchema)) body: FreeTestConfigInput, @CurrentUser() u: AuthUser, @Req() req: Request) {
-    return this.svc.createConfig(body, actor(u, req));
-  }
-
-  @RequirePermission('plan.manage') @Patch(':id')
-  update(@Param('id', uuid) id: string, @Body(new ZodPipe(updateFreeTestConfigSchema)) body: UpdateFreeTestConfigInput, @CurrentUser() u: AuthUser, @Req() req: Request) {
-    return this.svc.updateConfig(id, body, actor(u, req));
-  }
+  stats() { return this.svc.poolStats(); }
 }
 
 @Controller('admin/free-test-leads')

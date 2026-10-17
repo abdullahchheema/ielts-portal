@@ -1,10 +1,13 @@
 import { Module } from '@nestjs/common';
 import { AssessmentsModule } from '../assessments/assessments.module';
+import { SimulatorModule } from '../simulator/simulator.service';
+import { SpeakingModule } from '../speaking/speaking.module';
+import { WritingModule } from '../writing/writing.module';
 import { FreeTestAdminService } from './free-test-admin.service';
 import { FreeTestController } from './free-test.controller';
 import { FreeTestService } from './free-test.service';
 import {
-  AdminFreeTestConfigsController, AdminFreeTestLeadsController, AdminPlansController, AdminStudentPlansController,
+  AdminFreeTestLeadsController, AdminFreeTestPoolController, AdminPlansController, AdminStudentPlansController,
   PublicPlansController, StudentPlanController,
 } from './plans.controller';
 import { PlansService } from './plans.service';
@@ -15,10 +18,10 @@ import { PremiumServicesService } from './premium-services.service';
 // not provided here — so modules that depend on it (assessments, writing, speaking...) never need
 // to import PlansModule, which would cycle back through AssessmentsModule below.
 @Module({
-  imports: [AssessmentsModule],
+  imports: [AssessmentsModule, SimulatorModule, WritingModule, SpeakingModule],
   controllers: [
     PublicPlansController, StudentPlanController, AdminPlansController, AdminStudentPlansController,
-    FreeTestController, AdminFreeTestConfigsController, AdminFreeTestLeadsController,
+    FreeTestController, AdminFreeTestPoolController, AdminFreeTestLeadsController,
     StudentPremiumServicesController, AdminPremiumServicesController,
   ],
   providers: [PlansService, FreeTestService, FreeTestAdminService, PremiumServicesService],

@@ -1,19 +1,33 @@
 'use client';
 
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Badge, Button, Card, Loading, PageHeader } from '@/components/ui';
+import { Alert, Badge, Button, Card, Field, Loading, PageHeader, Select, Textarea } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
-import { band } from '@/lib/format';
+import { extensionFor, useRecorder } from '@/lib/use-recorder';
+
+type Stage = 'LISTENING' | 'READING' | 'WRITING' | 'SPEAKING' | 'DONE';
+const ORDER: Stage[] = ['LISTENING', 'READING', 'WRITING', 'SPEAKING', 'DONE'];
+
+interface Exam {
+  id: string; status: string; stage: Stage; stageRevision: number; includeSpeaking: boolean;
+  overallEstimate: string | null; missingSkills: string[];
+  sections: {
+    listening: { attemptId: string; status: string; band: string | null } | null;
+    reading: { attemptId: string; status: string; band: string | null } | null;
+    writing: { responseId: string; status: string; wordCount: number } | null;
+    speaking: { attemptId: string; status: string; answers: number } | null;
+  };
+}
 
 interface Option { id: string; label: string }
 interface Question { id: string; type: string; prompt: { text: string }; marks: number; options?: Option[] }
 interface Section { id: string; title: string; content: { passage?: string; instructions?: string; audioUrl?: string }; questions: Question[] }
 type Answers = Record<string, unknown>;
-interface StartResponse { attempt: { id: string; revision: number; remainingSeconds: number | null }; assessment: { title: string }; paper: Section[]; answers: Answers }
-interface FreeResult { score: { raw: number | null; max: number | null; percent: number | null; band: number | null }; assessment: { title: string }; completedAt: string | null; status: string }
+interface SectionPaper { attempt: { id: string; revision: number }; assessment: { title: string }; paper: Section[]; answers: Answers }
 
 const TFNG = [['TRUE', 'True'], ['FALSE', 'False'], ['NOT_GIVEN', 'Not given']];
 const YNNG = [['YES', 'Yes'], ['NO', 'No'], ['NOT_GIVEN', 'Not given']];
@@ -55,61 +69,96 @@ function QuestionInput({ q, value, onChange, disabled }: { q: Question; value: u
   return <p className="text-xs text-fg-muted">This question type is not supported in the free test preview.</p>;
 }
 
-function FreeResultView({ r }: { r: FreeResult }) {
+const countWords = (t: string) => (t.match(/[A-Za-z’'-]+/g) ?? []).length;
+
+export default function FreeTestPage() {
+  const { leadId } = useParams<{ leadId: string }>();
+  const qc = useQueryClient();
+  const { data: exam, isLoading, isError } = useQuery({
+    queryKey: ['free-test-exam', leadId],
+    queryFn: () => api<Exam>(`/free-test/${leadId}`),
+    refetchInterval: 15_000,
+  });
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const refresh = useCallback(() => qc.invalidateQueries({ queryKey: ['free-test-exam', leadId] }), [qc, leadId]);
+
+  async function advance() {
+    if (!exam) return;
+    setBusy(true); setError(null);
+    try { await api(`/free-test/${leadId}/advance`, { method: 'POST', body: { expectedRevision: exam.stageRevision } }); await refresh(); }
+    catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
+  }
+
+  if (isLoading) return <Loading />;
+  if (isError || !exam) return <Alert>Could not load this free test. Your link may have expired.</Alert>;
+
+  const currentIndex = ORDER.indexOf(exam.stage);
+  const done = exam.status === 'COMPLETED';
+
   return (
     <>
-      <PageHeader title={r.assessment.title} subtitle="Your free test result" />
-      <div className="mb-6 grid gap-4 sm:grid-cols-3">
-        <Card><p className="text-sm text-fg-muted">Score</p><p className="text-3xl font-semibold">{r.score.raw ?? '—'} / {r.score.max ?? '—'}</p></Card>
-        <Card><p className="text-sm text-fg-muted">Percentage</p><p className="text-3xl font-semibold">{r.score.percent !== null ? `${Math.round(r.score.percent)}%` : '—'}</p></Card>
-        <Card><p className="text-sm text-fg-muted">Estimated band</p><p className="text-3xl font-semibold">{band(r.score.band)}</p></Card>
-      </div>
-      <Card className="mb-6">
-        <h2 className="mb-2 font-semibold">Want the full picture?</h2>
-        <p className="mb-4 text-sm text-fg-muted">
-          The free test shows your overall score only. Register for a Starter plan or above to see which
-          questions you got right or wrong, the correct answers, and a breakdown by skill — plus unlimited
-          practice and mock tests.
-        </p>
-        <Link href="/pricing"><Button>See plans and register</Button></Link>
-      </Card>
-      <Badge status={r.status} />
+      <PageHeader
+        title="Your free test"
+        subtitle={done ? 'Finished. Scores below are estimates.' : `Stage: ${exam.stage.toLowerCase()}`}
+        actions={<Badge status={exam.status} />}
+      />
+      {error && <Alert>{error}</Alert>}
+
+      <ol className="mb-6 flex flex-wrap gap-2 text-sm">
+        {ORDER.filter((s) => s !== 'SPEAKING' || exam.includeSpeaking).map((s, i) => (
+          <li key={s} className={`rounded-full px-3 py-1 ${i < currentIndex || done ? 'bg-success-soft text-success' : s === exam.stage ? 'bg-primary-soft text-primary' : 'bg-surface-muted text-fg-subtle'}`}>
+            {s === 'DONE' ? 'Results' : s[0] + s.slice(1).toLowerCase()}
+          </li>
+        ))}
+      </ol>
+
+      {(exam.stage === 'LISTENING' || exam.stage === 'READING') && <SectionStage leadId={leadId} stage={exam.stage} onAdvance={advance} busy={busy} />}
+      {exam.stage === 'WRITING' && <WritingStage leadId={leadId} onAdvance={advance} busy={busy} />}
+      {exam.stage === 'SPEAKING' && <SpeakingStage leadId={leadId} onAdvance={advance} busy={busy} />}
+
+      {done && (
+        <Card className="max-w-2xl space-y-3">
+          <h2 className="font-semibold text-fg">Your results</h2>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div><p className="text-sm text-fg-muted">Listening</p><p className="text-2xl font-semibold">{exam.sections.listening?.band ?? '—'}</p></div>
+            <div><p className="text-sm text-fg-muted">Reading</p><p className="text-2xl font-semibold">{exam.sections.reading?.band ?? '—'}</p></div>
+          </div>
+          {exam.overallEstimate ? (
+            <p className="font-display text-3xl font-semibold text-fg">Overall estimate: {exam.overallEstimate}</p>
+          ) : (
+            <p className="text-sm text-fg-muted">
+              Writing and Speaking are not scored on the free test — AI evaluation is a feature of our paid plans, so no overall estimate is shown.
+            </p>
+          )}
+          {exam.missingSkills.length > 0 && <p className="text-sm text-fg-muted">Not assessed on this plan: {exam.missingSkills.map((s) => s.toLowerCase()).join(', ')}.</p>}
+          <Link href="/pricing"><Button>See plans and register for full feedback</Button></Link>
+          <p className="text-xs text-fg-subtle">These are practice estimates, not official IELTS results.</p>
+        </Card>
+      )}
     </>
   );
 }
 
-export default function FreeTestPage() {
-  const { leadId } = useParams<{ leadId: string }>();
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [paper, setPaper] = useState<StartResponse | null>(null);
-  const [result, setResult] = useState<FreeResult | null>(null);
+function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: string; stage: 'LISTENING' | 'READING'; onAdvance: () => void; busy: boolean }) {
+  const { data, isLoading } = useQuery({ queryKey: ['free-test-section', leadId, stage], queryFn: () => api<SectionPaper>(`/free-test/${leadId}/section`) });
   const [answers, setAnswers] = useState<Answers>({});
   const [status, setStatus] = useState<'saved' | 'saving' | 'offline' | 'conflict'>('saved');
   const [submitting, setSubmitting] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const revision = useRef(0);
   const dirty = useRef(new Set<string>());
   const answersRef = useRef<Answers>({});
   const inFlight = useRef(false);
-  const submitted = useRef(false);
+  const hydrated = useRef(false);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const res = await api<StartResponse | { attempt: { id: string }; result: FreeResult }>(`/free-test/${leadId}/start`, { method: 'POST' });
-        if ('result' in res) { setResult(res.result); return; }
-        setPaper(res);
-        revision.current = res.attempt.revision;
-        setAnswers(res.answers);
-      } catch (e) { setLoadError(errorMessage(e)); } finally { setLoading(false); }
-    })();
-  }, [leadId]);
-
+    if (data && !hydrated.current) { hydrated.current = true; revision.current = data.attempt.revision; setAnswers(data.answers); }
+  }, [data]);
   useEffect(() => { answersRef.current = answers; }, [answers]);
 
   const flush = useCallback(async () => {
-    if (inFlight.current || submitted.current || dirty.current.size === 0) return;
+    if (inFlight.current || dirty.current.size === 0) return;
     inFlight.current = true; setStatus('saving');
     const ids = [...dirty.current];
     const snapshot = ids.map((qid) => ({ questionVersionId: qid, answer: answersRef.current[qid] ?? null }));
@@ -124,65 +173,166 @@ export default function FreeTestPage() {
     } finally { inFlight.current = false; }
   }, [leadId]);
 
-  useEffect(() => {
-    const t = setInterval(flush, 10_000);
-    return () => clearInterval(t);
-  }, [flush]);
-  useEffect(() => {
-    const t = setTimeout(flush, 1500);
-    return () => clearTimeout(t);
-  }, [answers, flush]);
+  useEffect(() => { const t = setInterval(flush, 10_000); return () => clearInterval(t); }, [flush]);
+  useEffect(() => { const t = setTimeout(flush, 1500); return () => clearTimeout(t); }, [answers, flush]);
 
-  async function submit() {
-    setSubmitting(true); setMsg(null);
-    try {
-      await flush();
-      const res = await api<FreeResult>(`/free-test/${leadId}/submit`, { method: 'POST' });
-      submitted.current = true;
-      setResult(res);
-    } catch (e) { setMsg(errorMessage(e)); } finally { setSubmitting(false); }
+  async function submitAndContinue() {
+    setSubmitting(true); setError(null);
+    try { await flush(); await api(`/free-test/${leadId}/section/submit`, { method: 'POST' }); onAdvance(); }
+    catch (e) { setError(errorMessage(e)); } finally { setSubmitting(false); }
   }
 
-  if (loading) return <Loading />;
-  if (loadError) return <Alert>{loadError}</Alert>;
-  if (result) return <FreeResultView r={result} />;
-  if (!paper) return <Alert>Something went wrong loading the test.</Alert>;
+  if (isLoading || !data) return <Loading />;
 
-  const total = paper.paper.reduce((n, s) => n + s.questions.length, 0);
+  const total = data.paper.reduce((n, s) => n + s.questions.length, 0);
   const answered = Object.keys(answers).filter((k) => answers[k] !== null && answers[k] !== undefined).length;
 
   return (
-    <>
-      <div className="sticky top-0 z-10 -mx-4 mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface/90 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
-        <div><h1 className="font-display font-semibold text-fg">{paper.assessment.title}</h1><p className="text-xs text-fg-muted">Free test · {answered}/{total} answered</p></div>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div><h2 className="font-semibold text-fg">{data.assessment.title}</h2><p className="text-xs text-fg-muted">{answered}/{total} answered</p></div>
         <div className="flex items-center gap-4 text-sm">
           <span aria-live="polite" className={status === 'offline' || status === 'conflict' ? 'text-danger' : 'text-fg-muted'}>
             {status === 'saved' ? 'All changes saved' : status === 'saving' ? 'Saving…' : status === 'offline' ? 'Offline — will retry' : 'Changed elsewhere'}
           </span>
-          <Button onClick={submit} busy={submitting}>Submit</Button>
+          <Button onClick={submitAndContinue} busy={submitting || parentBusy}>Submit section and continue</Button>
         </div>
       </div>
-      {msg && <div className="mb-4"><Alert>{msg}</Alert></div>}
-      <div className="space-y-8">
-        {paper.paper.map((s) => (
-          <section key={s.id} aria-labelledby={`s-${s.id}`}>
-            <h2 id={`s-${s.id}`} className="mb-2 text-lg font-semibold">{s.title}</h2>
-            {s.content.instructions && <p className="mb-3 text-sm text-fg-muted">{s.content.instructions}</p>}
-            {s.content.audioUrl && <audio controls className="mb-4 w-full" src={s.content.audioUrl} />}
-            <div className={s.content.passage ? 'grid gap-6 lg:grid-cols-2' : ''}>
-              {s.content.passage && <Card className="max-h-[70vh] overflow-auto whitespace-pre-wrap text-sm leading-relaxed lg:sticky lg:top-24">{s.content.passage}</Card>}
-              <ol className="space-y-4">
-                {s.questions.map((q, i) => (
-                  <li key={q.id}><Card>
-                    <p className="mb-3 text-sm font-medium"><span className="mr-2 text-fg-subtle">{i + 1}.</span>{q.prompt.text}</p>
-                    <QuestionInput q={q} value={answers[q.id]} onChange={(v) => { dirty.current.add(q.id); setAnswers((a) => ({ ...a, [q.id]: v })); }} />
-                  </Card></li>
-                ))}
-              </ol>
-            </div>
-          </section>
-        ))}
+      {error && <Alert>{error}</Alert>}
+      {data.paper.map((s) => (
+        <section key={s.id} aria-labelledby={`s-${s.id}`}>
+          <h3 id={`s-${s.id}`} className="mb-2 text-lg font-semibold">{s.title}</h3>
+          {s.content.instructions && <p className="mb-3 text-sm text-fg-muted">{s.content.instructions}</p>}
+          {s.content.audioUrl && <audio controls className="mb-4 w-full" src={s.content.audioUrl} />}
+          <div className={s.content.passage ? 'grid gap-6 lg:grid-cols-2' : ''}>
+            {s.content.passage && <Card className="max-h-[70vh] overflow-auto whitespace-pre-wrap text-sm leading-relaxed lg:sticky lg:top-24">{s.content.passage}</Card>}
+            <ol className="space-y-4">
+              {s.questions.map((q, i) => (
+                <li key={q.id}><Card>
+                  <p className="mb-3 text-sm font-medium"><span className="mr-2 text-fg-subtle">{i + 1}.</span>{q.prompt.text}</p>
+                  <QuestionInput q={q} value={answers[q.id]} onChange={(v) => { dirty.current.add(q.id); setAnswers((a) => ({ ...a, [q.id]: v })); }} />
+                </Card></li>
+              ))}
+            </ol>
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function WritingStage({ leadId, onAdvance, busy: parentBusy }: { leadId: string; onAdvance: () => void; busy: boolean }) {
+  const { data, refetch } = useQuery({ queryKey: ['free-test-writing', leadId], queryFn: () => api<{ body: string; revision: number; promptText: string; status: string }>(`/free-test/${leadId}/writing`) });
+  const [text, setText] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (data && text === null) setText(data.body); }, [data, text]);
+  if (!data || text === null) return <Loading />;
+  const editable = data.status === 'DRAFT';
+
+  async function save() {
+    setBusy(true); setError(null);
+    try { await api(`/free-test/${leadId}/writing`, { method: 'PUT', body: { revision: data!.revision, body: text } }); await refetch(); }
+    catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
+  }
+  async function submit() {
+    setBusy(true); setError(null);
+    try { await save(); await api(`/free-test/${leadId}/writing/submit`, { method: 'POST' }); await refetch(); }
+    catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
+  }
+
+  return (
+    <Card className="max-w-3xl space-y-4">
+      <p className="font-medium text-fg">{data.promptText}</p>
+      <Alert kind="info">Writing is saved and kept with your free test, but AI feedback requires the Advanced or Premium plan.</Alert>
+      {error && <Alert>{error}</Alert>}
+      <Textarea aria-label="Essay" rows={16} value={text} readOnly={!editable} onChange={(e) => setText(e.target.value)} />
+      <div className="flex flex-wrap justify-between gap-3">
+        <span className="text-sm text-fg-muted">{countWords(text)} words</span>
+        {editable
+          ? <Button onClick={submit} busy={busy || parentBusy}>Submit essay and continue</Button>
+          : <Button onClick={onAdvance} busy={parentBusy}>Continue</Button>}
       </div>
-    </>
+    </Card>
+  );
+}
+
+type Part = 'PART1' | 'PART2' | 'PART3';
+interface SpeakingQuestion { id: string; part: Part; prompt: string }
+const PART_LABEL: Record<Part, string> = { PART1: 'Part 1 · everyday questions', PART2: 'Part 2 · long turn (about 2 minutes)', PART3: 'Part 3 · discussion' };
+const MAX_SECONDS: Record<Part, number> = { PART1: 60, PART2: 150, PART3: 90 };
+
+function SpeakingStage({ leadId, onAdvance, busy: parentBusy }: { leadId: string; onAdvance: () => void; busy: boolean }) {
+  const [part, setPart] = useState<Part>('PART1');
+  const [question, setQuestion] = useState<SpeakingQuestion | null>(null);
+  const [response, setResponse] = useState<{ id: string; status: string } | null>(null);
+  const [answered, setAnswered] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const questions = useQuery({ queryKey: ['free-test-speaking-questions', part], queryFn: () => api<SpeakingQuestion[]>(`/free-test/speaking-questions?part=${part}`) });
+  const rec = useRecorder({ maxSeconds: MAX_SECONDS[part] });
+
+  async function nextQuestion() {
+    const pool = questions.data ?? [];
+    const q = pool.length ? pool[Math.floor(Math.random() * pool.length)] : { id: '', part, prompt: 'Describe something you do to relax.' };
+    setQuestion(q);
+    setResponse(null);
+    rec.reset();
+    setError(null);
+    try {
+      const r = await api<{ id: string; part: Part; promptText: string; status: string }>(`/free-test/${leadId}/speaking-responses`, {
+        method: 'POST', body: { part, ...(q.id ? { questionId: q.id } : { promptText: q.prompt }) },
+      });
+      setResponse({ id: r.id, status: r.status });
+    } catch (e) { setError(errorMessage(e)); }
+  }
+
+  async function upload() {
+    if (!response || rec.state.kind !== 'ready') return;
+    const blob = rec.state.blob;
+    setBusy(true); setError(null);
+    try {
+      const fd = new FormData();
+      fd.append('file', blob, `answer.${extensionFor(blob.type)}`);
+      await api(`/free-test/${leadId}/speaking-responses/${response.id}/audio`, { method: 'POST', form: fd });
+      setResponse({ ...response, status: 'UPLOADED' });
+      setAnswered((n) => n + 1);
+    } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
+  }
+
+  return (
+    <Card className="max-w-2xl space-y-4">
+      {error && <Alert>{error}</Alert>}
+      <Alert kind="info">Record a few speaking answers — AI transcript and feedback require the Advanced or Premium plan.</Alert>
+      <Field label="Part">{(p) => <Select {...p} value={part} onChange={(e) => setPart(e.target.value as Part)}>{(['PART1', 'PART2', 'PART3'] as Part[]).map((x) => <option key={x} value={x}>{PART_LABEL[x]}</option>)}</Select>}</Field>
+
+      {!question && <Button onClick={nextQuestion} busy={busy}>Start speaking</Button>}
+
+      {question && (
+        <div className="space-y-3">
+          <p className="font-display text-lg text-fg">{question.prompt}</p>
+          <p className="text-sm text-fg-muted">Time limit: {Math.round(MAX_SECONDS[part] / 60 * 10) / 10} min</p>
+          {response?.status !== 'UPLOADED' ? (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-3">
+                {rec.state.kind !== 'recording'
+                  ? <Button variant="secondary" onClick={() => rec.start()}>● Record answer</Button>
+                  : <Button variant="danger" onClick={rec.stop}>■ Stop ({Math.floor(rec.elapsed / 60)}:{String(rec.elapsed % 60).padStart(2, '0')})</Button>}
+              </div>
+              {rec.state.kind === 'ready' && <audio controls src={rec.state.url} className="w-full" />}
+              {rec.state.kind === 'error' && <Alert>{rec.state.message}</Alert>}
+              <Button onClick={upload} busy={busy} disabled={rec.state.kind !== 'ready'}>Submit answer</Button>
+            </div>
+          ) : (
+            <p className="text-sm text-fg-muted">Answer saved.</p>
+          )}
+          {response?.status === 'UPLOADED' && <Button variant="secondary" onClick={nextQuestion}>Next question</Button>}
+        </div>
+      )}
+
+      <div className="flex justify-end border-t border-border pt-4">
+        <Button onClick={onAdvance} busy={parentBusy} disabled={answered === 0}>Finish free test</Button>
+      </div>
+    </Card>
   );
 }
