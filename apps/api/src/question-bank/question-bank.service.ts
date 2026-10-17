@@ -430,31 +430,57 @@ export class QuestionBankService {
     return { ids, available: cands.length };
   }
 
-  /** Copies chosen bank questions into an assessment section that is still a draft. The copies keep a link to their source. */
+  /** Copies chosen bank questions into an assessment section that is still a draft. The copies keep a
+   *  link to their source. Rows are built in memory (ids generated client-side) and written with
+   *  `createMany` — one row-at-a-time loop here was slow enough over a cross-region connection to blow
+   *  past Prisma's interactive-transaction timeout once a section held more than a handful of
+   *  questions (same failure already fixed for bulk import; see QuestionImportService.commit()). */
   async copyIntoSection(sectionId: string, questionIds: string[], actor: Actor) {
-    return this.prisma.$transaction(async (tx) => {
-      const section = await tx.assessmentSection.findUnique({ where: { id: sectionId }, include: { version: true } });
-      if (!section) throw notFound('Section');
-      if (section.version.publishedAt) throw conflict('VERSION_PUBLISHED_IMMUTABLE', 'This version is published. Create a new version first.');
-      const sources = await tx.question.findMany({
-        where: { id: { in: questionIds }, deletedAt: null, questionSetId: { not: null } },
-        include: { versions: { orderBy: { version: 'desc' }, take: 1, include: { options: { orderBy: { sequence: 'asc' } } } } },
-      });
-      if (sources.length !== questionIds.length) throw notFound('Question');
-      let sequence = await tx.question.count({ where: { sectionId, deletedAt: null } });
-      for (const src of sources) {
-        const v = src.versions[0];
-        if (!v) continue;
-        const grader = src.ieltsType ? graderType(src.ieltsType as IeltsItemType) : src.questionType;
-        const q = await tx.question.create({ data: { sectionId, questionType: grader, sequence: sequence++, sourceQuestionId: src.id, ieltsType: src.ieltsType } });
-        await writeVersion(tx, q.id, 1, {
-          prompt: v.prompt as Prisma.InputJsonValue, marks: Number(v.marks), answerKey: v.answerKey as Prisma.InputJsonValue | null,
-          options: v.options.map((o) => ({ label: o.label, isCorrect: o.isCorrect })), grader, partialCredit: v.partialCredit,
-        });
-      }
-      await this.audit.record({ ...actor, action: 'ASSESSMENT_QUESTIONS_FROM_BANK', entityType: 'AssessmentSection', entityId: sectionId, after: { count: sources.length } }, tx);
-      return { added: sources.length };
+    const section = await this.prisma.assessmentSection.findUnique({ where: { id: sectionId }, include: { version: true } });
+    if (!section) throw notFound('Section');
+    if (section.version.publishedAt) throw conflict('VERSION_PUBLISHED_IMMUTABLE', 'This version is published. Create a new version first.');
+    const sources = await this.prisma.question.findMany({
+      where: { id: { in: questionIds }, deletedAt: null, questionSetId: { not: null } },
+      include: { versions: { orderBy: { version: 'desc' }, take: 1, include: { options: { orderBy: { sequence: 'asc' } } } } },
     });
+    if (sources.length !== questionIds.length) throw notFound('Question');
+    const byId = new Map(sources.map((s) => [s.id, s]));
+    const ordered = questionIds.map((id) => byId.get(id)!);
+    let sequence = await this.prisma.question.count({ where: { sectionId, deletedAt: null } });
+
+    const questionRows: Prisma.QuestionCreateManyInput[] = [];
+    const versionRows: Prisma.QuestionVersionCreateManyInput[] = [];
+    const optionRows: Prisma.QuestionOptionCreateManyInput[] = [];
+    let added = 0;
+    for (const src of ordered) {
+      const v = src.versions[0];
+      if (!v) continue;
+      const grader = src.ieltsType ? graderType(src.ieltsType as IeltsItemType) : src.questionType;
+      const matchingWithMappings = grader === 'MATCHING' && Array.isArray((v.answerKey as { mappings?: unknown[] } | null)?.mappings)
+        && ((v.answerKey as { mappings?: unknown[] } | null)?.mappings?.length ?? 0) > 0;
+      const storeAnswerKey = usesKey(grader) || grader === 'ORDERING' || matchingWithMappings;
+      const storeOptions = !matchingWithMappings && !usesKey(grader);
+      const questionId = randomUUID();
+      const versionId = randomUUID();
+      questionRows.push({ id: questionId, sectionId, questionType: grader, sequence: sequence++, sourceQuestionId: src.id, ieltsType: src.ieltsType });
+      versionRows.push({
+        id: versionId, questionId, version: 1, prompt: v.prompt as Prisma.InputJsonValue,
+        answerKey: storeAnswerKey && v.answerKey ? (v.answerKey as Prisma.InputJsonValue) : Prisma.DbNull,
+        marks: new Prisma.Decimal(Number(v.marks)), partialCredit: v.partialCredit ?? false,
+      });
+      if (storeOptions && v.options.length) {
+        optionRows.push(...v.options.map((o, i) => ({ id: randomUUID(), questionVersionId: versionId, label: o.label, isCorrect: o.isCorrect, sequence: i })));
+      }
+      added++;
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      if (questionRows.length) await tx.question.createMany({ data: questionRows });
+      if (versionRows.length) await tx.questionVersion.createMany({ data: versionRows });
+      if (optionRows.length) await tx.questionOption.createMany({ data: optionRows });
+      await this.audit.record({ ...actor, action: 'ASSESSMENT_QUESTIONS_FROM_BANK', entityType: 'AssessmentSection', entityId: sectionId, after: { count: added } }, tx);
+    });
+    return { added };
   }
 
   // ───────── student practice ─────────
