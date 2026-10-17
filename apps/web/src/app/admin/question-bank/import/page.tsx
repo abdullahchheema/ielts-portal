@@ -69,7 +69,11 @@ export default function ImportPage() {
 
   return (
     <>
-      <PageHeader title="Bulk import" subtitle="Upload a JSON file of question sets, preview the result, then commit. Imported sets land as DRAFT and still need review before publishing." />
+      <PageHeader
+        title="Bulk import"
+        subtitle="Upload a JSON file of question sets, preview the result, then commit. Imported sets land as DRAFT and still need review before publishing."
+        breadcrumbs={[{ href: '/admin/question-bank', label: 'Question bank' }, { label: 'Bulk import' }]}
+      />
 
       <div className="space-y-4 rounded-lg border border-border bg-surface p-4">
         <div>

@@ -161,7 +161,17 @@ export class QuestionBankService {
       },
     });
     if (!set) throw notFound('Question set');
-    return { ...set, stimulus: await this.resolveStimulusAudio(set.stimulus) };
+    const [stimulus, images, questions] = await Promise.all([
+      this.resolveStimulusAudio(set.stimulus),
+      Promise.all(set.images.map(async (img) => ({ ...img, url: await this.storage.signedUrl(img.fileKey, 3600) }))),
+      Promise.all(set.questions.map(async (q) => ({
+        ...q,
+        versions: await Promise.all(q.versions.map(async (v) => ({
+          ...v, images: await Promise.all(v.images.map(async (img) => ({ ...img, url: await this.storage.signedUrl(img.fileKey, 3600) }))),
+        }))),
+      }))),
+    ]);
+    return { ...set, stimulus, images, questions };
   }
 
   /** Swaps every raw `audioKey` in a set's stimulus (top-level, or per-section) for a short-lived
@@ -184,6 +194,26 @@ export class QuestionBankService {
       await this.audit.record({ ...actor, action: 'ADMIN_CREATED_QUESTION_SET', entityType: 'QuestionSet', entityId: set.id, after: { title: set.title, skill: set.skill } }, tx);
       return set;
     });
+  }
+
+  /** Permanently removes a set and everything in it. Only ever allowed for a DRAFT — anything that
+   *  has been approved/published may already be relied on elsewhere (a free-test wrapper, a mock); for
+   *  those, archiving (which already exists) is the correct way to take it out of circulation. */
+  async deleteSet(id: string, actor: Actor) {
+    const set = await this.prisma.questionSet.findUnique({ where: { id }, include: { questions: { select: { id: true } } } });
+    if (!set) throw notFound('Question set');
+    if (set.status !== 'DRAFT') throw conflict('CONFLICT', 'Only a draft set can be deleted. Archive it instead to take it out of circulation.');
+    const questionIds = set.questions.map((q) => q.id);
+    await this.prisma.$transaction(async (tx) => {
+      const versionIds = (await tx.questionVersion.findMany({ where: { questionId: { in: questionIds } }, select: { id: true } })).map((v) => v.id);
+      await tx.questionImage.deleteMany({ where: { OR: [{ questionSetId: id }, { questionVersionId: { in: versionIds } }] } });
+      await tx.questionOption.deleteMany({ where: { questionVersionId: { in: versionIds } } });
+      await tx.questionVersion.deleteMany({ where: { id: { in: versionIds } } });
+      await tx.question.deleteMany({ where: { id: { in: questionIds } } });
+      await tx.questionSet.delete({ where: { id } });
+      await this.audit.record({ ...actor, action: 'ADMIN_DELETED_QUESTION_SET', entityType: 'QuestionSet', entityId: id, before: { title: set.title, questionCount: questionIds.length } }, tx);
+    });
+    return { ok: true };
   }
 
   async updateSet(id: string, input: QuestionSetUpdateInput, actor: Actor) {

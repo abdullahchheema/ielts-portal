@@ -6,9 +6,10 @@ import { Alert, Card, Loading, PageHeader } from '@/components/ui';
 import { api } from '@/lib/api';
 
 interface Option { label: string; isCorrect: boolean }
+interface QImage { id: string; url: string; altText: string | null }
 interface Question {
   id: string; ieltsType: string | null; questionType: string; bankSectionIndex: number | null;
-  versions: { prompt: { text: string }; marks: string; answerKey: { value?: string; accepted?: string[] } | null; options: Option[] }[];
+  versions: { prompt: { text: string }; marks: string; answerKey: { value?: string; accepted?: string[] } | null; options: Option[]; images: QImage[] }[];
 }
 interface StimulusSection { title: string; instructions?: string; passage?: string; audioUrl?: string }
 interface SetDetail {
@@ -24,6 +25,7 @@ function QuestionPreview({ q, index }: { q: Question; index: number }) {
   return (
     <Card className="space-y-2">
       <p className="text-sm font-medium"><span className="mr-2 text-fg-subtle">{index + 1}.</span>{v?.prompt.text}</p>
+      {v?.images.map((img) => <img key={img.id} src={img.url} alt={img.altText ?? ''} className="max-h-96 rounded-md ring-1 ring-border" />)}
       {v?.options.length > 0 && (
         <ul className="space-y-1 text-sm">
           {v.options.map((o) => (
@@ -56,6 +58,7 @@ export default function PreviewPage() {
       <PageHeader
         title={`Preview — ${data.title}`}
         subtitle="Exactly what a student sees: passage, instructions and audio directly above that passage's own questions, section by section. Correct answers are shown here only — never to students."
+        breadcrumbs={[{ href: '/admin/question-bank', label: 'Question bank' }, { href: `/admin/question-bank/${id}`, label: data.title }, { label: 'Preview' }]}
       />
       <Alert kind="info">Status: {data.status} · {data.skill.toLowerCase()} · time limit {TIME_LIMIT[data.skill] ?? 'untimed'}</Alert>
 

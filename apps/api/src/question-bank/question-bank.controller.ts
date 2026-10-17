@@ -61,6 +61,11 @@ export class AdminQuestionSetsController {
     return this.bank.updateSet(id, body, actor(u, req));
   }
 
+  @RequirePermission('question.manage') @Delete(':id')
+  remove(@Param('id', uuid) id: string, @CurrentUser() u: AuthUser, @Req() req: Request) {
+    return this.bank.deleteSet(id, actor(u, req));
+  }
+
   @RequirePermission('question.manage') @HttpCode(200) @Post(':id/status')
   status(@Param('id', uuid) id: string, @Body(new ZodPipe(questionSetStatusSchema)) body: QuestionSetStatusInput, @CurrentUser() u: AuthUser, @Req() req: Request) {
     return this.bank.setStatus(id, body, actor(u, req));

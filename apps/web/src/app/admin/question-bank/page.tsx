@@ -3,7 +3,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState } from 'react';
-import { Alert, Badge, Button, Dialog, Empty, Field, FilterBar, Input, Loading, PageHeader, Pagination, SearchInput, Select, Table, Td } from '@/components/ui';
+import { Alert, Badge, Button, Dialog, Empty, Field, FilterBar, Input, Loading, PageHeader, Pagination, SearchInput, Select, Table, Td, useConfirm } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 
@@ -17,6 +17,7 @@ const TAKE = 25;
 
 export default function QuestionBankPage() {
   const qc = useQueryClient();
+  const confirm = useConfirm();
   const [skill, setSkill] = useState('');
   const [status, setStatus] = useState('');
   const [topic, setTopic] = useState('');
@@ -27,6 +28,16 @@ export default function QuestionBankPage() {
   const [f, setF] = useState({ title: '', skill: 'READING', topic: '', difficulty: '3', module: 'ACADEMIC', source: '' });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  async function removeSet(id: string) {
+    if (!(await confirm({ message: 'Permanently delete this draft set and all of its questions? This cannot be undone.', confirmLabel: 'Delete set' }))) return;
+    setDeletingId(id); setError(null);
+    try {
+      await api(`/admin/question-sets/${id}`, { method: 'DELETE' });
+      await qc.invalidateQueries({ queryKey: ['question-sets'] });
+    } catch (e) { setError(errorMessage(e)); } finally { setDeletingId(null); }
+  }
 
   async function create() {
     setBusy(true); setError(null);
@@ -59,11 +70,12 @@ export default function QuestionBankPage() {
           {['DRAFT', 'APPROVED', 'PUBLISHED', 'ARCHIVED'].map((s) => <option key={s} value={s}>{s[0] + s.slice(1).toLowerCase()}</option>)}
         </Select>
       </FilterBar>
+      {error && <Alert>{error}</Alert>}
       {isLoading && <Loading />}
       {isError && <Alert>Could not load the question bank.</Alert>}
       {data && (data.items.length === 0 ? <Empty title="No sets yet">Create a set to start building the bank.</Empty> : (
         <>
-          <Table head={['Title', 'Skill', 'Topic', 'Difficulty', 'Questions', 'Status', 'Version']} sticky>
+          <Table head={['Title', 'Skill', 'Topic', 'Difficulty', 'Questions', 'Status', 'Version', '']} sticky>
             {data.items.map((s) => (
               <tr key={s.id} className="hover:bg-surface-muted">
                 <Td><Link href={`/admin/question-bank/${s.id}`} className="font-medium text-primary hover:underline">{s.title}</Link></Td>
@@ -73,6 +85,7 @@ export default function QuestionBankPage() {
                 <Td>{s.questionCount}</Td>
                 <Td><Badge status={s.status} />{s.studentFacing && <span className="ml-2 text-xs text-success">Student-facing</span>}</Td>
                 <Td>v{s.version}</Td>
+                <Td>{s.status === 'DRAFT' && <Button variant="ghost" tone="danger" size="xs" onClick={() => removeSet(s.id)} busy={deletingId === s.id} disabled={!!deletingId}>Delete</Button>}</Td>
               </tr>
             ))}
           </Table>

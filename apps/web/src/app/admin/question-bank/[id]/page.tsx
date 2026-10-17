@@ -2,7 +2,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { IELTS_ITEM_TYPES, IeltsItemType, ITEM_TYPE_KEYS } from '@ielts/validation';
 import { Accordion, Alert, Badge, Button, Card, Dialog, Empty, Field, Input, Loading, PageHeader, Section, Select, Textarea, useConfirm } from '@/components/ui';
@@ -10,9 +10,10 @@ import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 
 interface Option { label: string; isCorrect: boolean }
+interface QImage { id: string; url: string; altText: string | null }
 interface Question {
   id: string; ieltsType: string | null; questionType: string; bankSectionIndex: number | null;
-  versions: { version: number; prompt: { text: string }; marks: string; answerKey: { value?: string; accepted?: string[] } | null; options: Option[] }[];
+  versions: { version: number; prompt: { text: string }; marks: string; answerKey: { value?: string; accepted?: string[] } | null; options: Option[]; images: QImage[] }[];
 }
 interface StimulusSection { title: string; instructions?: string; passage?: string; audioKey?: string; audioUrl?: string }
 interface SetDetail {
@@ -26,11 +27,13 @@ const LABEL: Record<string, string> = { APPROVED: 'Approve', DRAFT: 'Return to d
 
 export default function QuestionSetPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const qc = useQueryClient();
   const confirm = useConfirm();
   const { data, isLoading, isError } = useQuery({ queryKey: ['question-set', id], queryFn: () => api<SetDetail>(`/admin/question-sets/${id}`) });
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [actionBusy, setActionBusy] = useState<string | null>(null);
   const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: ['question-set', id] }), qc.invalidateQueries({ queryKey: ['question-sets'] })]);
 
   async function move(status: string) {
@@ -41,20 +44,30 @@ export default function QuestionSetPage() {
       if (!ok) return;
       studentFacing = true;
     }
+    setActionBusy(status);
     try {
       await api(`/admin/question-sets/${id}/status`, { method: 'POST', body: { status, studentFacing } });
       await refresh();
-    } catch (e) { setError(errorMessage(e)); }
+    } catch (e) { setError(errorMessage(e)); } finally { setActionBusy(null); }
   }
   async function clone() {
+    setActionBusy('clone');
     try {
       const copy = await api<{ id: string }>(`/admin/question-sets/${id}/clone`, { method: 'POST' });
-      window.location.href = `/admin/question-bank/${copy.id}`;
-    } catch (e) { setError(errorMessage(e)); }
+      router.push(`/admin/question-bank/${copy.id}`);
+    } catch (e) { setError(errorMessage(e)); setActionBusy(null); }
   }
   async function removeQuestion(qid: string) {
     if (!(await confirm({ message: 'Remove this question from the set?', confirmLabel: 'Remove' }))) return;
     try { await api(`/admin/question-sets/questions/${qid}`, { method: 'DELETE' }); await refresh(); } catch (e) { setError(errorMessage(e)); }
+  }
+  async function remove() {
+    if (!(await confirm({ message: 'Permanently delete this draft set and all of its questions? This cannot be undone.', confirmLabel: 'Delete set' }))) return;
+    setActionBusy('delete');
+    try {
+      await api(`/admin/question-sets/${id}`, { method: 'DELETE' });
+      router.push('/admin/question-bank');
+    } catch (e) { setError(errorMessage(e)); setActionBusy(null); }
   }
 
   if (isLoading) return <Loading />;
@@ -66,12 +79,16 @@ export default function QuestionSetPage() {
       <PageHeader
         title={data.title}
         subtitle={`${data.skill} · ${data.module.toLowerCase()} · topic ${data.topic ?? '—'} · difficulty ${data.difficulty}/5 · v${data.version}`}
+        breadcrumbs={[{ href: '/admin/question-bank', label: 'Question bank' }, { label: data.title }]}
         actions={<div className="flex flex-wrap gap-2">
           <Badge status={data.status} />
           {data.studentFacing && <Badge status="PUBLISHED" tone="green" text="Student-facing" />}
           <Link href={`/admin/question-bank/${id}/preview`}><Button variant="secondary">Preview</Button></Link>
-          {(NEXT[data.status] ?? []).map((s) => <Button key={s} variant={s === 'PUBLISHED' ? 'primary' : 'secondary'} onClick={() => move(s)}>{LABEL[s]}</Button>)}
-          {!editable && <Button variant="secondary" onClick={clone}>Clone to edit</Button>}
+          {(NEXT[data.status] ?? []).map((s) => (
+            <Button key={s} variant={s === 'PUBLISHED' ? 'primary' : 'secondary'} onClick={() => move(s)} busy={actionBusy === s} disabled={!!actionBusy}>{LABEL[s]}</Button>
+          ))}
+          {!editable && <Button variant="secondary" onClick={clone} busy={actionBusy === 'clone'} disabled={!!actionBusy}>Clone to edit</Button>}
+          {data.status === 'DRAFT' && <Button variant="danger" onClick={remove} busy={actionBusy === 'delete'} disabled={!!actionBusy}>Delete</Button>}
         </div>}
       />
       {error && <Alert>{error}</Alert>}
@@ -118,10 +135,12 @@ export default function QuestionSetPage() {
                         {editable && <Button variant="ghost" size="xs" onClick={() => removeQuestion(q.id)}>Remove</Button>}
                       </div>
                       <p className="text-xs text-fg-subtle">{q.ieltsType?.replace(/_/g, ' ').toLowerCase()} · {v?.marks} mark(s) · version {v?.version}</p>
+                      {v?.images.map((img) => <img key={img.id} src={img.url} alt={img.altText ?? ''} className="max-h-80 rounded-md ring-1 ring-border" />)}
                       {v?.options.length > 0 && (
                         <ul className="text-sm text-fg-muted">{v.options.map((o) => <li key={o.label} className={o.isCorrect ? 'font-medium text-success' : ''}>{o.isCorrect ? '✓ ' : '• '}{o.label}</li>)}</ul>
                       )}
                       {v?.answerKey && <p className="text-xs text-fg-muted">Answer: {v.answerKey.value ?? (v.answerKey.accepted ?? []).join(' / ')}</p>}
+                      {editable && <QuestionImageAttach questionId={q.id} onDone={refresh} />}
                     </Card>
                   );
                 })}
@@ -167,6 +186,37 @@ function AudioAttach({ setId, sectionIndex, editable, attached, audioUrl, onDone
       <div className="flex flex-wrap items-center gap-2">
         <input type="file" accept="audio/mpeg,.mp3" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="text-sm" />
         <Button variant="secondary" onClick={upload} busy={busy} disabled={!file}>Upload MP3</Button>
+      </div>
+    </div>
+  );
+}
+
+/** For a question whose stimulus is itself an image (a chart to describe, a diagram to label) — the
+ *  prompt text still carries the instruction/question; this is just the visual the student sees
+ *  alongside it. */
+function QuestionImageAttach({ questionId, onDone }: { questionId: string; onDone: () => void | Promise<unknown> }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function upload() {
+    if (!file) return;
+    setBusy(true); setError(null);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      await api(`/admin/question-sets/questions/${questionId}/images`, { method: 'POST', form: fd });
+      setFile(null);
+      await onDone();
+    } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="space-y-1">
+      {error && <Alert>{error}</Alert>}
+      <div className="flex flex-wrap items-center gap-2">
+        <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="text-xs" />
+        <Button variant="ghost" size="xs" onClick={upload} busy={busy} disabled={!file}>Attach image</Button>
       </div>
     </div>
   );

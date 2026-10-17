@@ -102,3 +102,26 @@ describe('bulk question import', () => {
     expect(res.created).toHaveLength(2);
   });
 });
+
+describe('deleting a question set', () => {
+  it('permanently removes a DRAFT set and all of its questions', async () => {
+    const res = (await post('/admin/question-sets/import/commit', validPayload()).expect(201)).body;
+    const setId = res.created[0].setId as string;
+    const before = await prisma.question.count({ where: { questionSetId: setId } });
+    expect(before).toBeGreaterThan(0);
+
+    await as(admin)(http(app).delete(`/admin/question-sets/${setId}`)).expect(200);
+
+    expect(await prisma.questionSet.findUnique({ where: { id: setId } })).toBeNull();
+    expect(await prisma.question.count({ where: { questionSetId: setId } })).toBe(0);
+  });
+
+  it('refuses to delete a set that has been approved or published — archive it instead', async () => {
+    const res = (await post('/admin/question-sets/import/commit', validPayload()).expect(201)).body;
+    const setId = res.created[0].setId as string;
+    await post(`/admin/question-sets/${setId}/status`, { status: 'APPROVED' }).expect(200);
+
+    await as(admin)(http(app).delete(`/admin/question-sets/${setId}`)).expect(409);
+    expect(await prisma.questionSet.findUnique({ where: { id: setId } })).not.toBeNull();
+  });
+});
