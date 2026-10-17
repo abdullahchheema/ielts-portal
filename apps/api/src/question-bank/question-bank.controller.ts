@@ -1,17 +1,22 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import type { Request } from 'express';
+import { memoryStorage } from 'multer';
 import { z } from 'zod';
 import {
-  BankPickInput, BankQuestionInput, CopyToSectionInput, PracticeSessionInput, QuestionSetCreateInput, QuestionSetStatusInput, QuestionSetUpdateInput,
-  bankPickSchema, bankQuestionSchema, bankQuestionUpdateSchema, copyToSectionSchema, practiceSessionSchema, questionSetCreateSchema, questionSetStatusSchema, questionSetUpdateSchema,
+  BankPickInput, BankQuestionInput, BulkImportInput, CopyToSectionInput, PracticeSessionInput, QuestionSetCreateInput, QuestionSetStatusInput, QuestionSetUpdateInput,
+  bankPickSchema, bankQuestionSchema, bankQuestionUpdateSchema, bulkImportSchema, copyToSectionSchema, practiceSessionSchema, questionSetCreateSchema, questionSetStatusSchema, questionSetUpdateSchema,
 } from '@ielts/validation';
 import { AuthUser, CurrentUser, RequirePermission, clientMeta } from '../common/decorators';
 import { forbidden } from '../common/app-error';
 import { ZodPipe } from '../common/zod.pipe';
+import { QuestionImportService } from './import.service';
 import { QuestionBankService } from './question-bank.service';
 
 const uuid = new ParseUUIDPipe();
 const actor = (u: AuthUser, req: Request) => ({ userId: u.id, ...clientMeta(req) });
+const imageUpload = UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 1 } }));
+type ImageFile = { buffer: Buffer; size: number } | undefined;
 
 const listQuery = z.object({
   skill: z.enum(['LISTENING', 'READING', 'WRITING', 'SPEAKING']).optional(),
@@ -23,7 +28,7 @@ const listQuery = z.object({
 
 @Controller('admin/question-sets')
 export class AdminQuestionSetsController {
-  constructor(private readonly bank: QuestionBankService) {}
+  constructor(private readonly bank: QuestionBankService, private readonly importer: QuestionImportService) {}
 
   @RequirePermission('question.manage') @Get()
   list(@Query(new ZodPipe(listQuery)) q: z.infer<typeof listQuery>) { return this.bank.listSets(q); }
@@ -36,6 +41,16 @@ export class AdminQuestionSetsController {
   /** Pickers in assessment screens: candidates from every published set, including ones not yet student-facing. */
   @RequirePermission('question.manage') @HttpCode(200) @Post('pick')
   pick(@Body(new ZodPipe(bankPickSchema)) body: BankPickInput) { return this.bank.pickForAdmin(body); }
+
+  /** Dry-run: validates every set/question and flags likely duplicates without writing anything. */
+  @RequirePermission('question.manage') @HttpCode(200) @Post('import/preview')
+  importPreview(@Body(new ZodPipe(bulkImportSchema)) body: BulkImportInput) { return this.importer.preview(body); }
+
+  /** Persists the import as DRAFT sets in one transaction. Refuses if any question is invalid. */
+  @RequirePermission('question.manage') @HttpCode(201) @Post('import/commit')
+  importCommit(@Body(new ZodPipe(bulkImportSchema)) body: BulkImportInput, @CurrentUser() u: AuthUser, @Req() req: Request) {
+    return this.importer.commit(body, actor(u, req));
+  }
 
   @RequirePermission('question.manage') @Get(':id')
   get(@Param('id', uuid) id: string) { return this.bank.getSet(id); }
@@ -68,6 +83,21 @@ export class AdminQuestionSetsController {
   @RequirePermission('question.manage') @Delete('questions/:questionId')
   removeQuestion(@Param('questionId', uuid) id: string, @CurrentUser() u: AuthUser, @Req() req: Request) {
     return this.bank.removeQuestion(id, actor(u, req));
+  }
+
+  @RequirePermission('question.manage') @HttpCode(201) @Post(':id/images') @imageUpload
+  attachSetImage(@Param('id', uuid) id: string, @UploadedFile() file: ImageFile, @Query('alt') alt: string | undefined, @CurrentUser() u: AuthUser, @Req() req: Request) {
+    return this.bank.attachSetImage(id, file, alt, actor(u, req));
+  }
+
+  @RequirePermission('question.manage') @HttpCode(201) @Post('questions/:questionId/images') @imageUpload
+  attachQuestionImage(@Param('questionId', uuid) id: string, @UploadedFile() file: ImageFile, @Query('alt') alt: string | undefined, @CurrentUser() u: AuthUser, @Req() req: Request) {
+    return this.bank.attachQuestionImage(id, file, alt, actor(u, req));
+  }
+
+  @RequirePermission('question.manage') @Delete('images/:imageId')
+  removeImage(@Param('imageId', uuid) id: string, @CurrentUser() u: AuthUser, @Req() req: Request) {
+    return this.bank.removeImage(id, actor(u, req));
   }
 }
 

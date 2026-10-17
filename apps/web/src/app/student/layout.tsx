@@ -1,6 +1,6 @@
 'use client';
 
-import { BarChart3, BookMarked, BookOpen, CalendarDays, CheckCircle2, ClipboardList, Gift, GraduationCap, Headphones, LayoutDashboard, LifeBuoy, Mic, PenLine, Receipt, Sparkles, Target, TrendingUp, UserCircle, Users } from 'lucide-react';
+import { BarChart3, BookMarked, BookOpen, CalendarDays, CheckCircle2, ClipboardList, Crown, Gift, GraduationCap, Headphones, LayoutDashboard, LifeBuoy, Mic, PenLine, Receipt, Sparkles, Target, TrendingUp, UserCircle, Users } from 'lucide-react';
 import { ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Shell } from '@/components/Shell';
@@ -32,6 +32,7 @@ function StudentShell({ children }: { children: ReactNode }) {
           { href: '/student/schedule', label: 'Class Schedule', icon: CalendarDays, show: inBatch },
           { href: '/student/recordings', label: 'Class recordings', icon: Headphones, show: inBatch },
           { href: '/student/mock-tests', label: 'Mock Tests', icon: ClipboardList },
+          { href: '/student/premium', label: 'Premium services', icon: Crown },
         ] },
         { title: 'Modules', items: [
           { href: '/student/listening', label: 'Listening', icon: Headphones },

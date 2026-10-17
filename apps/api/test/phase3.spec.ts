@@ -24,6 +24,9 @@ afterAll(async () => {
 const post = (s: Session, path: string, body: object = {}) => as(s)(http(app).post(path)).send(body);
 const get = (s: Session, path: string) => as(s)(http(app).get(path));
 
+/** AI evaluation is an Advanced+ feature (Phase 6 plan gating); a bare, unassigned student defaults to FREE. */
+const giveAdvancedPlan = (studentId: string) => post(admin, '/admin/student-plans', { studentId, planName: 'ADVANCED', reason: 'test' }).expect(201);
+
 describe('student home and insights', () => {
   it('the home summary answers where the student is, without any AI call', async () => {
     const st = await createStudent(app, prisma);
@@ -150,6 +153,7 @@ describe('grammar, writing history and fluency', () => {
 
   it('two evaluated essays can be compared side by side, and only by their owner', async () => {
     const st = await createStudent(app, prisma);
+    await giveAdvancedPlan(st.studentId);
     const ids: string[] = [];
     for (let i = 0; i < 2; i++) {
       const r = (await post(st.session, '/writing/responses', { taskType: 'TASK2', promptText: `Discuss topic number ${i} in detail for the course.` }).expect(201)).body;
@@ -170,6 +174,7 @@ describe('grammar, writing history and fluency', () => {
 
   it('a speaking answer shows fluency indicators labelled as supporting only', async () => {
     const st = await createStudent(app, prisma);
+    await giveAdvancedPlan(st.studentId);
     const attempt = (await post(st.session, '/speaking/attempts', { mode: 'PART1' }).expect(201)).body;
     const resp = (await post(st.session, `/speaking/attempts/${attempt.id}/responses`, { part: 'PART1', promptText: 'Tell me about your hometown.' }).expect(201)).body;
     await as(st.session)(http(app).post(`/speaking/responses/${resp.id}/audio`)).attach('file', Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), Buffer.alloc(300, 3)]), { filename: 'a.webm', contentType: 'audio/webm' }).expect(200);

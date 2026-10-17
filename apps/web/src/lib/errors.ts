@@ -28,6 +28,9 @@ const MESSAGES: Record<string, string> = {
   MOCK_ACCESS_REQUIRED: 'Request access to this mock test first.',
   MOCK_NOT_AVAILABLE: 'Your approved window for this mock test has not started yet or has ended.',
   MOCK_REQUEST_ALREADY_PENDING: 'You already have a pending request for this mock test.',
+  FREE_TEST_USED: 'You have already taken the free test. Register for a paid plan to unlock full results and more tests.',
+  FREE_TEST_INVALID: 'This free test link is no longer valid. Please start again.',
+  PLAN_UPGRADE_REQUIRED: 'This feature needs a higher plan. Upgrade to unlock it.',
 };
 
 export function errorMessage(e: unknown): string {

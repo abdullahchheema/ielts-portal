@@ -7,6 +7,7 @@ import { AiService } from '../ai/ai.service';
 import { AppError, conflict, notFound } from '../common/app-error';
 import { JobsService } from '../jobs/jobs.service';
 import { GrammarService } from '../grammar/grammar.service';
+import { EntitlementService } from '../plans/entitlement.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { MIN_WORDS, textStats, wordCount } from './text-stats';
 import { mockWritingEvaluation, writingEvaluationSchema, WritingEvaluation } from './writing.schemas';
@@ -23,7 +24,10 @@ const EDITABLE = 'DRAFT';
 
 @Injectable()
 export class WritingService implements OnModuleInit {
-  constructor(private readonly prisma: PrismaService, private readonly ai: AiService, private readonly jobs: JobsService, private readonly grammar: GrammarService, private readonly events: EventEmitter2) {}
+  constructor(
+    private readonly prisma: PrismaService, private readonly ai: AiService, private readonly jobs: JobsService,
+    private readonly grammar: GrammarService, private readonly events: EventEmitter2, private readonly entitlements: EntitlementService,
+  ) {}
 
   onModuleInit() {
     this.jobs.handle('writing.evaluate', async (payload) => {
@@ -90,8 +94,11 @@ export class WritingService implements OnModuleInit {
     const claimed = await this.prisma.writingResponse.updateMany({ where: { id, studentId, status: EDITABLE }, data: { status: 'SUBMITTED', submittedAt: new Date() } });
     if (claimed.count === 0) return { status: 'SUBMITTED' };
     if (r.questionId) this.events.emit(STUDY_EVIDENCE, { studentId, refType: 'WRITING_TASK', refId: r.questionId } satisfies StudyEvidence);
-    const jobId = await this.jobs.enqueue('writing.evaluate', `writing:${id}:${r.revision}`, { responseId: id, revision: r.revision });
-    if (jobId) await this.jobs.runById(jobId).catch(() => false);
+    // AI evaluation is an Advanced/Premium feature. Saving and submitting the essay itself is never gated.
+    if (await this.entitlements.can(studentId, 'ai.evaluation')) {
+      const jobId = await this.jobs.enqueue('writing.evaluate', `writing:${id}:${r.revision}`, { responseId: id, revision: r.revision });
+      if (jobId) await this.jobs.runById(jobId).catch(() => false);
+    }
     return { status: 'SUBMITTED' };
   }
 

@@ -7,6 +7,7 @@ import { Alert, Badge, Button, Card, CardList, CardListItem, Empty, Field, Loadi
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { date } from '@/lib/format';
+import { planHas, usePlan } from '@/lib/plan';
 
 interface Row { id: string; taskType: string; promptText: string; wordCount: number; status: string; submittedAt: string | null; estimatedBand: string | null }
 
@@ -15,6 +16,8 @@ export default function WritingPracticePage() {
   const router = useRouter();
   const qc = useQueryClient();
   const { data, isLoading, isError } = useQuery({ queryKey: ['writing-list'], queryFn: () => api<Row[]>('/writing/responses') });
+  const { data: plan } = usePlan();
+  const hasAi = planHas(plan, 'ai.evaluation');
   const [taskType, setTaskType] = useState<'TASK1' | 'TASK2'>('TASK2');
   const [prompt, setPrompt] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -32,6 +35,9 @@ export default function WritingPracticePage() {
   return (
     <>
       <PageHeader title="Writing practice" subtitle="Write an essay, submit it, and see an AI estimate with feedback. The estimate is guidance only, not an official IELTS result." />
+      {plan && !hasAi && (
+        <div className="mb-6"><Alert kind="info">You can write and save essays on your current plan, but AI feedback requires the Advanced or Premium plan. <a href="/pricing" className="font-semibold underline">See plans</a>.</Alert></div>
+      )}
       <Card className="mb-6 space-y-3">
         <h2 className="font-semibold text-fg">Start a new essay</h2>
         {error && <Alert>{error}</Alert>}

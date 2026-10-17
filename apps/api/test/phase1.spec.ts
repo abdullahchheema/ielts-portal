@@ -24,6 +24,9 @@ afterAll(async () => {
 const post = (s: Session, path: string, body: object = {}) => as(s)(http(app).post(path)).send(body);
 const get = (s: Session, path: string) => as(s)(http(app).get(path));
 
+/** Practice sessions are a Starter+ feature (Phase 6 plan gating); a bare, unassigned student defaults to FREE. */
+const giveStarterPlan = (studentId: string) => post(admin, '/admin/student-plans', { studentId, planName: 'STARTER', reason: 'test' }).expect(201);
+
 async function publishedSet(count: number) {
   const set = (await post(admin, '/admin/question-sets', {
     title: `Passage ${uniq()}`, skill: 'READING', topic: 'travel', difficulty: 3, studentFacing: false,
@@ -65,6 +68,7 @@ describe('personal practice papers', () => {
   it('a student practises from published content, and the paper never reveals answers', async () => {
     await publishedSet(6);
     const st = await createStudent(app, prisma);
+    await giveStarterPlan(st.studentId);
     const res = await post(st.session, '/practice/sessions', { skill: 'READING', count: 5 }).expect(201);
     const assessmentId = res.body.assessmentId as string;
     const started = await post(st.session, `/assessments/${assessmentId}/start`).expect(201);
@@ -79,6 +83,7 @@ describe('personal practice papers', () => {
     await publishedSet(6);
     const owner = await createStudent(app, prisma);
     const other = await createStudent(app, prisma);
+    await giveStarterPlan(owner.studentId);
     const { assessmentId } = (await post(owner.session, '/practice/sessions', { skill: 'READING', count: 5 }).expect(201)).body;
     await post(other.session, `/assessments/${assessmentId}/start`).expect(404);
   });
@@ -87,6 +92,7 @@ describe('personal practice papers', () => {
     const set = (await post(admin, '/admin/question-sets', { title: `Draft only ${uniq()}`, skill: 'LISTENING', topic: `t-${uniq()}` }).expect(201)).body;
     await post(admin, `/admin/question-sets/${set.id}/questions`, { ieltsType: 'MCQ_SINGLE', prompt: { text: 'Hidden' }, marks: 1, options: [{ label: 'a', isCorrect: true }, { label: 'b', isCorrect: false }] }).expect(201);
     const st = await createStudent(app, prisma);
+    await giveStarterPlan(st.studentId);
     // Other published listening content may exist in the shared test schema, so a session can be created.
     // What must hold is that the draft's prompt is never served to a student.
     const res = await post(st.session, '/practice/sessions', { skill: 'LISTENING', count: 5 });

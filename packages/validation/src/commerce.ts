@@ -12,6 +12,8 @@ const choice = <T extends readonly [string, ...string[]]>(values: T, message: st
 /** Details every applicant provides about their payment. */
 export const applicationPaymentSchema = z.object({
   batchId: z.string().uuid(),
+  /** Defaults to PREMIUM for backward compatibility with the single-course enrollment flow. */
+  planName: z.enum(['FREE', 'STARTER', 'ADVANCED', 'PREMIUM']).default('PREMIUM'),
   paymentMethod: z.enum(PAYMENT_METHODS),
   transactionReference: z.string().trim().min(4, 'Enter the transaction / reference number from your receipt').max(80),
   claimedAmount: z.coerce.number({ invalid_type_error: 'Enter the amount you paid' }).positive('Enter the amount you paid').max(100_000_000),
@@ -57,6 +59,7 @@ export const manualEnrollmentSchema = z
     source: z.enum(ENROLLMENT_SOURCES),
     reason: z.string().trim().min(3).max(500),
     accessDays: z.number().int().min(1).max(3650).optional(),
+    planName: z.enum(['FREE', 'STARTER', 'ADVANCED', 'PREMIUM']).default('PREMIUM'),
   })
   .refine((v) => v.studentId || v.studentEmail, { message: 'Provide studentId or studentEmail.', path: ['studentId'] });
 

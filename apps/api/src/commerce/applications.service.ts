@@ -18,6 +18,7 @@ import { CouponsService } from './coupons.service';
 import { ReferralsService } from '../referrals/referrals.service';
 import { PaymentRiskService } from '../payment-risk/payment-risk.service';
 import { sha256Hex } from '../integrations/storage.service';
+import { PlansService } from '../plans/plans.service';
 import { money, newOrderReference, releaseCouponForOrder } from './commerce.helpers';
 
 export const MAX_PROOF_BYTES = 4 * 1024 * 1024;
@@ -70,6 +71,7 @@ export class ApplicationsService {
     private readonly audit: AuditService,
     private readonly notify: NotificationsService,
     private readonly events: EventEmitter2,
+    private readonly plans: PlansService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
@@ -148,6 +150,10 @@ export class ApplicationsService {
     const sniffed = await this.checkProofFile(file);
     await this.assertMethodEnabled(pay.paymentMethod);
 
+    const plan = await this.prisma.plan.findUnique({ where: { name: pay.planName } });
+    if (!plan || !plan.active) throw new AppError('VALIDATION_ERROR', 422, 'Some fields are invalid.', { planName: 'This plan is not currently available.' });
+    if (plan.name === 'FREE') throw new AppError('VALIDATION_ERROR', 422, 'Some fields are invalid.', { planName: 'The Free plan has no payment — take the free test instead.' });
+
     // Batch must exist, be open for applications, and belong to the live course.
     const main = await getMainCourse(this.prisma);
     const batch = await this.prisma.batch.findFirst({ where: { id: pay.batchId, deletedAt: null }, include: { version: true } });
@@ -189,9 +195,11 @@ export class ApplicationsService {
           },
         });
 
-        // Price comes from the database, never from the browser.
-        const price = money(main.course.price);
-        const order = await tx.order.create({ data: { reference: newOrderReference(), studentId, subtotal: price, discount: 0, tax: 0, total: price, currency: main.course.currency, status: 'PENDING_REVIEW' } });
+        // Price comes from the database, never from the browser. PREMIUM is priced as the course itself
+        // (the academy's original single-course price); STARTER/ADVANCED are the plan's own configured price.
+        const price = money(plan.name === 'PREMIUM' ? main.course.price : plan.price);
+        const priceCurrency = plan.name === 'PREMIUM' ? main.course.currency : plan.currency;
+        const order = await tx.order.create({ data: { reference: newOrderReference(), studentId, subtotal: price, discount: 0, tax: 0, total: price, currency: priceCurrency, status: 'PENDING_REVIEW' } });
         await this.referrals.markApplied(tx, studentId, order.id);
         let discount = money(0);
         if (pay.couponCode) {
@@ -210,9 +218,9 @@ export class ApplicationsService {
         }
         const total = afterDiscount.sub(credit);
         if (!discount.isZero() || !credit.isZero()) await tx.order.update({ where: { id: order.id }, data: { discount, creditApplied: credit, total } });
-        const item = await tx.orderItem.create({ data: { orderId: order.id, courseId: main.course.id, batchId: batch.id, originalPrice: price, discount, finalPrice: total } });
+        const item = await tx.orderItem.create({ data: { orderId: order.id, courseId: main.course.id, batchId: batch.id, originalPrice: price, discount, finalPrice: total, planName: plan.name } });
 
-        const payment = await tx.payment.create({ data: { orderId: order.id, provider: 'BANK_TRANSFER', amount: total, currency: main.course.currency, reference: order.reference, status: 'PENDING' } });
+        const payment = await tx.payment.create({ data: { orderId: order.id, provider: 'BANK_TRANSFER', amount: total, currency: priceCurrency, reference: order.reference, status: 'PENDING' } });
         const flags: string[] = [];
         if (!money(pay.claimedAmount).equals(total)) flags.push('AMOUNT_MISMATCH');
         const dup = await tx.paymentProof.count({ where: { bankTxnReference: { equals: pay.transactionReference, mode: 'insensitive' }, status: { in: ['SUBMITTED', 'APPROVED'] } } });
@@ -412,6 +420,9 @@ export class ApplicationsService {
         });
         if (activated.count === 0) throw new AppError('CONFLICT', 409, 'This application is no longer waiting for verification.');
         const enrollment = await tx.enrollment.findFirstOrThrow({ where: { orderItemId: item.id } });
+
+        // Historical rows predating the plan system have no planName; treat them as the old single-course PREMIUM.
+        await this.plans.activateWithinTransaction(tx, order.studentId, item.planName ?? 'PREMIUM', order.id, actor);
 
         await tx.paymentEvent.create({ data: { paymentId: payment.id, type: 'PAYMENT_VERIFIED', actorId: actor.userId, payload: { proofId: proof.id, note: input.note ?? null, amountMismatchConfirmed: input.confirmAmountMismatch } } });
         await tx.studentTimelineEvent.create({ data: { studentId: order.studentId, type: 'ENROLLED', summary: `Payment verified — enrolled in ${item.batch.name}`, meta: { enrollmentId: enrollment.id } } });

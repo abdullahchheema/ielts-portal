@@ -2,7 +2,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { COUNTRIES, PAKISTAN_CITIES, applicantProfileSchema } from '@ielts/validation';
 import { AccountGate } from '@/components/AccountGate';
@@ -16,8 +16,10 @@ import { ApiError, api } from '@/lib/api';
 import { useMe } from '@/lib/auth';
 import { errorMessage } from '@/lib/errors';
 import { date, money } from '@/lib/format';
+import { PublicPlan } from '@/lib/server-api';
 
 interface PublicCourse { title: string; price: string; currency: string }
+const PAID_PLANS = ['STARTER', 'ADVANCED', 'PREMIUM'] as const;
 interface Details {
   phone: string; city: string; country: string; testType: string; targetBand: string; examDate: string;
   ieltsHistory: '' | 'NEVER' | 'TAKEN'; ieltsOverall: string;
@@ -31,14 +33,18 @@ const TEST_LABEL: Record<string, string> = { ACADEMIC: 'Academic', GENERAL: 'Gen
 export default function EnrollPage() {
   const { batchId } = useParams<{ batchId: string }>();
   const router = useRouter();
+  const search = useSearchParams();
   const qc = useQueryClient();
   const me = useMe();
   const batches = useQuery({ queryKey: ['public-batches'], queryFn: () => api<PublicBatch[]>('/public/batches') });
   const course = useQuery({ queryKey: ['public-course'], queryFn: () => api<PublicCourse>('/public/course') });
+  const plans = useQuery({ queryKey: ['public-plans'], queryFn: () => api<PublicPlan[]>('/public/plans') });
 
   const [step, setStep] = useState(0);
   const [d, setD] = useState<Details>(EMPTY);
   const [pay, setPay] = useState<PaymentValues | null>(null);
+  const requestedPlan = (search.get('plan') ?? '').toUpperCase();
+  const [planName, setPlanName] = useState<string>(PAID_PLANS.includes(requestedPlan as never) ? requestedPlan : 'PREMIUM');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -56,7 +62,7 @@ export default function EnrollPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftKey]);
 
-  if (batches.isLoading || course.isLoading || me.isLoading) return <><PublicHeader /><Loading /></>;
+  if (batches.isLoading || course.isLoading || me.isLoading || plans.isLoading) return <><PublicHeader /><Loading /></>;
   const batch = batches.data?.find((b) => b.id === batchId);
   if (!batch || !course.data) {
     return (
@@ -135,7 +141,9 @@ export default function EnrollPage() {
     );
   }
 
-  const price = course.data.price;
+  const selectedPlan = plans.data?.find((p) => p.name === planName);
+  const price = selectedPlan ? String(selectedPlan.price) : course.data.price;
+  const currency = selectedPlan?.currency ?? course.data.currency;
   const payment = pay ?? emptyPayment(price);
 
   const text = (k: keyof Details) => ({ value: d[k], onChange: (e: { target: { value: string } }) => set({ [k]: e.target.value } as Partial<Details>) });
@@ -162,7 +170,7 @@ export default function EnrollPage() {
     if (!validateDetails()) return;
     setBusy(true);
     try {
-      const extra: Record<string, string> = { batchId };
+      const extra: Record<string, string> = { batchId, planName };
       for (const [k, v] of Object.entries(d)) if (v) extra[k] = v;
       await api('/applications', { form: paymentFormData(payment, extra) });
       await qc.invalidateQueries({ queryKey: ['me'] });
@@ -191,9 +199,23 @@ export default function EnrollPage() {
           {formError && <div className="mb-4"><Alert>{formError}</Alert></div>}
 
           {step === 1 && (
-            <Section title="Payment" description="Pay the course fee, then upload your receipt. Your place is confirmed once the academy verifies the payment.">
-              <PaymentSection value={payment} onChange={setPay} errors={errors} amount={price} currency={course.data.currency} batchId={batchId} />
-            </Section>
+            <>
+              <Section title="Choose your plan" description="You can change plans later from your student portal.">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {(plans.data ?? []).filter((p) => PAID_PLANS.includes(p.name as never)).map((p) => (
+                    <label key={p.name} className={`cursor-pointer rounded-xl p-4 ring-2 ${planName === p.name ? 'bg-primary-soft ring-primary' : 'ring-border'}`}>
+                      <input type="radio" name="plan" className="sr-only" checked={planName === p.name} onChange={() => { setPlanName(p.name); setPay(null); }} />
+                      <p className="font-semibold text-fg">{p.displayName}</p>
+                      <p className="text-lg font-bold text-fg">{money(p.price, p.currency)}</p>
+                      {p.description && <p className="mt-1 text-xs text-fg-muted">{p.description}</p>}
+                    </label>
+                  ))}
+                </div>
+              </Section>
+              <Section title="Payment" description="Pay the plan fee, then upload your receipt. Your place is confirmed once the academy verifies the payment.">
+                <PaymentSection value={payment} onChange={setPay} errors={errors} amount={price} currency={currency} batchId={batchId} />
+              </Section>
+            </>
           )}
 
           {step === 2 && (
@@ -217,9 +239,10 @@ export default function EnrollPage() {
                     { label: 'Target band', value: d.targetBand },
                     { label: 'Previous IELTS', value: d.ieltsHistory === 'TAKEN' ? `Yes, overall ${d.ieltsOverall}` : 'No, first time' },
                     { label: 'Batch', value: batch.name },
+                    { label: 'Plan', value: selectedPlan?.displayName ?? planName },
                     { label: 'Payment method', value: METHOD_LABEL[payment.paymentMethod] ?? payment.paymentMethod },
                     { label: 'Reference', value: payment.transactionReference },
-                    { label: 'Amount paid', value: money(payment.claimedAmount, course.data.currency) },
+                    { label: 'Amount paid', value: money(payment.claimedAmount, currency) },
                     { label: 'Receipt', value: payment.file?.name },
                   ]}
                 />

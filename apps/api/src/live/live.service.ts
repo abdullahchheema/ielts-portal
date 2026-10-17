@@ -16,6 +16,7 @@ import { ZodPipe } from '../common/zod.pipe';
 import { Actor } from '../courses/courses.service';
 import { parseZoomUrl } from './meeting-links';
 import { NotificationsService } from '../notifications/notifications.service';
+import { EntitlementService } from '../plans/entitlement.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AttendanceCorrectionsModule } from './attendance-corrections';
 import { ClassSessionsModule } from './class-sessions';
@@ -40,6 +41,7 @@ export class LiveService {
     private readonly notify: NotificationsService,
     private readonly scope: ScopeService,
     private readonly dailyActivity: DailyActivityService,
+    private readonly entitlements: EntitlementService,
     @Inject(APP_CONFIG) config: AppConfig,
   ) {
     this.provider = liveClassProvider(config.LIVE_CLASS_PROVIDER);
@@ -265,6 +267,7 @@ export class LiveService {
   // ───────── student ─────────
   /** Upcoming classes for the student's active batches. The join link only appears shortly before/during the class. */
   async mine(studentId: string) {
+    if (!await this.entitlements.can(studentId, 'class.access')) return { upcoming: [], past: [] };
     const enrollments = await this.prisma.enrollment.findMany({ where: { studentId, deletedAt: null, status: { in: ['ACTIVE', 'COMPLETED'] } }, select: { batchId: true, accessEndsAt: true } });
     const batchIds = enrollments.filter((e) => !e.accessEndsAt || e.accessEndsAt > new Date()).map((e) => e.batchId);
     if (!batchIds.length) return { upcoming: [], past: [] };

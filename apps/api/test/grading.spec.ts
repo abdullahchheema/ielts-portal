@@ -8,6 +8,12 @@ const mcq = (correct: string[], all = ['a', 'b', 'c'], type: 'MCQ_SINGLE' | 'MCQ
 });
 const completion = (accepted: string[]): GradableQuestion => ({ type: 'COMPLETION', marks: 1, options: [], answerKey: { accepted } });
 const tfng = (value: string): GradableQuestion => ({ type: 'TFNG', marks: 1, options: [], answerKey: { value } });
+const ordering = (correctOrder: string[]): GradableQuestion => ({
+  type: 'ORDERING', marks: 1, answerKey: { correctOrder }, options: correctOrder.map((id) => ({ id, isCorrect: false })),
+});
+const numerical = (numericValue: number, tolerance = 0): GradableQuestion => ({ type: 'NUMERICAL', marks: 1, options: [], answerKey: { numericValue, tolerance } });
+const multiBlank = (blanks: { key: string; accepted: string[] }[]): GradableQuestion => ({ type: 'MULTI_BLANK', marks: 1, options: [], answerKey: { blanks } });
+const matchingMappings = (mappings: { left: string; right: string }[]): GradableQuestion => ({ type: 'MATCHING', marks: 1, options: [], answerKey: { mappings } });
 
 describe('normalizeText', () => {
   it('ignores case, spacing and edge punctuation', () => {
@@ -40,6 +46,68 @@ describe('isCorrect', () => {
     expect(isCorrect(q, { text: 'libary' })).toBe(false);
     expect(isCorrect(q, { text: '   ' })).toBe(false);
   });
+  it('ordering requires the exact sequence', () => {
+    const q = ordering(['a', 'b', 'c']);
+    expect(isCorrect(q, { orderedIds: ['a', 'b', 'c'] })).toBe(true);
+    expect(isCorrect(q, { orderedIds: ['a', 'c', 'b'] })).toBe(false);
+    expect(isCorrect(q, { orderedIds: ['a', 'b'] })).toBe(false);
+    expect(isCorrect(q, undefined)).toBe(false);
+  });
+  it('numerical matches within tolerance', () => {
+    expect(isCorrect(numerical(42), { value: 42 })).toBe(true);
+    expect(isCorrect(numerical(42), { value: 43 })).toBe(false);
+    expect(isCorrect(numerical(42, 1), { value: 43 })).toBe(true);
+    expect(isCorrect(numerical(42, 1), { value: 44 })).toBe(false);
+  });
+  it('multi-blank requires every blank correct', () => {
+    const q = multiBlank([{ key: 'b1', accepted: ['cat'] }, { key: 'b2', accepted: ['dog', 'puppy'] }]);
+    expect(isCorrect(q, { blanks: { b1: 'Cat', b2: 'puppy' } })).toBe(true);
+    expect(isCorrect(q, { blanks: { b1: 'cat', b2: 'bird' } })).toBe(false);
+    expect(isCorrect(q, { blanks: { b1: 'cat' } })).toBe(false);
+  });
+  it('matching with explicit mappings requires every pair correct', () => {
+    const q = matchingMappings([{ left: '1', right: 'x' }, { left: '2', right: 'y' }]);
+    expect(isCorrect(q, { mappings: { '1': 'x', '2': 'y' } })).toBe(true);
+    expect(isCorrect(q, { mappings: { '1': 'x', '2': 'z' } })).toBe(false);
+  });
+  it('matching without mappings falls back to single-correct-option behavior', () => {
+    const q = mcq(['b'], ['a', 'b', 'c'], 'MCQ_SINGLE');
+    q.type = 'MATCHING';
+    expect(isCorrect(q, { optionIds: ['b'] })).toBe(true);
+    expect(isCorrect(q, { optionIds: ['a'] })).toBe(false);
+  });
+});
+
+describe('partial credit', () => {
+  it('MCQ_MULTI awards proportional credit net of wrong picks, floored at zero', () => {
+    const q = { ...mcq(['a', 'c'], ['a', 'b', 'c'], 'MCQ_MULTI'), partialCredit: true, marks: 2 };
+    expect(gradeAttempt([q], [{ optionIds: ['a'] }]).perQuestion[0]).toMatchObject({ correct: false, earned: 1, partial: true }); // 1 hit / 2 correct
+    expect(gradeAttempt([q], [{ optionIds: ['a', 'b'] }]).perQuestion[0]).toMatchObject({ correct: false, earned: 0 }); // 1 hit - 1 miss = 0
+    expect(gradeAttempt([q], [{ optionIds: ['a', 'c'] }]).perQuestion[0]).toMatchObject({ correct: true, earned: 2 });
+  });
+  it('ORDERING awards credit for correctly-ordered pairs', () => {
+    const q = { ...ordering(['a', 'b', 'c', 'd']), partialCredit: true, marks: 3 };
+    // swap b and c: 5 of 6 pairs still correctly ordered
+    const r = gradeAttempt([q], [{ orderedIds: ['a', 'c', 'b', 'd'] }]).perQuestion[0];
+    expect(r.correct).toBe(false);
+    expect(r.earned).toBeCloseTo(2.5, 2); // 5/6 * 3
+    expect(r.partial).toBe(true);
+  });
+  it('MULTI_BLANK awards credit per blank', () => {
+    const q = { ...multiBlank([{ key: 'b1', accepted: ['cat'] }, { key: 'b2', accepted: ['dog'] }]), partialCredit: true, marks: 2 };
+    const r = gradeAttempt([q], [{ blanks: { b1: 'cat', b2: 'bird' } }]).perQuestion[0];
+    expect(r).toMatchObject({ correct: false, earned: 1, partial: true });
+  });
+  it('matching-with-mappings awards credit per correct pair', () => {
+    const q = { ...matchingMappings([{ left: '1', right: 'x' }, { left: '2', right: 'y' }]), partialCredit: true, marks: 2 };
+    const r = gradeAttempt([q], [{ mappings: { '1': 'x', '2': 'z' } }]).perQuestion[0];
+    expect(r).toMatchObject({ correct: false, earned: 1, partial: true });
+  });
+  it('without the partialCredit flag, an incorrect answer earns nothing even if close', () => {
+    const q = { ...numerical(42, 0), marks: 5 }; // partialCredit not set
+    expect(gradeAttempt([q], [{ value: 41 }]).perQuestion[0]).toMatchObject({ correct: false, earned: 0 });
+    expect(gradeAttempt([q], [{ value: 41 }]).perQuestion[0].partial).toBeUndefined();
+  });
 });
 
 describe('sanitizeAnswer', () => {
@@ -55,6 +123,31 @@ describe('sanitizeAnswer', () => {
   });
   it('drops unknown keys so nothing extra is stored', () => {
     expect(sanitizeAnswer(tfng('TRUE'), { value: 'TRUE', isCorrect: true })).toEqual({ value: 'TRUE' });
+  });
+  it('validates ORDERING answers against the question options', () => {
+    const q = ordering(['a', 'b', 'c']);
+    expect(sanitizeAnswer(q, { orderedIds: ['c', 'a', 'b'] })).toEqual({ orderedIds: ['c', 'a', 'b'] });
+    expect(sanitizeAnswer(q, { orderedIds: ['a', 'a', 'b'] })).toBeNull(); // duplicate
+    expect(sanitizeAnswer(q, { orderedIds: ['a', 'z'] })).toBeNull(); // not an option
+    expect(sanitizeAnswer(q, { orderedIds: 'a,b,c' })).toBeNull();
+  });
+  it('validates NUMERICAL answers as finite numbers', () => {
+    const q = numerical(42);
+    expect(sanitizeAnswer(q, { value: 41.5 })).toEqual({ value: 41.5 });
+    expect(sanitizeAnswer(q, { value: '41.5' })).toEqual({ value: 41.5 });
+    expect(sanitizeAnswer(q, { value: 'not a number' })).toBeNull();
+    expect(sanitizeAnswer(q, { value: Infinity })).toBeNull();
+  });
+  it('validates MULTI_BLANK answers as a string map', () => {
+    const q = multiBlank([{ key: 'b1', accepted: ['cat'] }]);
+    expect(sanitizeAnswer(q, { blanks: { b1: 'cat' } })).toEqual({ blanks: { b1: 'cat' } });
+    expect(sanitizeAnswer(q, { blanks: { b1: 123 } })).toBeNull();
+    expect(sanitizeAnswer(q, { blanks: 'cat' })).toBeNull();
+  });
+  it('validates mapping-based MATCHING answers', () => {
+    const q = matchingMappings([{ left: '1', right: 'x' }]);
+    expect(sanitizeAnswer(q, { mappings: { '1': 'x' } })).toEqual({ mappings: { '1': 'x' } });
+    expect(sanitizeAnswer(q, { mappings: { '1': 5 } })).toBeNull();
   });
 });
 
@@ -115,5 +208,26 @@ describe('validateQuestionDefinition', () => {
     expect(validateQuestionDefinition({ type: 'MCQ_SINGLE', options: [{ label: 'a', isCorrect: true }, { label: 'b', isCorrect: false }], answerKey: null })).toEqual([]);
     expect(validateQuestionDefinition({ type: 'TFNG', options: [], answerKey: { value: 'TRUE' } })).toEqual([]);
     expect(validateQuestionDefinition({ type: 'COMPLETION', options: [], answerKey: { accepted: ['x'] } })).toEqual([]);
+  });
+  it('flags and accepts ORDERING definitions', () => {
+    expect(validateQuestionDefinition({ type: 'ORDERING', options: [{ label: 'a', isCorrect: false }], answerKey: { correctOrder: ['x'] } })).not.toEqual([]);
+    expect(validateQuestionDefinition({
+      type: 'ORDERING', options: [{ label: 'a', isCorrect: false }, { label: 'b', isCorrect: false }], answerKey: { correctOrder: ['a', 'b'] },
+    })).toEqual([]);
+  });
+  it('flags and accepts NUMERICAL definitions', () => {
+    expect(validateQuestionDefinition({ type: 'NUMERICAL', options: [], answerKey: {} })).not.toEqual([]);
+    expect(validateQuestionDefinition({ type: 'NUMERICAL', options: [], answerKey: { numericValue: 42, tolerance: -1 } })).toContain('Tolerance must be zero or a positive number.');
+    expect(validateQuestionDefinition({ type: 'NUMERICAL', options: [], answerKey: { numericValue: 42 } })).toEqual([]);
+  });
+  it('flags and accepts MULTI_BLANK definitions', () => {
+    expect(validateQuestionDefinition({ type: 'MULTI_BLANK', options: [], answerKey: { blanks: [] } })).not.toEqual([]);
+    expect(validateQuestionDefinition({ type: 'MULTI_BLANK', options: [], answerKey: { blanks: [{ key: 'b1', accepted: ['x'] }, { key: 'b1', accepted: ['y'] }] } })).toContain('Blank keys must be unique.');
+    expect(validateQuestionDefinition({ type: 'MULTI_BLANK', options: [], answerKey: { blanks: [{ key: 'b1', accepted: ['x'] }] } })).toEqual([]);
+  });
+  it('MATCHING accepts either mappings or a single correct option', () => {
+    expect(validateQuestionDefinition({ type: 'MATCHING', options: [], answerKey: { mappings: [{ left: '1', right: 'x' }] } })).toEqual([]);
+    expect(validateQuestionDefinition({ type: 'MATCHING', options: [{ label: 'a', isCorrect: true }, { label: 'b', isCorrect: false }], answerKey: null })).toEqual([]);
+    expect(validateQuestionDefinition({ type: 'MATCHING', options: [{ label: 'a', isCorrect: false }], answerKey: null })).not.toEqual([]);
   });
 });

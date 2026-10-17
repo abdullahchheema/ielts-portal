@@ -28,6 +28,9 @@ const post = (s: Session, path: string, body: object = {}) => as(s)(http(app).po
 const put = (s: Session, path: string, body: object = {}) => as(s)(http(app).put(path)).send(body);
 const get = (s: Session, path: string) => as(s)(http(app).get(path));
 
+/** AI evaluation is an Advanced+ feature (Phase 6 plan gating); a bare, unassigned student defaults to FREE. */
+const giveAdvancedPlan = (studentId: string) => post(admin, '/admin/student-plans', { studentId, planName: 'ADVANCED', reason: 'test' }).expect(201);
+
 const ESSAY = [
   'Many people believe that technology makes life easier. In my opinion, this is true in many ways.',
   'First, technology saves time. Machines do the work that once took hours. Second, technology connects families who live far apart.',
@@ -40,6 +43,7 @@ const WEBM = Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), Buffer.alloc(
 describe('writing practice', () => {
   it('a student saves a draft, submits it, and receives an AI estimate that is kept apart from any grade', async () => {
     const st = await createStudent(app, prisma);
+    await giveAdvancedPlan(st.studentId);
     const r = (await post(st.session, '/writing/responses', { taskType: 'TASK2', promptText: 'Some people think technology helps; discuss.' }).expect(201)).body;
     const saved = (await put(st.session, `/writing/responses/${r.id}`, { revision: 1, body: ESSAY }).expect(200)).body;
     expect(saved.revision).toBe(2);
@@ -86,6 +90,7 @@ describe('writing practice', () => {
 describe('speaking practice', () => {
   it('records, uploads, transcribes and evaluates an answer, and never exposes the storage key', async () => {
     const st = await createStudent(app, prisma);
+    await giveAdvancedPlan(st.studentId);
     const attempt = (await post(st.session, '/speaking/attempts', { mode: 'PART1' }).expect(201)).body;
     const resp = (await post(st.session, `/speaking/attempts/${attempt.id}/responses`, { part: 'PART1', promptText: 'What do you do in your free time?' }).expect(201)).body;
 

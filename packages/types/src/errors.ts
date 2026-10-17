@@ -73,6 +73,10 @@ export const ErrorCodes = {
   TRACK_REQUIRED: 'TRACK_REQUIRED',
   RECORDING_INVALID_URL: 'RECORDING_INVALID_URL',
   MEETING_INVALID_URL: 'MEETING_INVALID_URL',
+  // plans, free test
+  FREE_TEST_USED: 'FREE_TEST_USED',
+  FREE_TEST_INVALID: 'FREE_TEST_INVALID',
+  PLAN_UPGRADE_REQUIRED: 'PLAN_UPGRADE_REQUIRED',
 } as const;
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];

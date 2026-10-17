@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { PlansModule } from '../plans/plans.module';
 import { AdminCommerceController, ApplicationsController, PublicController } from './commerce.controller';
 import { ApplicationsService } from './applications.service';
 import { CouponsController, CouponsService, StudentCouponsController } from './coupons.service';
@@ -10,7 +11,7 @@ import { AdminRefundsController, StudentRefundsController } from './refunds.cont
 import { RefundsService } from './refunds.service';
 
 @Module({
-  imports: [AuthModule, ReferralModule, PaymentRiskModule],
+  imports: [AuthModule, ReferralModule, PaymentRiskModule, PlansModule],
   controllers: [PublicController, ApplicationsController, AdminCommerceController, CouponsController, StudentCouponsController, StudentRefundsController, AdminRefundsController],
   providers: [ApplicationsService, CouponsService, EnrollmentsService, RefundsService],
   exports: [ApplicationsService, EnrollmentsService],

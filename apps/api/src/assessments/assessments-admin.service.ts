@@ -9,7 +9,9 @@ import { AppError, notFound } from '../common/app-error';
 import { Actor } from '../courses/courses.service';
 import { StorageService, sniffFileType } from '../integrations/storage.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { QuestionType, validateQuestionDefinition } from './grading';
+import { GradableQuestion, QuestionType, validateQuestionDefinition } from './grading';
+
+type GradableAnswerKey = GradableQuestion['answerKey'];
 
 type Tx = Prisma.TransactionClient;
 const invalid = (field: string, msg: string) => new AppError('VALIDATION_ERROR', 422, 'Some fields are invalid.', { [field]: msg });
@@ -179,9 +181,19 @@ export class AssessmentsAdminService {
   }
 
   // ───────── questions ─────────
-  private checkDefinition(input: { type: QuestionType; options?: { label: string; isCorrect: boolean }[]; answerKey?: { value?: string; accepted?: string[] } | null }) {
+  private checkDefinition(input: { type: QuestionType; options?: { label: string; isCorrect: boolean }[]; answerKey?: GradableAnswerKey | null }) {
     const problems = validateQuestionDefinition({ type: input.type, options: input.options ?? [], answerKey: input.answerKey ?? null });
     if (problems.length) throw invalid('question', problems.join(' '));
+  }
+
+  /** Graders whose correctness lives entirely in the answer key (no options table rows). */
+  private usesKey(type: QuestionType) {
+    return (['TFNG', 'YNNG', 'COMPLETION', 'NUMERICAL', 'MULTI_BLANK'] as QuestionType[]).includes(type);
+  }
+
+  /** MATCHING is options-based (legacy, one correct option) unless explicit mappings are given. */
+  private matchingWithMappings(type: QuestionType, answerKey: GradableAnswerKey | null | undefined) {
+    return type === 'MATCHING' && !!answerKey?.mappings?.length;
   }
 
   async createQuestion(sectionId: string, input: QuestionInput, actor: Actor) {
@@ -192,9 +204,18 @@ export class AssessmentsAdminService {
       await this.assertDraft(tx, s.assessmentVersionId);
       const sequence = await tx.question.count({ where: { sectionId, deletedAt: null } });
       const q = await tx.question.create({ data: { sectionId, questionType: input.type, sequence } });
-      const usesKey = ['TFNG', 'YNNG', 'COMPLETION'].includes(input.type);
-      const qv = await tx.questionVersion.create({ data: { questionId: q.id, version: 1, prompt: input.prompt, marks: input.marks, answerKey: usesKey ? (input.answerKey as Prisma.InputJsonValue) : undefined } });
-      if (!usesKey && input.options?.length) await tx.questionOption.createMany({ data: input.options.map((o, i) => ({ questionVersionId: qv.id, label: o.label, isCorrect: o.isCorrect, sequence: i })) });
+      const type = input.type as QuestionType;
+      const mapped = this.matchingWithMappings(type, input.answerKey);
+      const storeAnswerKey = this.usesKey(type) || type === 'ORDERING' || mapped;
+      const storeOptions = !mapped && !this.usesKey(type);
+      const qv = await tx.questionVersion.create({
+        data: {
+          questionId: q.id, version: 1, prompt: input.prompt, marks: input.marks,
+          answerKey: storeAnswerKey ? (input.answerKey as Prisma.InputJsonValue) : undefined,
+          partialCredit: input.partialCredit ?? false,
+        },
+      });
+      if (storeOptions && input.options?.length) await tx.questionOption.createMany({ data: input.options.map((o, i) => ({ id: o.id ?? randomUUID(), questionVersionId: qv.id, label: o.label, isCorrect: o.isCorrect, sequence: i })) });
       await this.audit.record({ ...actor, action: 'ASSESSMENT_QUESTION_CREATED', entityType: 'Question', entityId: q.id }, tx);
       return { id: q.id };
     });
@@ -209,15 +230,23 @@ export class AssessmentsAdminService {
       const type = (input.type ?? q.questionType) as QuestionType;
       const merged = {
         type,
-        options: input.options ?? qv.options.map((o) => ({ label: o.label, isCorrect: o.isCorrect })),
-        answerKey: (input.answerKey ?? (qv.answerKey as { value?: string; accepted?: string[] } | null)) ?? null,
+        // Preserving existing option ids when options aren't explicitly resent matters for ORDERING:
+        // its answerKey.correctOrder names option ids, which must survive an incidental prompt/marks edit.
+        options: input.options ?? qv.options.map((o) => ({ id: o.id, label: o.label, isCorrect: o.isCorrect })),
+        answerKey: (input.answerKey ?? (qv.answerKey as GradableAnswerKey | null)) ?? null,
+        partialCredit: input.partialCredit ?? qv.partialCredit,
       };
       this.checkDefinition(merged);
-      const usesKey = ['TFNG', 'YNNG', 'COMPLETION'].includes(type);
+      const mapped = this.matchingWithMappings(type, merged.answerKey);
+      const storeAnswerKey = this.usesKey(type) || type === 'ORDERING' || mapped;
+      const storeOptions = !mapped && !this.usesKey(type);
       await tx.question.update({ where: { id }, data: { questionType: type } });
-      await tx.questionVersion.update({ where: { id: qv.id }, data: { prompt: input.prompt ?? undefined, marks: input.marks, answerKey: usesKey ? (merged.answerKey as Prisma.InputJsonValue) : Prisma.DbNull } });
+      await tx.questionVersion.update({
+        where: { id: qv.id },
+        data: { prompt: input.prompt ?? undefined, marks: input.marks, partialCredit: merged.partialCredit, answerKey: storeAnswerKey ? (merged.answerKey as Prisma.InputJsonValue) : Prisma.DbNull },
+      });
       await tx.questionOption.deleteMany({ where: { questionVersionId: qv.id } });
-      if (!usesKey) await tx.questionOption.createMany({ data: merged.options.map((o, i) => ({ questionVersionId: qv.id, label: o.label, isCorrect: o.isCorrect, sequence: i })) });
+      if (storeOptions) await tx.questionOption.createMany({ data: merged.options.map((o, i) => ({ id: o.id ?? randomUUID(), questionVersionId: qv.id, label: o.label, isCorrect: o.isCorrect, sequence: i })) });
       await this.audit.record({ ...actor, action: 'ASSESSMENT_QUESTION_UPDATED', entityType: 'Question', entityId: id }, tx);
       return { id };
     });

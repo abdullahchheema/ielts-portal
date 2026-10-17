@@ -10,6 +10,7 @@ import { APP_CONFIG, AppConfig } from '../config/config.module';
 import { LearningService } from '../learning/learning.service';
 import { StorageService } from '../integrations/storage.service';
 import { MocksService } from '../mocks/mocks.service';
+import { EntitlementService } from '../plans/entitlement.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SchedulerService } from '../jobs/scheduler.service';
 import { BandRow, GradableQuestion, QuestionType, bandFromRaw, gradeAttempt, sanitizeAnswer } from './grading';
@@ -45,6 +46,7 @@ export class AttemptsService implements OnModuleInit {
     private readonly scheduler: SchedulerService,
     private readonly events: EventEmitter2,
     private readonly dailyActivity: DailyActivityService,
+    private readonly entitlements: EntitlementService,
   ) {}
 
   onModuleInit() {
@@ -62,6 +64,7 @@ export class AttemptsService implements OnModuleInit {
       return {
         id: qv.id, sectionId: s.id, type: q.questionType as QuestionType, marks: Number(qv.marks), prompt: qv.prompt,
         answerKey: qv.answerKey as FlatQuestion['answerKey'], options: qv.options.map((o) => ({ id: o.id, label: o.label, isCorrect: o.isCorrect })),
+        partialCredit: qv.partialCredit,
       };
     }));
     return { sections: sections.map((s) => ({ id: s.id, title: s.title, content: s.content })), questions };
@@ -93,11 +96,17 @@ export class AttemptsService implements OnModuleInit {
     }
     // Library papers (mocks): an active enrolment is still required, but it is not the gate —
     // the student also needs an approved individual request or an active batch activation,
-    // enforced here rather than left to the "Start" button.
+    // enforced here rather than left to the "Start" button. Self-serve plans (Starter/Advanced —
+    // mock.unlimited without a dedicated teacher) bypass that request/activation flow outright;
+    // Premium students still go through it, since their teacher curates batch mock pacing.
     if (assessment.libraryVisible) {
       const active = await this.prisma.enrollment.findFirst({ where: { studentId, status: 'ACTIVE', deletedAt: null }, select: { id: true } });
       if (!active) throw new AppError('ASSESSMENT_NOT_AVAILABLE', 404, 'This assessment is not available.');
-      await this.mocks.assertAttemptAllowed(studentId, assessment.id);
+      const [unlimitedMocks, hasTeacher] = await Promise.all([
+        this.entitlements.can(studentId, 'mock.unlimited'), this.entitlements.can(studentId, 'teacher.assignment'),
+      ]);
+      if (!unlimitedMocks) throw new AppError('PLAN_UPGRADE_REQUIRED', 403, 'Mock tests require the Starter plan or above.');
+      if (hasTeacher) await this.mocks.assertAttemptAllowed(studentId, assessment.id);
       return { enrollmentId: active.id, itemId: null };
     }
     const items = await this.prisma.contentItem.findMany({
@@ -339,7 +348,10 @@ export class AttemptsService implements OnModuleInit {
         passed: attempt.percent !== null ? Number(attempt.percent) >= a.passPercent : null,
       },
     };
+    // showAnswers is an admin-level override (e.g. a mock that should never reveal answers to anyone);
+    // the plan check is the business rule (Free tier sees its overall score only). Either hides review.
     if (!a.showAnswers) return { ...base, review: null };
+    if (!await this.entitlements.can(user.studentId, 'assessment.detailed_results')) return { ...base, review: null };
 
     const { sections, questions } = await this.questions(attempt.assessmentVersionId);
     const answerOf = new Map(attempt.answers.map((r) => [r.questionVersionId, r]));
@@ -349,10 +361,12 @@ export class AttemptsService implements OnModuleInit {
         id: s.id, title: s.title,
         questions: questions.filter((q) => q.sectionId === s.id).map((q) => {
           const ans = answerOf.get(q.id);
+          // ORDERING and mapping-based MATCHING keep options for display but the answer lives in the answer key.
+          const usesOptionsForAnswer = q.options.length > 0 && q.type !== 'ORDERING' && !(q.type === 'MATCHING' && q.answerKey?.mappings?.length);
           return {
             id: q.id, type: q.type, prompt: q.prompt, marks: q.marks, options: q.options.map((o) => ({ id: o.id, label: o.label })),
             yourAnswer: ans?.answer ?? null, correct: ans?.isCorrect ?? false,
-            correctAnswer: q.options.length ? { optionIds: q.options.filter((o) => o.isCorrect).map((o) => o.id) } : q.answerKey,
+            correctAnswer: usesOptionsForAnswer ? { optionIds: q.options.filter((o) => o.isCorrect).map((o) => o.id) } : q.answerKey,
           };
         }),
       })),

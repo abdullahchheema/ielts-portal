@@ -5,6 +5,7 @@ import { ReactNode, useState } from 'react';
 import { AIInsightCard, Accordion, AiUnavailable, Alert, Badge, Button, Card, Empty, Field, FeedbackList, Loading, PageHeader, ScoreBreakdown, Select } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
+import { planHas, usePlan } from '@/lib/plan';
 import { extensionFor, useRecorder } from '@/lib/use-recorder';
 
 type Part = 'PART1' | 'PART2' | 'PART3';
@@ -29,6 +30,8 @@ export default function SpeakingPracticePage() {
   const [busy, setBusy] = useState(false);
   const questions = useQuery({ queryKey: ['speaking-questions', part], queryFn: () => api<Question[]>(`/speaking/questions?part=${part}`) });
   const rec = useRecorder({ maxSeconds: MAX_SECONDS[part] });
+  const { data: plan } = usePlan();
+  const hasAi = planHas(plan, 'ai.evaluation');
 
   async function begin() {
     setError(null); setBusy(true);
@@ -87,6 +90,9 @@ export default function SpeakingPracticePage() {
   return (
     <>
       <PageHeader title="Speaking practice" subtitle="Answer out loud, then see a transcript and an AI estimate. Pronunciation is not judged from a transcript." />
+      {plan && !hasAi && (
+        <div className="mb-4"><Alert kind="info">You can record and save answers on your current plan, but the AI transcript and estimate require the Advanced or Premium plan. <a href="/pricing" className="font-semibold underline">See plans</a>.</Alert></div>
+      )}
       {error && <Alert>{error}</Alert>}
 
       {!attempt && (

@@ -58,6 +58,8 @@ import { SettingsModule } from './settings/settings.module';
 import { TeachersModule } from './teachers/teachers.module';
 import { CurriculumModule } from './curriculum/curriculum.service';
 import { TeacherCurriculumModule } from './curriculum/teacher-curriculum.service';
+import { PlansModule } from './plans/plans.module';
+import { EntitlementModule } from './plans/entitlement.module';
 
 @Controller('health')
 class HealthController {
@@ -75,7 +77,7 @@ class HealthController {
     AnalyticsModule, AiModule, JobsModule, QuestionBankModule, WritingModule, SpeakingModule, MockExamsModule, SimulatorModule, InsightsModule, StudyPlanModule, VocabularyModule, GrammarModule, EngagementModule, RecordingsModule, LeaderboardModule, TeacherWorkspaceModule, NotesModule, SearchModule, CommandCenterModule, SupportAssistantModule, TutorModule, PaymentRiskModule, ReconciliationModule, StudentLifecycleModule, FeedbackModule, EnrollmentSurveyModule, ScopeModule, DailyActivityModule, MocksModule,
     ConfigModule, PrismaModule, IntegrationsModule, AuditModule, EventEmitterModule.forRoot(), JwtModule.register({}),
     AuthModule, RolesModule, SettingsModule, NotificationsModule, CoursesModule, BatchesModule, CommerceModule, LearningModule, AssessmentsModule, GradingModule, LiveModule, SupportModule, ReportsModule, LifecycleModule, CertificatesModule, AdminModule, TeachersModule,
-    CurriculumModule, TeacherCurriculumModule,
+    CurriculumModule, TeacherCurriculumModule, EntitlementModule, PlansModule,
   ],
   controllers: [HealthController],
   providers: [

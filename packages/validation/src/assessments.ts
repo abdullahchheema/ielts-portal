@@ -4,7 +4,7 @@ export const ASSESSMENT_TYPES = ['PRACTICE', 'QUIZ', 'LISTENING', 'READING', 'MO
 export const SKILLS = ['LISTENING', 'READING', 'WRITING', 'SPEAKING'] as const;
 
 /** Question types the auto-grader understands. Adding a type = add it here + a grader in the API's grading.ts. */
-export const QUESTION_TYPES = ['MCQ_SINGLE', 'MCQ_MULTI', 'TFNG', 'YNNG', 'MATCHING', 'COMPLETION'] as const;
+export const QUESTION_TYPES = ['MCQ_SINGLE', 'MCQ_MULTI', 'TFNG', 'YNNG', 'MATCHING', 'COMPLETION', 'ORDERING', 'NUMERICAL', 'MULTI_BLANK'] as const;
 export type QuestionType = (typeof QUESTION_TYPES)[number];
 
 export const createAssessmentSchema = z.object({
@@ -30,15 +30,31 @@ export const assessmentSectionSchema = z.object({
 });
 export const updateAssessmentSectionSchema = assessmentSectionSchema.partial().extend({ sequence: z.number().int().min(0).optional() });
 
-const option = z.object({ label: z.string().trim().min(1).max(500), isCorrect: z.boolean().default(false) });
+// `id` is optional and caller-supplied: for ORDERING (and mapping-free MATCHING references), the
+// answer key must name an option before the server would otherwise generate its id, so the author
+// may pick one up front and reuse it in `answerKey.correctOrder` within the same request.
+const option = z.object({ id: z.string().uuid().optional(), label: z.string().trim().min(1).max(500), isCorrect: z.boolean().default(false) });
 
 export const questionSchema = z.object({
   type: z.enum(QUESTION_TYPES),
   prompt: z.object({ text: z.string().trim().min(1).max(5_000) }),
   marks: z.number().min(0.5).max(20).default(1),
   options: z.array(option).max(12).optional(),
-  /** TFNG/YNNG: { value }, COMPLETION: { accepted: [...] } */
-  answerKey: z.object({ value: z.string().optional(), accepted: z.array(z.string().trim().min(1).max(200)).max(20).optional() }).optional(),
+  /**
+   * TFNG/YNNG: { value }. COMPLETION: { accepted: [...] }. ORDERING: { correctOrder: [...] }.
+   * NUMERICAL: { numericValue, tolerance? }. MULTI_BLANK: { blanks: [{ key, accepted }] }.
+   * MATCHING: { mappings: [{ left, right }] } (falls back to options-based single-correct when absent).
+   */
+  answerKey: z.object({
+    value: z.string().optional(),
+    accepted: z.array(z.string().trim().min(1).max(200)).max(20).optional(),
+    correctOrder: z.array(z.string()).max(20).optional(),
+    numericValue: z.number().optional(),
+    tolerance: z.number().min(0).optional(),
+    blanks: z.array(z.object({ key: z.string().trim().min(1).max(40), accepted: z.array(z.string().trim().min(1).max(200)).min(1).max(20) })).max(20).optional(),
+    mappings: z.array(z.object({ left: z.string().trim().min(1).max(200), right: z.string().trim().min(1).max(200) })).max(20).optional(),
+  }).optional(),
+  partialCredit: z.boolean().optional(),
 });
 export const updateQuestionSchema = questionSchema.partial();
 

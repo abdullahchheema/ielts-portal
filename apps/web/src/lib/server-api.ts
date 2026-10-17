@@ -16,3 +16,9 @@ export interface PublicCourse {
   title: string; description: string | null; price: string; currency: string;
   durationWeeks: number | null; accessDays: number; includes: string[]; modules: string[];
 }
+
+export interface PublicPlan {
+  name: string; displayName: string; description: string | null;
+  price: number; currency: string; billingPeriod: string; durationDays: number | null;
+  features: Record<string, boolean>;
+}

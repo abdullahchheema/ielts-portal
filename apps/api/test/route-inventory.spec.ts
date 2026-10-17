@@ -82,13 +82,16 @@ const REVIEWED_PUBLIC: string[] = [
   'POST auth/verify-email', 'POST auth/resend-verification', 'POST auth/forgot-password', 'POST auth/reset-password',
   'GET auth/providers', 'GET auth/google/start', 'GET auth/google/callback',
   // The public catalogue and enrolment page.
-  'GET public/course', 'GET public/batches', 'GET public/payment-methods',
+  'GET public/course', 'GET public/batches', 'GET public/payment-methods', 'GET public/plans',
   // Public certificate verification: status, name, course and date only.
   'GET certificates/:code/verify', 'GET certificates/:code/pdf',
   // Signed, expiring links to stored files (local storage fallback). The signature is checked in the handler.
   'GET files/local',
   // Referral link clicks, rate-limited per IP.
   'POST referrals/click',
+  // The anonymous free-test flow: identity is email+phone, not a login. The result endpoint only ever
+  // returns an overall score (see FreeTestService.result()), never per-question data or answer keys.
+  'POST free-test/claim', 'POST free-test/:leadId/start', 'PUT free-test/:leadId/answers', 'POST free-test/:leadId/submit', 'GET free-test/:leadId/result',
   // Liveness probe.
   'GET health',
 ];

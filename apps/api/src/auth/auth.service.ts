@@ -17,6 +17,7 @@ import type { GoogleProfile } from './google';
 import { ACCESS_TTL_SEC, ADMIN_REFRESH_TTL_SEC, REFRESH_TTL_SEC, randomToken, sha256 } from './tokens';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { LIFECYCLE_SIGNAL } from '../student-lifecycle/lifecycle.service';
+import { FreeTestService } from '../plans/free-test.service';
 
 export interface Meta { ip?: string; userAgent?: string }
 export interface Session { accessToken: string; refreshToken: string; csrfToken: string; refreshTtlSec: number }
@@ -38,6 +39,7 @@ export class AuthService {
     private readonly audit: AuditService,
     private readonly mfa: MfaService,
     private readonly dailyActivity: DailyActivityService,
+    private readonly freeTest: FreeTestService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
@@ -66,7 +68,11 @@ export class AuthService {
 
     await this.sendVerification(user.id, user.email, input.next);
     await this.audit.record({ userId: user.id, action: 'USER_REGISTERED', entityType: 'User', entityId: user.id, ...meta });
-    if (user.student) this.events.emit(LIFECYCLE_SIGNAL, { studentId: user.student.id, to: 'REGISTERED', reason: 'Account registered' });
+    if (user.student) {
+      this.events.emit(LIFECYCLE_SIGNAL, { studentId: user.student.id, to: 'REGISTERED', reason: 'Account registered' });
+      // Link any free-test history under this email, without granting a second free entitlement.
+      await this.freeTest.linkToRegisteredStudent(input.email, user.student.id);
+    }
     return { id: user.id, email: user.email };
   }
 

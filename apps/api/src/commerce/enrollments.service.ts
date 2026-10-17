@@ -6,6 +6,7 @@ import { AuditService } from '../audit/audit.service';
 import { AppError, notFound } from '../common/app-error';
 import { Actor } from '../courses/courses.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { PlansService } from '../plans/plans.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ENROLLMENT_ACTIVATED, EnrollmentActivatedEvent } from './events';
 
@@ -16,6 +17,7 @@ export class EnrollmentsService {
     private readonly audit: AuditService,
     private readonly notify: NotificationsService,
     private readonly events: EventEmitter2,
+    private readonly plans: PlansService,
   ) {}
 
   /** Enrolls a student without online checkout (bank deal, scholarship, corporate, migration...). */
@@ -49,7 +51,8 @@ export class EnrollmentsService {
         },
       });
       await tx.studentTimelineEvent.create({ data: { studentId: student.id, type: 'ENROLLED', summary: `Enrolled in ${batch.course.title} (${batch.name}) by staff — ${input.source}`, meta: { enrollmentId: created.id } } });
-      await this.audit.record({ ...actor, action: 'ADMIN_CREATED_ENROLLMENT', entityType: 'Enrollment', entityId: created.id, after: { ...created, reason: input.reason } }, tx);
+      await this.plans.activateWithinTransaction(tx, student.id, input.planName, null, actor);
+      await this.audit.record({ ...actor, action: 'ADMIN_CREATED_ENROLLMENT', entityType: 'Enrollment', entityId: created.id, after: { ...created, reason: input.reason, planName: input.planName } }, tx);
       ev = { enrollmentId: created.id, studentId: student.id, userId: student.user.id, source: input.source };
       return created;
     }, { maxWait: 10_000, timeout: 20_000 });
@@ -58,16 +61,18 @@ export class EnrollmentsService {
     return enrollment;
   }
 
-  list(status?: EnrollmentStatus) {
+  async list(status?: EnrollmentStatus) {
     const where: Prisma.EnrollmentWhereInput = { deletedAt: null, ...(status ? { status } : {}) };
-    return this.prisma.enrollment.findMany({
+    const rows = await this.prisma.enrollment.findMany({
       where, orderBy: { createdAt: 'desc' }, take: 200,
       include: {
         student: { select: { id: true, firstName: true, lastName: true, user: { select: { email: true } } } },
         course: { select: { title: true } },
         batch: { select: { id: true, name: true } },
+        orderItem: { select: { planName: true } },
       },
     });
+    return rows.map((r) => ({ ...r, planName: r.orderItem?.planName ?? 'PREMIUM' }));
   }
 
   listOrders(status?: string) {

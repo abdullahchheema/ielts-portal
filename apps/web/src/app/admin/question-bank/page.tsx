@@ -46,7 +46,7 @@ export default function QuestionBankPage() {
       <PageHeader
         title="Question bank"
         subtitle="Reusable questions and passages. Only published, student-facing sets reach students."
-        actions={<Button onClick={() => setOpen(true)}>New set</Button>}
+        actions={<div className="flex gap-2"><Link href="/admin/question-bank/import"><Button variant="secondary">Bulk import</Button></Link><Button onClick={() => setOpen(true)}>New set</Button></div>}
       />
       <FilterBar count={data?.total}>
         <SearchInput label="Search by topic" placeholder="Search by topic" value={topic} onDebounced={(v) => { setTopic(v); setSkip(0); }} />

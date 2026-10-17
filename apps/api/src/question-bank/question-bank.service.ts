@@ -4,38 +4,104 @@ import {
   BankPickInput, BankQuestionInput, IELTS_ITEM_TYPES, IeltsItemType, PracticeSessionInput, QUESTION_SET_TRANSITIONS, QuestionSetCreateInput,
   QuestionSetStatus, QuestionSetStatusInput, QuestionSetUpdateInput,
 } from '@ielts/validation';
+import { randomUUID } from 'node:crypto';
 import { AuditService } from '../audit/audit.service';
 import { AppError, conflict, notFound } from '../common/app-error';
+import { StorageService, sniffFileType } from '../integrations/storage.service';
+import { EntitlementService } from '../plans/entitlement.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { BankCandidate, selectCandidates } from './selection';
 
-type Actor = { userId?: string; ip?: string; userAgent?: string };
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const IMAGE_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
+export type Actor = { userId?: string; ip?: string; userAgent?: string };
 type Tx = Prisma.TransactionClient;
 const EDITABLE: QuestionSetStatus[] = ['DRAFT', 'APPROVED'];
 
-const graderType = (t: IeltsItemType) => IELTS_ITEM_TYPES[t].grader;
-const usesKey = (grader: string) => ['TFNG', 'YNNG', 'COMPLETION'].includes(grader);
+export const graderType = (t: IeltsItemType) => IELTS_ITEM_TYPES[t].grader;
+/** Graders whose correctness lives entirely in the answer key (no options table rows). */
+export const usesKey = (grader: string) => ['TFNG', 'YNNG', 'COMPLETION', 'NUMERICAL', 'MULTI_BLANK'].includes(grader);
 
-/** Writes one question version plus its options. Used for new questions, edits and copies. */
-async function writeVersion(
+/**
+ * Writes one question version plus its options. Used for new questions, edits, copies and bulk import.
+ * Options may carry a caller-supplied `id` (so ORDERING's answerKey.correctOrder can name an
+ * option within the same request, before the server would otherwise generate one).
+ */
+export async function writeVersion(
   tx: Tx, questionId: string, version: number,
-  body: { prompt: Prisma.InputJsonValue; marks: number; answerKey?: Prisma.InputJsonValue | null; options?: { label: string; isCorrect: boolean }[]; grader: string },
+  body: {
+    prompt: Prisma.InputJsonValue; marks: number; answerKey?: Prisma.InputJsonValue | null;
+    options?: { id?: string; label: string; isCorrect: boolean }[]; grader: string; partialCredit?: boolean;
+  },
 ) {
+  // MATCHING can be either options-based (one correct option, legacy) or mappings-based (answer key only).
+  const matchingWithMappings = body.grader === 'MATCHING' && Array.isArray((body.answerKey as { mappings?: unknown[] } | null | undefined)?.mappings)
+    && ((body.answerKey as { mappings?: unknown[] }).mappings?.length ?? 0) > 0;
+  // ORDERING keeps its options (the orderable items) and also needs the correct order recorded as an answer key.
+  const storeAnswerKey = usesKey(body.grader) || body.grader === 'ORDERING' || matchingWithMappings;
+  const storeOptions = !matchingWithMappings && !usesKey(body.grader);
   const qv = await tx.questionVersion.create({
     data: {
       questionId, version, prompt: body.prompt, marks: new Prisma.Decimal(body.marks),
-      answerKey: usesKey(body.grader) && body.answerKey ? body.answerKey : Prisma.DbNull,
+      answerKey: storeAnswerKey && body.answerKey ? body.answerKey : Prisma.DbNull,
+      partialCredit: body.partialCredit ?? false,
     },
   });
-  if (!usesKey(body.grader) && body.options?.length) {
-    await tx.questionOption.createMany({ data: body.options.map((o, i) => ({ questionVersionId: qv.id, label: o.label, isCorrect: o.isCorrect, sequence: i })) });
+  if (storeOptions && body.options?.length) {
+    await tx.questionOption.createMany({ data: body.options.map((o, i) => ({ id: o.id ?? randomUUID(), questionVersionId: qv.id, label: o.label, isCorrect: o.isCorrect, sequence: i })) });
   }
   return qv;
 }
 
 @Injectable()
 export class QuestionBankService {
-  constructor(private readonly prisma: PrismaService, private readonly audit: AuditService) {}
+  constructor(
+    private readonly prisma: PrismaService, private readonly audit: AuditService, private readonly storage: StorageService,
+    private readonly entitlements: EntitlementService,
+  ) {}
+
+  // ───────── images ─────────
+  /** A stimulus image attached to a whole set (e.g. a map or chart shared by several questions). */
+  async attachSetImage(setId: string, file: { buffer: Buffer; size: number } | undefined, altText: string | undefined, actor: Actor) {
+    const set = await this.prisma.questionSet.findUnique({ where: { id: setId } });
+    if (!set) throw notFound('Question set');
+    if (!EDITABLE.includes(set.status as QuestionSetStatus)) throw conflict('VERSION_PUBLISHED_IMMUTABLE', 'Clone the set before adding images.');
+    const image = await this.storeImage(file, altText, { questionSetId: setId });
+    await this.audit.record({ ...actor, action: 'ADMIN_ADDED_QUESTION_IMAGE', entityType: 'QuestionSet', entityId: setId, after: { imageId: image.id } });
+    return image;
+  }
+
+  /** An image attached to one question's current version (e.g. a diagram for diagram labelling). */
+  async attachQuestionImage(questionId: string, file: { buffer: Buffer; size: number } | undefined, altText: string | undefined, actor: Actor) {
+    const q = await this.prisma.question.findFirst({ where: { id: questionId, deletedAt: null }, include: { questionSet: true, versions: { orderBy: { version: 'desc' }, take: 1 } } });
+    if (!q || !q.questionSet) throw notFound('Question');
+    if (!EDITABLE.includes(q.questionSet.status as QuestionSetStatus)) throw conflict('VERSION_PUBLISHED_IMMUTABLE', 'Clone the set before adding images.');
+    const qv = q.versions[0];
+    if (!qv) throw notFound('Question version');
+    const image = await this.storeImage(file, altText, { questionVersionId: qv.id });
+    await this.audit.record({ ...actor, action: 'ADMIN_ADDED_QUESTION_IMAGE', entityType: 'Question', entityId: questionId, after: { imageId: image.id } });
+    return image;
+  }
+
+  async removeImage(imageId: string, actor: Actor) {
+    const image = await this.prisma.questionImage.findUnique({ where: { id: imageId } });
+    if (!image) throw notFound('Image');
+    await this.prisma.questionImage.delete({ where: { id: imageId } });
+    await this.audit.record({ ...actor, action: 'ADMIN_REMOVED_QUESTION_IMAGE', entityType: 'QuestionImage', entityId: imageId });
+    return { ok: true };
+  }
+
+  private async storeImage(file: { buffer: Buffer; size: number } | undefined, altText: string | undefined, target: { questionSetId?: string; questionVersionId?: string }) {
+    if (!file) throw new AppError('VALIDATION_ERROR', 422, 'Attach an image file.', { file: 'Required.' });
+    if (file.size > MAX_IMAGE_BYTES) throw new AppError('FILE_TOO_LARGE', 413, 'The image is larger than 5 MB.');
+    const sniffed = sniffFileType(file.buffer);
+    if (!sniffed || !IMAGE_MIMES.has(sniffed.mime)) throw new AppError('UNSUPPORTED_FILE_TYPE', 415, 'Only JPEG, PNG or WebP images are accepted.');
+    const fileKey = `question-images/${target.questionSetId ?? target.questionVersionId}/${randomUUID()}.${sniffed.ext}`;
+    await this.storage.put(fileKey, file.buffer, sniffed.mime);
+    const sequence = await this.prisma.questionImage.count({ where: target });
+    return this.prisma.questionImage.create({ data: { ...target, fileKey, fileMime: sniffed.mime, altText, sequence } });
+  }
 
   // ───────── sets ─────────
   async listSets(q: { skill?: string; status?: string; topic?: string; skip: number; take: number }) {
@@ -58,9 +124,10 @@ export class QuestionBankService {
     const set = await this.prisma.questionSet.findUnique({
       where: { id },
       include: {
+        images: { orderBy: { sequence: 'asc' } },
         questions: {
           where: { deletedAt: null }, orderBy: { sequence: 'asc' },
-          include: { versions: { orderBy: { version: 'desc' }, take: 1, include: { options: { orderBy: { sequence: 'asc' } } } } },
+          include: { versions: { orderBy: { version: 'desc' }, take: 1, include: { options: { orderBy: { sequence: 'asc' } }, images: { orderBy: { sequence: 'asc' } } } } },
         },
       },
     });
@@ -106,7 +173,9 @@ export class QuestionBankService {
           if (!v) return true;
           const grader = q.ieltsType ? graderType(q.ieltsType as IeltsItemType) : q.questionType;
           if (grader === 'NONE') return false;
-          if (usesKey(grader)) return !v.answerKey;
+          // Mapping-based MATCHING already carries its answer key; options are optional in that mode.
+          if (grader === 'MATCHING' && v.answerKey) return false;
+          if (usesKey(grader) || grader === 'ORDERING') return !v.answerKey;
           return v.options.length < 2 || !v.options.some((o) => o.isCorrect);
         });
         if (incomplete.length > 0) throw new AppError('VALIDATION_ERROR', 422, `${incomplete.length} question(s) are missing an answer key or correct option.`);
@@ -145,7 +214,7 @@ export class QuestionBankService {
         if (v) {
           await writeVersion(tx, nq.id, 1, {
             prompt: v.prompt as Prisma.InputJsonValue, marks: Number(v.marks), answerKey: v.answerKey as Prisma.InputJsonValue | null,
-            options: v.options.map((o) => ({ label: o.label, isCorrect: o.isCorrect })), grader,
+            options: v.options.map((o) => ({ label: o.label, isCorrect: o.isCorrect })), grader, partialCredit: v.partialCredit,
           });
         }
       }
@@ -163,7 +232,7 @@ export class QuestionBankService {
       const grader = graderType(input.ieltsType);
       const sequence = await tx.question.count({ where: { questionSetId: setId, deletedAt: null } });
       const q = await tx.question.create({ data: { questionSetId: setId, questionType: grader, ieltsType: input.ieltsType, sequence } });
-      await writeVersion(tx, q.id, 1, { prompt: input.prompt, marks: input.marks, answerKey: input.answerKey as Prisma.InputJsonValue | undefined, options: input.options, grader });
+      await writeVersion(tx, q.id, 1, { prompt: input.prompt, marks: input.marks, answerKey: input.answerKey as Prisma.InputJsonValue | undefined, options: input.options, grader, partialCredit: input.partialCredit });
       await this.audit.record({ ...actor, action: 'ADMIN_ADDED_BANK_QUESTION', entityType: 'Question', entityId: q.id, after: { setId, ieltsType: input.ieltsType } }, tx);
       return { id: q.id };
     });
@@ -178,7 +247,7 @@ export class QuestionBankService {
       const grader = graderType(input.ieltsType);
       await tx.question.update({ where: { id }, data: { questionType: grader, ieltsType: input.ieltsType } });
       const next = (q.versions[0]?.version ?? 0) + 1;
-      await writeVersion(tx, id, next, { prompt: input.prompt, marks: input.marks, answerKey: input.answerKey as Prisma.InputJsonValue | undefined, options: input.options, grader });
+      await writeVersion(tx, id, next, { prompt: input.prompt, marks: input.marks, answerKey: input.answerKey as Prisma.InputJsonValue | undefined, options: input.options, grader, partialCredit: input.partialCredit });
       await this.audit.record({ ...actor, action: 'ADMIN_CHANGED_BANK_QUESTION', entityType: 'Question', entityId: id, after: { version: next } }, tx);
       return { id, version: next };
     });
@@ -243,7 +312,7 @@ export class QuestionBankService {
         const q = await tx.question.create({ data: { sectionId, questionType: grader, sequence: sequence++, sourceQuestionId: src.id, ieltsType: src.ieltsType } });
         await writeVersion(tx, q.id, 1, {
           prompt: v.prompt as Prisma.InputJsonValue, marks: Number(v.marks), answerKey: v.answerKey as Prisma.InputJsonValue | null,
-          options: v.options.map((o) => ({ label: o.label, isCorrect: o.isCorrect })), grader,
+          options: v.options.map((o) => ({ label: o.label, isCorrect: o.isCorrect })), grader, partialCredit: v.partialCredit,
         });
       }
       await this.audit.record({ ...actor, action: 'ASSESSMENT_QUESTIONS_FROM_BANK', entityType: 'AssessmentSection', entityId: sectionId, after: { count: sources.length } }, tx);
@@ -279,7 +348,7 @@ export class QuestionBankService {
         const q = await tx.question.create({ data: { sectionId: section.id, questionType: grader, sequence: seq++, sourceQuestionId: src.id, ieltsType: src.ieltsType } });
         await writeVersion(tx, q.id, 1, {
           prompt: v.prompt as Prisma.InputJsonValue, marks: Number(v.marks), answerKey: v.answerKey as Prisma.InputJsonValue | null,
-          options: v.options.map((o) => ({ label: o.label, isCorrect: o.isCorrect })), grader,
+          options: v.options.map((o) => ({ label: o.label, isCorrect: o.isCorrect })), grader, partialCredit: v.partialCredit,
         });
       }
     }
@@ -291,6 +360,9 @@ export class QuestionBankService {
    * with the normal attempt flow (autosave, timing and grading are unchanged).
    */
   async createPractice(studentId: string, input: PracticeSessionInput) {
+    if (!await this.entitlements.can(studentId, 'practice.unlimited')) {
+      throw new AppError('PLAN_UPGRADE_REQUIRED', 403, 'Unlimited practice requires the Starter plan or above.');
+    }
     const day = new Date().toISOString().slice(0, 10);
     const recent = await this.prisma.attemptAnswer.findMany({
       where: { attempt: { studentId, submittedAt: { gte: new Date(Date.now() - 30 * 86_400_000) } } },

@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
+import { PlansModule } from '../plans/plans.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { MfaService } from './mfa.service';
 
 /** Authentication (login, sessions, password reset, 2FA). Exported so other modules can start sessions. */
 @Module({
-  imports: [JwtModule.register({})],
+  imports: [JwtModule.register({}), PlansModule],
   controllers: [AuthController],
   providers: [AuthService, MfaService],
   exports: [AuthService, MfaService],

@@ -6,6 +6,7 @@ import { AddSpeakingResponseInput, AUDIO_MIME_TYPES, CreateSpeakingAttemptInput,
 import { AiService } from '../ai/ai.service';
 import { AppError, conflict, notFound } from '../common/app-error';
 import { JobsService } from '../jobs/jobs.service';
+import { EntitlementService } from '../plans/entitlement.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { QuestionBankService } from '../question-bank/question-bank.service';
 import { sniffFileType, sha256Hex, StorageService } from '../integrations/storage.service';
@@ -32,6 +33,7 @@ export class SpeakingService implements OnModuleInit {
     private readonly jobs: JobsService,
     private readonly bank: QuestionBankService,
     private readonly events: EventEmitter2,
+    private readonly entitlements: EntitlementService,
   ) {}
 
   onModuleInit() {
@@ -115,7 +117,8 @@ export class SpeakingService implements OnModuleInit {
       where: { id },
       data: { storageKey: key, mime: sniffed.mime, sizeBytes: BigInt(file.size), sha256: sha256Hex(file.buffer), status: 'UPLOADED' },
     });
-    await this.queueTranscription(id);
+    // AI transcription/evaluation is an Advanced/Premium feature; the recording itself is always kept.
+    if (await this.entitlements.can(studentId, 'ai.evaluation')) await this.queueTranscription(id);
     return { status: 'UPLOADED' };
   }
 
@@ -135,7 +138,8 @@ export class SpeakingService implements OnModuleInit {
       where: { id },
       data: { mime: sniffed.mime, sizeBytes: BigInt(meta.size), durationSec: durationSec === undefined ? null : new Prisma.Decimal(durationSec), status: 'UPLOADED' },
     });
-    await this.queueTranscription(id);
+    // AI transcription/evaluation is an Advanced/Premium feature; the recording itself is always kept.
+    if (await this.entitlements.can(studentId, 'ai.evaluation')) await this.queueTranscription(id);
     const answered = await this.prisma.speakingResponse.findUnique({ where: { id }, select: { questionId: true } });
     if (answered?.questionId) this.events.emit(STUDY_EVIDENCE, { studentId, refType: 'SPEAKING_PART', refId: answered.questionId } satisfies StudyEvidence);
     return { status: 'UPLOADED' };
@@ -214,6 +218,7 @@ export class SpeakingService implements OnModuleInit {
   async retry(studentId: string, id: string) {
     const r = await this.ownedResponse(studentId, id);
     if (r.status !== 'PROCESSING_FAILED' && r.transcriptStatus !== 'FAILED') throw conflict('CONFLICT', 'Nothing to retry for this answer.');
+    if (!await this.entitlements.can(studentId, 'ai.evaluation')) throw new AppError('PLAN_UPGRADE_REQUIRED', 403, 'AI evaluation requires the Advanced or Premium plan.');
     const stamp = Date.now();
     await this.prisma.speakingResponse.update({ where: { id }, data: { status: 'UPLOADED', transcriptStatus: 'PENDING', lastError: null } });
     const jobId = await this.jobs.enqueue('speaking.transcribe', `speaking-transcribe:${id}:retry:${stamp}`, { responseId: id });

@@ -21,6 +21,7 @@ const PERMISSIONS = [
   'question.manage', 'class.manage', 'certificate.revoke',
   'mock.review', 'curriculum.assign', 'curriculum.manage',
   'recording.manage', 'recording.review', 'batch.analytics.view',
+  'plan.manage', 'premium.service.manage',
 ] as const;
 
 const ROLES: Record<string, { description: string; permissions: readonly string[] | 'ALL' }> = {
@@ -31,7 +32,8 @@ const ROLES: Record<string, { description: string; permissions: readonly string[
       'batch.view', 'batch.create', 'batch.edit', 'mentor.assign', 'teaching.view', 'teacher.manage', 'student.view',
       'enrollment.view', 'enrollment.create', 'report.academic.view', 'dashboard.view', 'assessment.manage',
       'attendance.correct', 'knowledge.manage', 'ai.support.use', 'feedback.view', 'lifecycle.manage', 'engagement.followup', 'question.manage', 'class.manage', 'certificate.revoke',
-      'mock.review', 'curriculum.assign', 'curriculum.manage', 'recording.manage', 'recording.review', 'batch.analytics.view'],
+      'mock.review', 'curriculum.assign', 'curriculum.manage', 'recording.manage', 'recording.review', 'batch.analytics.view',
+      'plan.manage', 'premium.service.manage'],
   },
   CONTENT_MANAGER: {
     description: 'Lessons, files and practice material',
@@ -40,7 +42,7 @@ const ROLES: Record<string, { description: string; permissions: readonly string[
   FINANCE_ADMIN: {
     description: 'Payments, refunds, coupons, revenue',
     permissions: ['payment.view', 'payment.verify', 'payment.refund', 'coupon.manage',
-      'enrollment.view', 'report.finance.view', 'dashboard.view', 'ai.support.use', 'payment.reconcile', 'referral.manage'],
+      'enrollment.view', 'report.finance.view', 'dashboard.view', 'ai.support.use', 'payment.reconcile', 'referral.manage', 'plan.manage'],
   },
   SUPPORT_AGENT: {
     description: 'Tickets and limited enrolment lookup',

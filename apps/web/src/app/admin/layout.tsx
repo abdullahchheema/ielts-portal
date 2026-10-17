@@ -1,6 +1,6 @@
 'use client';
 
-import { UserCheck, BarChart3, Database, FileCheck2, Gift, GraduationCap, Layers, Lock, Library, LayoutDashboard, ListChecks, MessagesSquare, Receipt, RotateCcw, ScrollText, Settings, Scale, Star, Tag, UserRound, Wallet, ClipboardList, UsersRound } from 'lucide-react';
+import { UserCheck, BarChart3, Crown, Database, FileCheck2, Gift, GraduationCap, Layers, Lock, Library, LayoutDashboard, ListChecks, MessagesSquare, Receipt, RotateCcw, ScrollText, Settings, Scale, Sparkles, Star, Tag, UserRound, Wallet, ClipboardList, UsersRound } from 'lucide-react';
 import { ReactNode, useCallback, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Shell } from '@/components/Shell';
@@ -53,6 +53,11 @@ function AdminShell({ children }: { children: ReactNode }) {
           { href: '/admin/refunds', label: 'Refunds', icon: RotateCcw, show: c('payment.refund') },
           { href: '/admin/coupons', label: 'Coupons', icon: Tag, show: c('coupon.manage') },
           { href: '/admin/referrals', label: 'Referrals', icon: Gift, show: c('referral.manage') },
+        ] },
+        { title: 'Plans', items: [
+          { href: '/admin/plans', label: 'Plans', icon: Crown, show: c('plan.manage') },
+          { href: '/admin/free-tests', label: 'Free test', icon: Sparkles, show: c('plan.manage') },
+          { href: '/admin/premium-services', label: 'Premium services', icon: Crown, show: c('premium.service.manage') },
         ] },
         { title: 'Support', items: [{ href: '/admin/tickets', label: 'Tickets', icon: MessagesSquare, show: c('ticket.manage') }] },
         { title: 'Student care', items: [

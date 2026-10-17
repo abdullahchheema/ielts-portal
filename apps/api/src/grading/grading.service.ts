@@ -12,6 +12,7 @@ import { Actor } from '../courses/courses.service';
 import { StorageService, sniffFileType } from '../integrations/storage.service';
 import { LearningService } from '../learning/learning.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { EntitlementService } from '../plans/entitlement.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WritingService } from '../writing/writing.service';
 
@@ -32,6 +33,7 @@ export class GradingService {
     private readonly notify: NotificationsService,
     private readonly writing: WritingService,
     private readonly dailyActivity: DailyActivityService,
+    private readonly entitlements: EntitlementService,
   ) {}
 
   // ───────── admin: configure an assignment on a content item ─────────
@@ -100,8 +102,11 @@ export class GradingService {
     });
     if (result.created) {
       await this.afterSubmit(studentId, assignment, enrollment.id, enrollment.batchId, result.submission.id);
-      // AI analysis is supporting evidence for the mentor. It is queued after the commit and never changes the grade.
-      if (assignment.skill === 'WRITING') await this.writing.queueSubmissionAnalysis(result.submission.id, result.submission.revision).catch(() => undefined);
+      // AI analysis is supporting evidence for the mentor and an Advanced/Premium feature. It is
+      // queued after the commit and never changes the grade.
+      if (assignment.skill === 'WRITING' && await this.entitlements.can(studentId, 'ai.evaluation')) {
+        await this.writing.queueSubmissionAnalysis(result.submission.id, result.submission.revision).catch(() => undefined);
+      }
     }
     return this.presentOwn(result.submission.id, studentId);
   }
