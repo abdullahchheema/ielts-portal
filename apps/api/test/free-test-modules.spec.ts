@@ -5,9 +5,11 @@ import { createApp } from '../src/app';
 import { Session, as, http, loginAdmin, uniq } from './helpers';
 
 /**
- * The unified "upload a module" flow: one bulk-import payload, any mix of skills, each set becomes
- * its own independent free-test rotation unit — no manual re-typing into a separate Assessments
- * screen for Listening/Reading, no separate "publish" click for Writing/Speaking.
+ * All 4 skills' free-test content lives only in the question bank — upload, approve, publish,
+ * identical process for Listening, Reading, Writing, Speaking. Assessments are never created by an
+ * admin for this purpose; Listening/Reading get a small internal "wrapper" Assessment lazily built
+ * the first time a set is actually picked for a free test (never at publish time), since the timed,
+ * graded attempt machinery has no bank-native equivalent. See FreeTestService.resolveWrapperAssessment.
  */
 
 let app: NestExpressApplication;
@@ -25,92 +27,94 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
-const post = (path: string, body: object) => as(admin)(http(app).post(path)).send(body);
+const post = (path: string, body: object = {}) => as(admin)(http(app).post(path)).send(body);
 const get = (path: string) => as(admin)(http(app).get(path));
+const randomPhone = () => `03${Math.floor(100_000_000 + Math.random() * 899_999_999)}`;
 
-function payload() {
-  const listeningTitle = `Mock ${uniq()} - Listening`;
-  const writingTitle = `Mock ${uniq()} - Writing`;
-  return {
-    sets: [
-      {
-        title: listeningTitle, skill: 'LISTENING', module: 'ACADEMIC', difficulty: 3,
-        stimulus: { passage: 'Audio transcript placeholder for the Listening module.' },
-        questions: [
-          { ieltsType: 'TFNG', prompt: { text: `The speaker mentions a library. ${uniq()}` }, marks: 1, answerKey: { value: 'TRUE' } },
-          { ieltsType: 'TFNG', prompt: { text: `The speaker mentions a stadium. ${uniq()}` }, marks: 1, answerKey: { value: 'FALSE' } },
-        ],
-      },
-      {
-        title: writingTitle, skill: 'WRITING', module: 'ACADEMIC', difficulty: 3,
-        questions: [
-          { ieltsType: 'WRITING_TASK2', prompt: { text: `Discuss the impact of remote work. ${uniq()}` }, marks: 1 },
-        ],
-      },
-    ],
-    listeningTitle, writingTitle,
-  };
+/** A minimal MP3 header. Enough for the server's content sniffing. */
+const MP3 = Buffer.concat([Buffer.from([0xff, 0xfb, 0x90, 0x00]), Buffer.alloc(400, 1)]);
+
+async function buildListeningSet() {
+  const title = `Free Listening ${uniq()}`;
+  const set = (await post('/admin/question-sets', { title, skill: 'LISTENING', difficulty: 3, topic: `free-${uniq()}`, studentFacing: false }).expect(201)).body;
+  await post(`/admin/question-sets/${set.id}/questions`, { ieltsType: 'TFNG', prompt: { text: `Q1 ${uniq()}` }, marks: 1, answerKey: { value: 'TRUE' } }).expect(201);
+  await as(admin)(http(app).post(`/admin/question-sets/${set.id}/audio`)).attach('file', MP3, { filename: 'audio.mp3', contentType: 'audio/mpeg' }).expect(200);
+  await post(`/admin/question-sets/${set.id}/status`, { status: 'APPROVED' }).expect(200);
+  await post(`/admin/question-sets/${set.id}/status`, { status: 'PUBLISHED', studentFacing: true }).expect(200);
+  return { setId: set.id as string, title };
 }
 
-describe('unified module upload', () => {
-  it('turns a Listening set into a published DIAGNOSTIC assessment and archives the staging bank set', async () => {
-    const { sets, listeningTitle } = payload();
-    const res = (await post('/admin/free-test-pool/modules', { sets: [sets[0]] }).expect(201)).body;
-    expect(res.modules).toHaveLength(1);
-    const m = res.modules[0];
-    expect(m.kind).toBe('ASSESSMENT');
-    expect(m.skill).toBe('LISTENING');
-    expect(m.needsAudio).toBe(true);
+async function buildReadingSet() {
+  const set = (await post('/admin/question-sets', { title: `Free Reading ${uniq()}`, skill: 'READING', difficulty: 3, topic: `free-${uniq()}`, studentFacing: false }).expect(201)).body;
+  await post(`/admin/question-sets/${set.id}/questions`, { ieltsType: 'TFNG', prompt: { text: `Q1 ${uniq()}` }, marks: 1, answerKey: { value: 'TRUE' } }).expect(201);
+  await post(`/admin/question-sets/${set.id}/status`, { status: 'APPROVED' }).expect(200);
+  await post(`/admin/question-sets/${set.id}/status`, { status: 'PUBLISHED', studentFacing: true }).expect(200);
+  return set.id as string;
+}
 
-    const assessment = (await get(`/admin/assessments/${m.moduleId}`).expect(200)).body;
+describe('free-test content lives only in the question bank', () => {
+  it('publishing a Writing set (same process as Writing already used) makes it eligible with no Assessment involved', async () => {
+    const set = (await post('/admin/question-sets', { title: `Free Writing ${uniq()}`, skill: 'WRITING', difficulty: 3, topic: `free-${uniq()}`, studentFacing: false }).expect(201)).body;
+    await post(`/admin/question-sets/${set.id}/questions`, { ieltsType: 'WRITING_TASK2', prompt: { text: `Discuss. ${uniq()}` }, marks: 1 }).expect(201);
+    await post(`/admin/question-sets/${set.id}/status`, { status: 'APPROVED' }).expect(200);
+    const before = (await get('/admin/free-test-pool').expect(200)).body.writing;
+    await post(`/admin/question-sets/${set.id}/status`, { status: 'PUBLISHED', studentFacing: true }).expect(200);
+    const after = (await get('/admin/free-test-pool').expect(200)).body.writing;
+    expect(after).toBe(before + 1);
+
+    const listing = (await get('/admin/free-test-pool/modules').expect(200)).body as { id: string; skill: string; published: boolean }[];
+    const row = listing.find((m) => m.id === set.id);
+    expect(row?.skill).toBe('WRITING');
+    expect(row?.published).toBe(true);
+  });
+
+  it('a published Listening set stays a plain bank set — no wrapper Assessment until it is actually picked', async () => {
+    const { setId } = await buildListeningSet();
+    const before = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
+    expect(before.wrapperAssessmentId).toBeNull();
+    expect(before.status).toBe('PUBLISHED');
+
+    const listing = (await get('/admin/free-test-pool/modules').expect(200)).body as { id: string; skill: string }[];
+    expect(listing.some((m) => m.id === setId)).toBe(true);
+  });
+
+  it('claiming a free test lazily builds a wrapper Assessment for the picked Listening set, carrying its audio and questions, and reuses it on later claims', async () => {
+    const { setId, title } = await buildListeningSet();
+    await buildReadingSet();
+
+    // "Least used" ties resolve to the earliest-created set and never change on a tie, so at most
+    // one other never-used set (from an earlier test in this file) could win once before this one's
+    // count drops to the same level and it gets picked — a small bounded retry absorbs that.
+    let wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
+    let leadId = '';
+    for (let i = 0; i < 5 && !wrapped.wrapperAssessmentId; i++) {
+      leadId = (await http(app).post('/free-test/claim').send({ email: `lead-${uniq()}@test.local`, phone: randomPhone() }).expect(201)).body.leadId;
+      wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
+    }
+    expect(wrapped.wrapperAssessmentId).not.toBeNull();
+
+    // The student-facing claim that triggered the build gets a real, playable audio URL — the
+    // existing AttemptsService.paper() signed-URL conversion, exercised end-to-end for the first time
+    // against bank-sourced content.
+    const studentSection = (await http(app).get(`/free-test/${leadId}/section`).expect(200)).body;
+    expect(studentSection.paper[0].content.audioUrl).toBeTruthy();
+
+    const assessment = (await get(`/admin/assessments/${wrapped.wrapperAssessmentId}`).expect(200)).body;
     expect(assessment.type).toBe('DIAGNOSTIC');
     expect(assessment.skill).toBe('LISTENING');
-    expect(assessment.title).toBe(listeningTitle);
-    expect(assessment.versions[0].publishedAt).not.toBeNull();
-
-    const version = (await get(`/admin/assessments/${m.moduleId}`).expect(200)).body.versions[0];
-    const full = (await as(admin)(http(app).get(`/admin/assessment-versions/${version.id}`)).expect(200)).body;
+    expect(assessment.title).toBe(title);
+    const versionId = assessment.versions[0].id;
+    const full = (await get(`/admin/assessment-versions/${versionId}`).expect(200)).body;
     expect(full.sections).toHaveLength(1);
-    expect(full.sections[0].questions).toHaveLength(2);
-    expect(full.sections[0].content.passage).toContain('Audio transcript placeholder');
+    expect(full.sections[0].questions).toHaveLength(1);
+    // The admin view exposes the raw storage key; students get a signed `audioUrl` instead, via the
+    // unchanged AttemptsService.paper() — not re-tested here, since that conversion isn't new.
+    expect(full.sections[0].content.audioKey).toBeTruthy();
 
-    // The staging bank set that the bulk importer created is archived, not left dangling as a
-    // duplicate of content that now lives in the assessment.
-    const staged = await prisma.questionSet.findMany({ where: { title: listeningTitle } });
-    expect(staged).toHaveLength(1);
-    expect(staged[0].status).toBe('ARCHIVED');
-  });
-
-  it('publishes a Writing set directly as a bank module, with no assessment involved', async () => {
-    const { sets, writingTitle } = payload();
-    const res = (await post('/admin/free-test-pool/modules', { sets: [sets[1]] }).expect(201)).body;
-    const m = res.modules[0];
-    expect(m.kind).toBe('QUESTION_SET');
-    expect(m.skill).toBe('WRITING');
-    expect(m.needsAudio).toBeUndefined();
-
-    const set = await prisma.questionSet.findUniqueOrThrow({ where: { id: m.moduleId } });
-    expect(set.title).toBe(writingTitle);
-    expect(set.status).toBe('PUBLISHED');
-    expect(set.studentFacing).toBe(true);
-  });
-
-  it('one upload with a mix of skills produces independent modules for each, visible in the unified listing and pool stats', async () => {
-    const { sets } = payload();
-    const before = (await get('/admin/free-test-pool').expect(200)).body;
-    const res = (await post('/admin/free-test-pool/modules', { sets }).expect(201)).body;
-    expect(res.modules).toHaveLength(2);
-    expect(new Set(res.modules.map((m: { skill: string }) => m.skill))).toEqual(new Set(['LISTENING', 'WRITING']));
-
-    const after = (await get('/admin/free-test-pool').expect(200)).body;
-    expect(after.listening).toBe(before.listening + 1);
-    expect(after.writing).toBe(before.writing + 1);
-
-    const listing = (await get('/admin/free-test-pool/modules').expect(200)).body;
-    const ids = new Set(listing.map((row: { id: string }) => row.id));
-    for (const m of res.modules) expect(ids.has(m.moduleId)).toBe(true);
-    for (const row of listing.filter((r: { id: string }) => res.modules.some((m: { moduleId: string }) => m.moduleId === r.id))) {
-      expect(row.published).toBe(true);
-    }
+    // However many further claims land on this set, its wrapper never gets rebuilt — still exactly
+    // one Assessment with this title, matching the one already found above.
+    for (let i = 0; i < 3; i++) await http(app).post('/free-test/claim').send({ email: `lead-${uniq()}@test.local`, phone: randomPhone() }).expect(201);
+    const wrapperCount = await prisma.assessment.count({ where: { title, type: 'DIAGNOSTIC' } });
+    expect(wrapperCount).toBe(1);
   });
 });

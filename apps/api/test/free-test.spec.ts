@@ -6,11 +6,14 @@ import { Session, as, http, loginAdmin, uniq } from './helpers';
 
 /**
  * Free test v2: the anonymous free-test flow is a full 4-skill mock (`ExamAttempt`), orchestrated the
- * same way the authenticated full simulator is. Listening/Reading are each picked from whichever
- * published DIAGNOSTIC assessments exist for that skill (no fixed set — the least-used one is picked
- * each time); Writing/Speaking reuse the simulator's own bank-candidate selection unchanged. The ghost
- * never has a plan (defaults to FREE), so Writing/Speaking are never AI-evaluated — that is spec-correct,
- * not a bug: `missingSkills` records them and `overallEstimate` stays null.
+ * same way the authenticated full simulator is. All 4 skills' content lives only in the question
+ * bank: Listening/Reading are each picked from whichever published, student-facing bank set exists
+ * for that skill (no fixed set — the least-used one is picked each time, with a small internal
+ * Assessment lazily built behind the scenes the first time a given set is ever picked — see
+ * FreeTestService.resolveWrapperAssessment); Writing/Speaking reuse the simulator's own bank-candidate
+ * selection unchanged. The ghost never has a plan (defaults to FREE), so Writing/Speaking are never
+ * AI-evaluated — that is spec-correct, not a bug: `missingSkills` records them and `overallEstimate`
+ * stays null.
  */
 
 let app: NestExpressApplication;
@@ -33,14 +36,14 @@ const post = (path: string, body: object = {}) => as(admin)(http(app).post(path)
 interface PaperQ { id: string; prompt: { text: string }; options?: { id: string; label: string }[] }
 const randomPhone = () => `03${Math.floor(100_000_000 + Math.random() * 899_999_999)}`;
 
-/** A small published DIAGNOSTIC assessment for one skill, with one TFNG question of a known answer. */
-async function buildDiagnostic(skill: 'LISTENING' | 'READING', correctValue: 'TRUE' | 'FALSE' = 'TRUE') {
-  const a = (await post('/admin/assessments', { title: `Free ${skill} ${uniq()}`, type: 'DIAGNOSTIC', skill, showAnswers: true }).expect(201)).body;
-  const versionId = (await as(admin)(http(app).get(`/admin/assessments/${a.id}`)).expect(200)).body.versions[0].id as string;
-  const sectionId = (await post(`/admin/assessment-versions/${versionId}/sections`, { title: 'Part 1' }).expect(201)).body.id as string;
-  await post(`/admin/assessment-sections/${sectionId}/questions`, { type: 'TFNG', prompt: { text: 'Q1' }, marks: 1, answerKey: { value: correctValue } }).expect(201);
-  await post(`/admin/assessment-versions/${versionId}/publish`).expect(200);
-  return a.id as string;
+/** A small published, student-facing bank set for one skill, with one TFNG question of a known
+ *  answer — the only place Listening/Reading free-test content lives now. */
+async function buildBankModule(skill: 'LISTENING' | 'READING', correctValue: 'TRUE' | 'FALSE' = 'TRUE') {
+  const set = (await post('/admin/question-sets', { title: `Free ${skill} ${uniq()}`, skill, difficulty: 3, topic: `free-${uniq()}`, studentFacing: false }).expect(201)).body;
+  await post(`/admin/question-sets/${set.id}/questions`, { ieltsType: 'TFNG', prompt: { text: 'Q1' }, marks: 1, answerKey: { value: correctValue } }).expect(201);
+  await post(`/admin/question-sets/${set.id}/status`, { status: 'APPROVED' }).expect(200);
+  await post(`/admin/question-sets/${set.id}/status`, { status: 'PUBLISHED', studentFacing: true }).expect(200);
+  return set.id as string;
 }
 
 /** A published, student-facing Writing Task 2 prompt — eligible for the simulator's own candidate pick. */
@@ -90,7 +93,7 @@ async function finishFreeTest(leadId: string) {
 
 describe('free-test v2: claim and identity', () => {
   it('claiming twice with the same identity returns the same lead (idempotent)', async () => {
-    await buildDiagnostic('LISTENING'); await buildDiagnostic('READING');
+    await buildBankModule('LISTENING'); await buildBankModule('READING');
     const email = `lead-${uniq()}@test.local`;
     const phone = randomPhone();
     const first = (await http(app).post('/free-test/claim').send({ email, phone }).expect(201)).body;
@@ -99,7 +102,7 @@ describe('free-test v2: claim and identity', () => {
   });
 
   it('a different phone with the same email is a different identity (not a collision)', async () => {
-    await buildDiagnostic('LISTENING'); await buildDiagnostic('READING');
+    await buildBankModule('LISTENING'); await buildBankModule('READING');
     const email = `lead-${uniq()}@test.local`;
     const first = (await http(app).post('/free-test/claim').send({ email, phone: randomPhone() }).expect(201)).body;
     const second = (await http(app).post('/free-test/claim').send({ email, phone: randomPhone() }).expect(201)).body;
@@ -111,7 +114,7 @@ describe('free-test v2: claim and identity', () => {
   });
 
   it('concurrent claims for the same identity do not create duplicate leads', async () => {
-    await buildDiagnostic('LISTENING'); await buildDiagnostic('READING');
+    await buildBankModule('LISTENING'); await buildBankModule('READING');
     const email = `lead-${uniq()}@test.local`;
     const phone = randomPhone();
     const [a, b, c] = await Promise.all([
@@ -129,14 +132,20 @@ describe('free-test v2: claim and identity', () => {
     // Other tests in this file publish their own Listening modules into the same global pool, so
     // "least used" alone can't be asserted against a fixed count. Instead: two brand-new modules
     // start at zero uses and must therefore win every pick until each has been used at least once.
-    await buildDiagnostic('READING');
-    const a = await buildDiagnostic('LISTENING');
-    const b = await buildDiagnostic('LISTENING');
+    await buildBankModule('READING');
+    const a = await buildBankModule('LISTENING');
+    const b = await buildBankModule('LISTENING');
     const picked = new Set<string>();
     for (let i = 0; i < 8 && !(picked.has(a) && picked.has(b)); i++) {
       const claim = (await http(app).post('/free-test/claim').send({ email: `rot-${uniq()}@test.local`, phone: randomPhone() }).expect(201)).body;
       const lead = await prisma.freeAssessmentLead.findUniqueOrThrow({ where: { id: claim.leadId }, include: { examAttempt: true } });
-      if (lead.examAttempt?.listeningAssessmentId) picked.add(lead.examAttempt.listeningAssessmentId);
+      // examAttempt.listeningAssessmentId is the lazily-built wrapper Assessment's id — map it back
+      // to the bank set it was built from to compare against a/b.
+      const assessmentId = lead.examAttempt?.listeningAssessmentId;
+      if (assessmentId) {
+        const set = await prisma.questionSet.findFirst({ where: { wrapperAssessmentId: assessmentId }, select: { id: true } });
+        if (set) picked.add(set.id);
+      }
     }
     expect(picked.has(a)).toBe(true);
     expect(picked.has(b)).toBe(true);
@@ -145,7 +154,7 @@ describe('free-test v2: claim and identity', () => {
 
 describe('free-test v2: full 4-skill flow', () => {
   it('claim -> listening -> reading -> writing -> speaking -> done, with a restricted overall estimate', async () => {
-    await buildDiagnostic('LISTENING'); await buildDiagnostic('READING');
+    await buildBankModule('LISTENING'); await buildBankModule('READING');
     await buildWritingPrompt();
     const email = `lead-${uniq()}@test.local`;
     const phone = randomPhone();
@@ -182,7 +191,7 @@ describe('free-test v2: full 4-skill flow', () => {
 
 describe('free-test v2: registration linking', () => {
   it('registering with the same email links the lead without granting a new free attempt', async () => {
-    await buildDiagnostic('LISTENING'); await buildDiagnostic('READING');
+    await buildBankModule('LISTENING'); await buildBankModule('READING');
     const email = `lead-${uniq()}@test.local`;
     const phone = randomPhone();
     const claim = (await http(app).post('/free-test/claim').send({ email, phone }).expect(201)).body;

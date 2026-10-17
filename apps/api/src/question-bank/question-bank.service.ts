@@ -14,6 +14,7 @@ import { BankCandidate, selectCandidates } from './selection';
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const IMAGE_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const MAX_AUDIO_BYTES = 100 * 1024 * 1024;
 
 export type Actor = { userId?: string; ip?: string; userAgent?: string };
 type Tx = Prisma.TransactionClient;
@@ -70,6 +71,24 @@ export class QuestionBankService {
     const image = await this.storeImage(file, altText, { questionSetId: setId });
     await this.audit.record({ ...actor, action: 'ADMIN_ADDED_QUESTION_IMAGE', entityType: 'QuestionSet', entityId: setId, after: { imageId: image.id } });
     return image;
+  }
+
+  /** Listening audio for a set, stored alongside its stimulus. Must be attached before publishing —
+   *  same rule as the assessment-side equivalent — since a published set is otherwise immutable. */
+  async attachSetAudio(setId: string, file: { buffer: Buffer; size: number } | undefined, actor: Actor) {
+    if (!file) throw new AppError('VALIDATION_ERROR', 422, 'Attach an MP3 file.', { file: 'Required.' });
+    if (file.size > MAX_AUDIO_BYTES) throw new AppError('FILE_TOO_LARGE', 413, 'The audio file is larger than 100 MB.');
+    const set = await this.prisma.questionSet.findUnique({ where: { id: setId } });
+    if (!set) throw notFound('Question set');
+    if (!EDITABLE.includes(set.status as QuestionSetStatus)) throw conflict('VERSION_PUBLISHED_IMMUTABLE', 'Clone the set before adding audio.');
+    const sniffed = sniffFileType(file.buffer);
+    if (!sniffed || sniffed.mime !== 'audio/mpeg') throw new AppError('UNSUPPORTED_FILE_TYPE', 415, 'Only MP3 audio is accepted.');
+    const audioKey = `question-sets/${setId}/${randomUUID()}.mp3`;
+    await this.storage.put(audioKey, file.buffer, 'audio/mpeg');
+    const stimulus = { ...((set.stimulus as object) ?? {}), audioKey };
+    await this.prisma.questionSet.update({ where: { id: setId }, data: { stimulus } });
+    await this.audit.record({ ...actor, action: 'ADMIN_ADDED_QUESTION_SET_AUDIO', entityType: 'QuestionSet', entityId: setId, after: { audioKey } });
+    return { ok: true };
   }
 
   /** An image attached to one question's current version (e.g. a diagram for diagram labelling). */

@@ -16,6 +16,7 @@ import { QuestionBankService } from './question-bank.service';
 const uuid = new ParseUUIDPipe();
 const actor = (u: AuthUser, req: Request) => ({ userId: u.id, ...clientMeta(req) });
 const imageUpload = UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 1 } }));
+const audioUpload = UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: 100 * 1024 * 1024, files: 1 } }));
 type ImageFile = { buffer: Buffer; size: number } | undefined;
 
 const listQuery = z.object({
@@ -88,6 +89,11 @@ export class AdminQuestionSetsController {
   @RequirePermission('question.manage') @HttpCode(201) @Post(':id/images') @imageUpload
   attachSetImage(@Param('id', uuid) id: string, @UploadedFile() file: ImageFile, @Query('alt') alt: string | undefined, @CurrentUser() u: AuthUser, @Req() req: Request) {
     return this.bank.attachSetImage(id, file, alt, actor(u, req));
+  }
+
+  @RequirePermission('question.manage') @HttpCode(200) @Post(':id/audio') @audioUpload
+  attachSetAudio(@Param('id', uuid) id: string, @UploadedFile() file: ImageFile, @CurrentUser() u: AuthUser, @Req() req: Request) {
+    return this.bank.attachSetAudio(id, file, actor(u, req));
   }
 
   @RequirePermission('question.manage') @HttpCode(201) @Post('questions/:questionId/images') @imageUpload

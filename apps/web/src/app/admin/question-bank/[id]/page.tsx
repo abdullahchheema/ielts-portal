@@ -15,7 +15,7 @@ interface Question {
 }
 interface SetDetail {
   id: string; title: string; skill: string; module: string; topic: string | null; difficulty: number; status: string; studentFacing: boolean;
-  version: number; stimulus: { passage?: string } | null; questions: Question[];
+  version: number; stimulus: { passage?: string; audioKey?: string } | null; questions: Question[];
 }
 
 const ITEM_TYPES = ITEM_TYPE_KEYS;
@@ -77,6 +77,11 @@ export default function QuestionSetPage() {
           <Accordion items={[{ key: 'passage', title: 'Passage', content: <p className="whitespace-pre-wrap text-sm text-fg">{data.stimulus.passage}</p> }]} defaultOpen="passage" />
         </Section>
       )}
+      {data.skill === 'LISTENING' && (
+        <Section className="mb-4" title="Audio">
+          <AudioAttach setId={id} editable={editable} attached={!!data.stimulus?.audioKey} onDone={refresh} />
+        </Section>
+      )}
 
       <Section title={`Questions (${data.questions.length})`} actions={editable && <Button onClick={() => setAdding(true)}>Add question</Button>}>
         {data.questions.length === 0 ? <Empty title="No questions yet">Add questions before approving or publishing this set.</Empty> : (
@@ -103,6 +108,36 @@ export default function QuestionSetPage() {
 
       {adding && <AddQuestion setId={id} onDone={async () => { setAdding(false); await refresh(); }} onClose={() => setAdding(false)} />}
     </>
+  );
+}
+
+function AudioAttach({ setId, editable, attached, onDone }: { setId: string; editable: boolean; attached: boolean; onDone: () => void | Promise<unknown> }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function upload() {
+    if (!file) return;
+    setBusy(true); setError(null);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      await api(`/admin/question-sets/${setId}/audio`, { method: 'POST', form: fd });
+      setFile(null);
+      await onDone();
+    } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
+  }
+
+  if (!editable) return <p className="text-sm text-fg-muted">{attached ? 'Audio attached.' : 'No audio attached.'}</p>;
+  return (
+    <div className="space-y-2">
+      {attached && <p className="text-sm text-success">Audio attached — uploading a new file replaces it.</p>}
+      {error && <Alert>{error}</Alert>}
+      <div className="flex flex-wrap items-center gap-2">
+        <input type="file" accept="audio/mpeg,.mp3" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="text-sm" />
+        <Button variant="secondary" onClick={upload} busy={busy} disabled={!file}>Upload MP3</Button>
+      </div>
+    </div>
   );
 }
 

@@ -1084,6 +1084,7 @@ model Assessment {
   simReadingExams   ExamAttempt[] @relation("SimReading")
   mockAccessRequests MockAccessRequest[]
   mockActivations    MockActivation[]
+  wrapperForSet      QuestionSet?         @relation("QuestionSetWrapperAssessment")
 
   @@map("assessments")
 }
@@ -1731,11 +1732,16 @@ model QuestionSet {
   version         Int       @default(1)
   stimulus        Json?
   createdById     String?   @map("created_by") @db.Uuid
+  // A Listening/Reading set's one-time, lazily-built internal Assessment — the only thing the timed,
+  // graded ExamAttempt machinery can run against. Built on first free-test pick, then reused forever;
+  // never shown to admins and never created by hand (see FreeTestService.resolveWrapperAssessment).
+  wrapperAssessmentId String? @unique @map("wrapper_assessment_id") @db.Uuid
   publishedAt     DateTime? @map("published_at")
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at")
 
-  createdBy User?           @relation("QuestionSetCreator", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdBy         User?           @relation("QuestionSetCreator", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  wrapperAssessment  Assessment?    @relation("QuestionSetWrapperAssessment", fields: [wrapperAssessmentId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   questions Question[]
   images    QuestionImage[]
 
