@@ -33,6 +33,8 @@ const randomPhone = () => `03${Math.floor(100_000_000 + Math.random() * 899_999_
 
 /** A minimal MP3 header. Enough for the server's content sniffing. */
 const MP3 = Buffer.concat([Buffer.from([0xff, 0xfb, 0x90, 0x00]), Buffer.alloc(400, 1)]);
+/** A minimal JPEG header. Enough for the server's content sniffing. */
+const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(100, 1)]);
 
 async function buildListeningSet() {
   const title = `Free Listening ${uniq()}`;
@@ -166,5 +168,29 @@ describe('free-test content lives only in the question bank', () => {
     expect(s1.content.instructions).toContain('TRUE or FALSE');
     expect(s2.title).toBe('Passage 2');
     expect(s2.questions).toHaveLength(1);
+  });
+
+  it('attaches a shared image to one section of a multi-passage set, without affecting other sections', async () => {
+    const payload = {
+      sets: [{
+        title: `Free Listening multi ${uniq()}`, skill: 'LISTENING', module: 'BOTH', difficulty: 3,
+        sections: [
+          { title: 'Part 1', questions: [{ ieltsType: 'MAP_LABELLING', prompt: { text: `Label A ${uniq()}` }, marks: 1, options: [{ label: 'A', isCorrect: true }, { label: 'B', isCorrect: false }] }] },
+          { title: 'Part 2', questions: [{ ieltsType: 'TFNG', prompt: { text: `Q2 ${uniq()}` }, marks: 1, answerKey: { value: 'TRUE' } }] },
+        ],
+      }],
+    };
+    const commit = (await post('/admin/question-sets/import/commit', payload).expect(201)).body;
+    const setId = commit.created[0].setId as string;
+
+    await as(admin)(http(app).post(`/admin/question-sets/${setId}/images?sectionIndex=0`)).attach('file', JPEG, { filename: 'map.jpg', contentType: 'image/jpeg' }).expect(201);
+
+    const set = (await get(`/admin/question-sets/${setId}`).expect(200)).body;
+    expect(set.stimulus.sections[0].images).toHaveLength(1);
+    expect(set.stimulus.sections[0].images[0].url).toBeTruthy();
+    expect(set.stimulus.sections[1].images ?? []).toHaveLength(0);
+
+    // Out of range — this set only has 2 sections (indices 0-1).
+    await as(admin)(http(app).post(`/admin/question-sets/${setId}/images?sectionIndex=5`)).attach('file', JPEG, { filename: 'x.jpg', contentType: 'image/jpeg' }).expect(404);
   });
 });

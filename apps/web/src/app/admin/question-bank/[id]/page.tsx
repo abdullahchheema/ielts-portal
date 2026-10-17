@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { IELTS_ITEM_TYPES, IeltsItemType, ITEM_TYPE_KEYS } from '@ielts/validation';
-import { Accordion, Alert, Badge, Button, Card, Dialog, Empty, Field, Input, Loading, PageHeader, Section, Select, Textarea, useConfirm } from '@/components/ui';
+import { Accordion, Alert, Badge, Button, Card, Dialog, Empty, Field, FileInput, Input, Loading, PageHeader, Section, Select, Textarea, useConfirm } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 
@@ -15,7 +15,7 @@ interface Question {
   id: string; ieltsType: string | null; questionType: string; bankSectionIndex: number | null;
   versions: { version: number; prompt: { text: string }; marks: string; answerKey: { value?: string; accepted?: string[] } | null; options: Option[]; images: QImage[] }[];
 }
-interface StimulusSection { title: string; instructions?: string; passage?: string; audioKey?: string; audioUrl?: string }
+interface StimulusSection { title: string; instructions?: string; passage?: string; audioKey?: string; audioUrl?: string; images?: QImage[] }
 interface SetDetail {
   id: string; title: string; skill: string; module: string; topic: string | null; difficulty: number; status: string; studentFacing: boolean;
   version: number; stimulus: { passage?: string; audioKey?: string; audioUrl?: string; sections?: StimulusSection[] } | null; questions: Question[];
@@ -33,6 +33,7 @@ export default function QuestionSetPage() {
   const { data, isLoading, isError } = useQuery({ queryKey: ['question-set', id], queryFn: () => api<SetDetail>(`/admin/question-sets/${id}`) });
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: ['question-set', id] }), qc.invalidateQueries({ queryKey: ['question-sets'] })]);
 
@@ -99,6 +100,8 @@ export default function QuestionSetPage() {
             <div className="space-y-3">
               {sec.instructions && <p className="text-sm text-fg-muted">{sec.instructions}</p>}
               {sec.passage && <Accordion items={[{ key: 'passage', title: 'Passage', content: <p className="whitespace-pre-wrap text-sm text-fg">{sec.passage}</p> }]} defaultOpen="passage" />}
+              {sec.images?.map((img) => <img key={img.id} src={img.url} alt={img.altText ?? ''} className="max-h-96 rounded-md ring-1 ring-border" />)}
+              {editable && <SectionImageAttach setId={id} sectionIndex={i} onDone={refresh} />}
               {data.skill === 'LISTENING' && <AudioAttach setId={id} sectionIndex={i} editable={editable} attached={!!sec.audioKey} audioUrl={sec.audioUrl} onDone={refresh} />}
             </div>
           </Section>
@@ -132,7 +135,10 @@ export default function QuestionSetPage() {
                     <Card key={q.id} className="space-y-2">
                       <div className="flex items-start justify-between gap-3">
                         <p className="text-sm"><span className="mr-2 font-medium text-fg-muted">{i + 1}.</span>{v?.prompt.text}</p>
-                        {editable && <Button variant="ghost" size="xs" onClick={() => removeQuestion(q.id)}>Remove</Button>}
+                        {editable && <div className="flex shrink-0 gap-2">
+                          <Button variant="ghost" size="xs" onClick={() => setEditingQuestion(q)}>Edit</Button>
+                          <Button variant="ghost" size="xs" onClick={() => removeQuestion(q.id)}>Remove</Button>
+                        </div>}
                       </div>
                       <p className="text-xs text-fg-subtle">{q.ieltsType?.replace(/_/g, ' ').toLowerCase()} · {v?.marks} mark(s) · version {v?.version}</p>
                       {v?.images.map((img) => <img key={img.id} src={img.url} alt={img.altText ?? ''} className="max-h-80 rounded-md ring-1 ring-border" />)}
@@ -150,7 +156,10 @@ export default function QuestionSetPage() {
         );
       })}
 
-      {adding && <AddQuestion setId={id} onDone={async () => { setAdding(false); await refresh(); }} onClose={() => setAdding(false)} />}
+      {adding && <QuestionForm setId={id} onDone={async () => { setAdding(false); await refresh(); }} onClose={() => setAdding(false)} />}
+      {editingQuestion && (
+        <QuestionForm setId={id} question={editingQuestion} onDone={async () => { setEditingQuestion(null); await refresh(); }} onClose={() => setEditingQuestion(null)} />
+      )}
     </>
   );
 }
@@ -184,8 +193,38 @@ function AudioAttach({ setId, sectionIndex, editable, attached, audioUrl, onDone
       </>}
       {error && <Alert>{error}</Alert>}
       <div className="flex flex-wrap items-center gap-2">
-        <input type="file" accept="audio/mpeg,.mp3" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="text-sm" />
+        <FileInput accept="audio/mpeg,.mp3" file={file} onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
         <Button variant="secondary" onClick={upload} busy={busy} disabled={!file}>Upload MP3</Button>
+      </div>
+    </div>
+  );
+}
+
+/** A stimulus image shared by a whole section — a map labelled A-G that several questions in that
+ *  section all refer to, shown once above them, the same way a passage or audio is section-wide. */
+function SectionImageAttach({ setId, sectionIndex, onDone }: { setId: string; sectionIndex: number; onDone: () => void | Promise<unknown> }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function upload() {
+    if (!file) return;
+    setBusy(true); setError(null);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      await api(`/admin/question-sets/${setId}/images?sectionIndex=${sectionIndex}`, { method: 'POST', form: fd });
+      setFile(null);
+      await onDone();
+    } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="space-y-1">
+      {error && <Alert>{error}</Alert>}
+      <div className="flex flex-wrap items-center gap-2">
+        <FileInput accept="image/jpeg,image/png,image/webp" file={file} onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+        <Button variant="secondary" size="xs" onClick={upload} busy={busy} disabled={!file}>Attach image to this section</Button>
       </div>
     </div>
   );
@@ -215,15 +254,26 @@ function QuestionImageAttach({ questionId, onDone }: { questionId: string; onDon
     <div className="space-y-1">
       {error && <Alert>{error}</Alert>}
       <div className="flex flex-wrap items-center gap-2">
-        <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="text-xs" />
-        <Button variant="ghost" size="xs" onClick={upload} busy={busy} disabled={!file}>Attach image</Button>
+        <FileInput accept="image/jpeg,image/png,image/webp" file={file} onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+        <Button variant="secondary" size="xs" onClick={upload} busy={busy} disabled={!file}>Attach image</Button>
       </div>
     </div>
   );
 }
 
-function AddQuestion({ setId, onDone, onClose }: { setId: string; onDone: () => void; onClose: () => void }) {
-  const [f, setF] = useState({ ieltsType: 'TFNG', prompt: '', marks: '1', answer: 'TRUE', accepted: '', options: 'Option A | true\nOption B | false' });
+/** Same form for adding a new question and editing an existing one — pass `question` to prefill and
+ *  switch the submit to a PATCH (which creates a new version, same as hand-editing in the backend). */
+function QuestionForm({ setId, question, onDone, onClose }: { setId: string; question?: Question; onDone: () => void; onClose: () => void }) {
+  const editing = !!question;
+  const v = question?.versions[0];
+  const [f, setF] = useState(() => ({
+    ieltsType: question?.ieltsType ?? 'TFNG',
+    prompt: v?.prompt.text ?? '',
+    marks: v?.marks ?? '1',
+    answer: v?.answerKey?.value ?? 'TRUE',
+    accepted: (v?.answerKey?.accepted ?? []).join(', '),
+    options: v?.options.length ? v.options.map((o) => `${o.label} | ${o.isCorrect}`).join('\n') : 'Option A | true\nOption B | false',
+  }));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // Which editor to show: the real grader behind each item type, from the shared taxonomy, not re-derived from its name.
@@ -237,13 +287,14 @@ function AddQuestion({ setId, onDone, onClose }: { setId: string; onDone: () => 
     if (grader === 'COMPLETION') body.answerKey = { accepted: f.accepted.split(',').map((s) => s.trim()).filter(Boolean) };
     if (grader === 'OPTIONS') body.options = f.options.split('\n').map((line) => line.split('|')).filter((p) => p.length === 2).map(([label, ok]) => ({ label: label.trim(), isCorrect: ok.trim().toLowerCase() === 'true' }));
     try {
-      await api(`/admin/question-sets/${setId}/questions`, { method: 'POST', body });
+      if (editing) await api(`/admin/question-sets/questions/${question!.id}`, { method: 'PATCH', body });
+      else await api(`/admin/question-sets/${setId}/questions`, { method: 'POST', body });
       await onDone();
     } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
   }
 
   return (
-    <Dialog open onClose={onClose} title="Add question">
+    <Dialog open onClose={onClose} title={editing ? 'Edit question' : 'Add question'}>
       <div className="space-y-3">
         {error && <Alert>{error}</Alert>}
         <Field label="Item type">{(p) => <Select {...p} value={f.ieltsType} onChange={(e) => setF({ ...f, ieltsType: e.target.value })}>{ITEM_TYPES.map((t) => <option key={t} value={t}>{t.replace(/_/g, ' ').toLowerCase()}</option>)}</Select>}</Field>
@@ -255,7 +306,7 @@ function AddQuestion({ setId, onDone, onClose }: { setId: string; onDone: () => 
         {grader === 'OPTIONS' && <Field label="Options (one per line: option text | true or false)">{(p) => <Textarea {...p} rows={4} value={f.options} onChange={(e) => setF({ ...f, options: e.target.value })} />}</Field>}
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={save} busy={busy} disabled={f.prompt.trim().length === 0}>Add question</Button>
+          <Button onClick={save} busy={busy} disabled={f.prompt.trim().length === 0}>{editing ? 'Save changes' : 'Add question'}</Button>
         </div>
       </div>
     </Dialog>

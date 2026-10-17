@@ -63,13 +63,19 @@ export class QuestionBankService {
   ) {}
 
   // ───────── images ─────────
-  /** A stimulus image attached to a whole set (e.g. a map or chart shared by several questions). */
-  async attachSetImage(setId: string, file: { buffer: Buffer; size: number } | undefined, altText: string | undefined, actor: Actor) {
+  /** A stimulus image attached to a whole set, or to one section of a multi-passage set when
+   *  `sectionIndex` is given (e.g. a map labelled A-G that several of that section's questions all
+   *  refer to) — shown once above that section's questions, the image equivalent of a passage. */
+  async attachSetImage(setId: string, file: { buffer: Buffer; size: number } | undefined, altText: string | undefined, actor: Actor, sectionIndex?: number) {
     const set = await this.prisma.questionSet.findUnique({ where: { id: setId } });
     if (!set) throw notFound('Question set');
     if (!EDITABLE.includes(set.status as QuestionSetStatus)) throw conflict('VERSION_PUBLISHED_IMMUTABLE', 'Clone the set before adding images.');
-    const image = await this.storeImage(file, altText, { questionSetId: setId });
-    await this.audit.record({ ...actor, action: 'ADMIN_ADDED_QUESTION_IMAGE', entityType: 'QuestionSet', entityId: setId, after: { imageId: image.id } });
+    if (sectionIndex !== undefined) {
+      const stimulus = set.stimulus as { sections?: unknown[] } | null;
+      if (!stimulus?.sections?.[sectionIndex]) throw notFound('Section');
+    }
+    const image = await this.storeImage(file, altText, { questionSetId: setId, sectionIndex });
+    await this.audit.record({ ...actor, action: 'ADMIN_ADDED_QUESTION_IMAGE', entityType: 'QuestionSet', entityId: setId, after: { imageId: image.id, sectionIndex } });
     return image;
   }
 
@@ -121,7 +127,7 @@ export class QuestionBankService {
     return { ok: true };
   }
 
-  private async storeImage(file: { buffer: Buffer; size: number } | undefined, altText: string | undefined, target: { questionSetId?: string; questionVersionId?: string }) {
+  private async storeImage(file: { buffer: Buffer; size: number } | undefined, altText: string | undefined, target: { questionSetId?: string; questionVersionId?: string; sectionIndex?: number }) {
     if (!file) throw new AppError('VALIDATION_ERROR', 422, 'Attach an image file.', { file: 'Required.' });
     if (file.size > MAX_IMAGE_BYTES) throw new AppError('FILE_TOO_LARGE', 413, 'The image is larger than 5 MB.');
     const sniffed = sniffFileType(file.buffer);
@@ -161,9 +167,15 @@ export class QuestionBankService {
       },
     });
     if (!set) throw notFound('Question set');
+    const setLevelImages = set.images.filter((img) => img.sectionIndex === null);
+    const sectionImagesByIndex = new Map<number, typeof set.images>();
+    for (const img of set.images) {
+      if (img.sectionIndex === null) continue;
+      sectionImagesByIndex.set(img.sectionIndex, [...(sectionImagesByIndex.get(img.sectionIndex) ?? []), img]);
+    }
     const [stimulus, images, questions] = await Promise.all([
-      this.resolveStimulusAudio(set.stimulus),
-      Promise.all(set.images.map(async (img) => ({ ...img, url: await this.storage.signedUrl(img.fileKey, 3600) }))),
+      this.resolveStimulusAudio(set.stimulus, sectionImagesByIndex),
+      Promise.all(setLevelImages.map(async (img) => ({ ...img, url: await this.storage.signedUrl(img.fileKey, 3600) }))),
       Promise.all(set.questions.map(async (q) => ({
         ...q,
         versions: await Promise.all(q.versions.map(async (v) => ({
@@ -175,14 +187,22 @@ export class QuestionBankService {
   }
 
   /** Swaps every raw `audioKey` in a set's stimulus (top-level, or per-section) for a short-lived
-   *  signed `audioUrl` — the admin UI never needs to handle a raw storage key. */
-  private async resolveStimulusAudio(stimulus: unknown) {
+   *  signed `audioUrl`, and attaches each section's own shared images (resolved to signed URLs) —
+   *  the admin UI never handles a raw storage key. */
+  private async resolveStimulusAudio(stimulus: unknown, sectionImagesByIndex: Map<number, { id: string; fileKey: string; altText: string | null }[]>) {
     const s = stimulus as { audioKey?: string; sections?: { audioKey?: string }[] } | null;
     if (!s) return s;
     const [audioUrl, sections] = await Promise.all([
       s.audioKey ? this.storage.signedUrl(s.audioKey, 3600) : undefined,
       s.sections
-        ? Promise.all(s.sections.map(async (sec) => (sec.audioKey ? { ...sec, audioUrl: await this.storage.signedUrl(sec.audioKey, 3600) } : sec)))
+        ? Promise.all(s.sections.map(async (sec, i) => {
+            const imgs = sectionImagesByIndex.get(i) ?? [];
+            const [withAudio, resolvedImages] = await Promise.all([
+              sec.audioKey ? this.storage.signedUrl(sec.audioKey, 3600) : undefined,
+              Promise.all(imgs.map(async (img) => ({ id: img.id, altText: img.altText, url: await this.storage.signedUrl(img.fileKey, 3600) }))),
+            ]);
+            return { ...sec, ...(withAudio ? { audioUrl: withAudio } : {}), images: resolvedImages };
+          }))
         : undefined,
     ]);
     return { ...s, ...(audioUrl ? { audioUrl } : {}), ...(sections ? { sections } : {}) };

@@ -1178,6 +1178,10 @@ model QuestionImage {
   id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   questionVersionId String?  @map("question_version_id") @db.Uuid
   questionSetId     String?  @map("question_set_id") @db.Uuid
+  // Set together with questionSetId: this image is the shared stimulus for one passage/part within a
+  // multi-section module (e.g. a map labelled A-G that several questions all refer to), shown once
+  // above that section's questions — the image equivalent of a section's passage or audio.
+  sectionIndex      Int?     @map("section_index")
   fileKey           String   @map("file_key")
   fileMime          String   @map("file_mime")
   altText           String?  @map("alt_text")

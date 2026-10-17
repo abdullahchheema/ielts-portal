@@ -11,11 +11,11 @@ interface Question {
   id: string; ieltsType: string | null; questionType: string; bankSectionIndex: number | null;
   versions: { prompt: { text: string }; marks: string; answerKey: { value?: string; accepted?: string[] } | null; options: Option[]; images: QImage[] }[];
 }
-interface StimulusSection { title: string; instructions?: string; passage?: string; audioUrl?: string }
+interface StimulusSection { title: string; instructions?: string; passage?: string; audioUrl?: string; images?: QImage[] }
 interface SetDetail {
   id: string; title: string; skill: string; status: string;
   stimulus: { passage?: string; instructions?: string; audioUrl?: string; sections?: StimulusSection[] } | null;
-  questions: Question[];
+  images: QImage[]; questions: Question[];
 }
 
 const TIME_LIMIT: Record<string, string> = { LISTENING: '30 minutes', READING: '60 minutes', WRITING: '60 minutes', SPEAKING: '11-14 minutes' };
@@ -51,7 +51,7 @@ export default function PreviewPage() {
 
   const sections: (StimulusSection & { questions: Question[] })[] = data.stimulus?.sections?.length
     ? data.stimulus.sections.map((s, i) => ({ ...s, questions: data.questions.filter((q) => q.bankSectionIndex === i) }))
-    : [{ title: data.title, passage: data.stimulus?.passage, audioUrl: data.stimulus?.audioUrl, questions: data.questions }];
+    : [{ title: data.title, passage: data.stimulus?.passage, audioUrl: data.stimulus?.audioUrl, images: data.images, questions: data.questions }];
 
   return (
     <>
@@ -68,6 +68,7 @@ export default function PreviewPage() {
             <h2 id={`s-${i}`} className="mb-2 text-lg font-semibold">{s.title}</h2>
             {s.instructions && <p className="mb-3 text-sm text-fg-muted">{s.instructions}</p>}
             {s.audioUrl && <audio controls className="mb-4 w-full" src={s.audioUrl} />}
+            {s.images?.map((img) => <img key={img.id} src={img.url} alt={img.altText ?? ''} className="mb-4 max-h-96 rounded-md ring-1 ring-border" />)}
             <div className={s.passage ? 'grid gap-6 lg:grid-cols-2' : ''}>
               {s.passage && <Card className="max-h-[70vh] overflow-auto whitespace-pre-wrap text-sm leading-relaxed lg:sticky lg:top-24">{s.passage}</Card>}
               <ol className="space-y-4">
