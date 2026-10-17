@@ -107,6 +107,21 @@ export class AdminQuestionSetsController {
     return this.bank.attachSetAudio(id, file, actor(u, req), sectionIndex !== undefined ? Number(sectionIndex) : undefined);
   }
 
+  /** Direct-to-storage upload for large recordings — a full test's audio easily exceeds the 4.5 MB
+   *  body limit a serverless function enforces, so the browser uploads straight to storage instead. */
+  @RequirePermission('question.manage') @HttpCode(200) @Post(':id/audio/presign')
+  presignSetAudio(@Param('id', uuid) id: string, @Query('sectionIndex') sectionIndex: string | undefined, @CurrentUser() u: AuthUser, @Req() req: Request) {
+    return this.bank.presignSetAudio(id, actor(u, req), sectionIndex !== undefined ? Number(sectionIndex) : undefined);
+  }
+
+  @RequirePermission('question.manage') @HttpCode(200) @Post(':id/audio/complete')
+  completeSetAudio(
+    @Param('id', uuid) id: string, @Body() body: { key: string }, @Query('sectionIndex') sectionIndex: string | undefined,
+    @CurrentUser() u: AuthUser, @Req() req: Request,
+  ) {
+    return this.bank.completeSetAudio(id, body.key, actor(u, req), sectionIndex !== undefined ? Number(sectionIndex) : undefined);
+  }
+
   @RequirePermission('question.manage') @HttpCode(201) @Post('questions/:questionId/images') @imageUpload
   attachQuestionImage(@Param('questionId', uuid) id: string, @UploadedFile() file: ImageFile, @Query('alt') alt: string | undefined, @CurrentUser() u: AuthUser, @Req() req: Request) {
     return this.bank.attachQuestionImage(id, file, alt, actor(u, req));

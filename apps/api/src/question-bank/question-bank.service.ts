@@ -82,29 +82,71 @@ export class QuestionBankService {
   /** Listening audio for a set, stored alongside its stimulus. Must be attached before publishing —
    *  same rule as the assessment-side equivalent — since a published set is otherwise immutable. For
    *  a multi-passage set, `sectionIndex` says which of `stimulus.sections[]` the file belongs to
-   *  (a real Listening paper often has a separate track per section); omitted for a single-passage set. */
+   *  (a real Listening paper often has a separate track per section); omitted for a single-passage set.
+   *  Only used as a fallback when direct upload isn't available (presignSetAudio() below is preferred —
+   *  a full test recording easily exceeds the 4.5 MB request body limit a serverless function enforces). */
   async attachSetAudio(setId: string, file: { buffer: Buffer; size: number } | undefined, actor: Actor, sectionIndex?: number) {
     if (!file) throw new AppError('VALIDATION_ERROR', 422, 'Attach an MP3 file.', { file: 'Required.' });
     if (file.size > MAX_AUDIO_BYTES) throw new AppError('FILE_TOO_LARGE', 413, 'The audio file is larger than 100 MB.');
-    const set = await this.prisma.questionSet.findUnique({ where: { id: setId } });
-    if (!set) throw notFound('Question set');
-    if (!EDITABLE.includes(set.status as QuestionSetStatus)) throw conflict('VERSION_PUBLISHED_IMMUTABLE', 'Clone the set before adding audio.');
+    await this.getEditableSet(setId, sectionIndex);
     const sniffed = sniffFileType(file.buffer);
     if (!sniffed || sniffed.mime !== 'audio/mpeg') throw new AppError('UNSUPPORTED_FILE_TYPE', 415, 'Only MP3 audio is accepted.');
     const audioKey = `question-sets/${setId}/${randomUUID()}.mp3`;
     await this.storage.put(audioKey, file.buffer, 'audio/mpeg');
-    const current = (set.stimulus as { sections?: Record<string, unknown>[] } | null) ?? {};
-    let stimulus: object;
-    if (sectionIndex !== undefined) {
-      if (!current.sections?.[sectionIndex]) throw notFound('Section');
-      const sections = current.sections.map((s, i) => (i === sectionIndex ? { ...s, audioKey } : s));
-      stimulus = { ...current, sections };
-    } else {
-      stimulus = { ...current, audioKey };
-    }
-    await this.prisma.questionSet.update({ where: { id: setId }, data: { stimulus } });
+    await this.mergeSetAudioKey(setId, audioKey, sectionIndex);
     await this.audit.record({ ...actor, action: 'ADMIN_ADDED_QUESTION_SET_AUDIO', entityType: 'QuestionSet', entityId: setId, after: { audioKey, sectionIndex } });
     return { ok: true };
+  }
+
+  /** Direct browser upload to private storage, bypassing the serverless function's body size limit —
+   *  the same pattern speaking recordings already use. Falls back to the multipart route above when
+   *  no S3 bucket is configured (local dev). */
+  async presignSetAudio(setId: string, actor: Actor, sectionIndex?: number) {
+    await this.getEditableSet(setId, sectionIndex);
+    const audioKey = `question-sets/${setId}/${randomUUID()}.mp3`;
+    const put = await this.storage.presignPut(audioKey, 'audio/mpeg');
+    const qs = sectionIndex !== undefined ? `?sectionIndex=${sectionIndex}` : '';
+    if (!put) return { mode: 'multipart' as const, url: `/admin/question-sets/${setId}/audio${qs}` };
+    return { mode: 'direct' as const, url: put.url, headers: put.headers, key: audioKey };
+  }
+
+  /** After a direct upload: verify the object really exists, is within the size limit, and is audio,
+   *  then wire it into the set's stimulus — the same checks `complete()` does for speaking recordings. */
+  async completeSetAudio(setId: string, key: string, actor: Actor, sectionIndex?: number) {
+    const meta = await this.storage.head(key);
+    if (!meta) throw new AppError('UPLOAD_FAILED', 422, 'The audio did not arrive. Please try again.');
+    if (meta.size <= 0 || meta.size > MAX_AUDIO_BYTES) throw new AppError('FILE_TOO_LARGE', 413, 'The audio file is larger than 100 MB.');
+    const sniffed = sniffFileType(await this.storage.readHead(key, 64));
+    if (!sniffed || sniffed.mime !== 'audio/mpeg') {
+      await this.storage.remove(key);
+      throw new AppError('UNSUPPORTED_FILE_TYPE', 415, 'Only MP3 audio is accepted.');
+    }
+    await this.getEditableSet(setId, sectionIndex);
+    await this.mergeSetAudioKey(setId, key, sectionIndex);
+    await this.audit.record({ ...actor, action: 'ADMIN_ADDED_QUESTION_SET_AUDIO', entityType: 'QuestionSet', entityId: setId, after: { audioKey: key, sectionIndex } });
+    return { ok: true };
+  }
+
+  /** The set, after confirming it's still editable and (if given) that sectionIndex names a real
+   *  section — the shared guard every audio-attach path needs. */
+  private async getEditableSet(setId: string, sectionIndex?: number) {
+    const set = await this.prisma.questionSet.findUnique({ where: { id: setId } });
+    if (!set) throw notFound('Question set');
+    if (!EDITABLE.includes(set.status as QuestionSetStatus)) throw conflict('VERSION_PUBLISHED_IMMUTABLE', 'Clone the set before adding audio.');
+    if (sectionIndex !== undefined) {
+      const stimulus = set.stimulus as { sections?: unknown[] } | null;
+      if (!stimulus?.sections?.[sectionIndex]) throw notFound('Section');
+    }
+    return set;
+  }
+
+  private async mergeSetAudioKey(setId: string, audioKey: string, sectionIndex?: number) {
+    const set = await this.prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
+    const current = (set.stimulus as { sections?: Record<string, unknown>[] } | null) ?? {};
+    const stimulus = sectionIndex !== undefined
+      ? { ...current, sections: current.sections!.map((s, i) => (i === sectionIndex ? { ...s, audioKey } : s)) }
+      : { ...current, audioKey };
+    await this.prisma.questionSet.update({ where: { id: setId }, data: { stimulus: stimulus as Prisma.InputJsonValue } });
   }
 
   /** An image attached to one question's current version (e.g. a diagram for diagram labelling). */

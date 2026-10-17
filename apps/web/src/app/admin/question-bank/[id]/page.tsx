@@ -187,10 +187,19 @@ function AudioAttach({ setId, sectionIndex, editable, attached, audioUrl, onDone
     if (!file) return;
     setBusy(true); setError(null);
     try {
-      const fd = new FormData();
-      fd.append('file', file);
       const qs = sectionIndex !== undefined ? `?sectionIndex=${sectionIndex}` : '';
-      await api(`/admin/question-sets/${setId}/audio${qs}`, { method: 'POST', form: fd });
+      const p = await api<{ mode: 'direct' | 'multipart'; url?: string; headers?: Record<string, string>; key?: string }>(
+        `/admin/question-sets/${setId}/audio/presign${qs}`, { method: 'POST' },
+      );
+      if (p.mode === 'multipart') {
+        const fd = new FormData();
+        fd.append('file', file);
+        await api(`/admin/question-sets/${setId}/audio${qs}`, { method: 'POST', form: fd });
+      } else {
+        const put = await fetch(p.url!, { method: 'PUT', headers: p.headers, body: file });
+        if (!put.ok) throw new Error('The upload did not complete. Please try again.');
+        await api(`/admin/question-sets/${setId}/audio/complete${qs}`, { method: 'POST', body: { key: p.key } });
+      }
       setFile(null);
       await onDone();
     } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
