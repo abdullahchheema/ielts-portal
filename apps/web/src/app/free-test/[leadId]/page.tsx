@@ -28,7 +28,15 @@ interface Option { id: string; label: string }
 interface Question { id: string; type: string; prompt: { text: string }; marks: number; options?: Option[] }
 interface Section { id: string; title: string; content: { passage?: string; instructions?: string; audioUrl?: string }; questions: Question[] }
 type Answers = Record<string, unknown>;
-interface SectionPaper { attempt: { id: string; revision: number; remainingSeconds: number | null }; assessment: { title: string; timeLimitMin: number | null }; paper: Section[]; answers: Answers }
+interface SectionPaper {
+  attempt: { id: string; revision: number; remainingSeconds: number | null };
+  // Once the attempt is no longer IN_PROGRESS (e.g. the timer already auto-submitted it server-side,
+  // and this query refetched before the stage had advanced), the API returns a result shape instead —
+  // no paper/assessment/answers. Both optional here so that case renders a loading state, not a crash.
+  assessment?: { title: string; timeLimitMin: number | null };
+  paper?: Section[];
+  answers?: Answers;
+}
 
 const TFNG = [['TRUE', 'True'], ['FALSE', 'False'], ['NOT_GIVEN', 'Not given']];
 const YNNG = [['YES', 'Yes'], ['NO', 'No'], ['NOT_GIVEN', 'Not given']];
@@ -156,9 +164,9 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
   const hydrated = useRef(false);
 
   useEffect(() => {
-    if (data && !hydrated.current) {
+    if (data?.paper && !hydrated.current) {
       hydrated.current = true; revision.current = data.attempt.revision;
-      setAnswers(data.answers); setRemaining(data.attempt.remainingSeconds ?? null);
+      setAnswers(data.answers ?? {}); setRemaining(data.attempt.remainingSeconds ?? null);
     }
   }, [data]);
   useEffect(() => { answersRef.current = answers; }, [answers]);
@@ -202,9 +210,18 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
     window.setTimeout(() => setFocusedId((cur) => (cur === id ? null : cur)), 1500);
   }
 
-  if (isLoading || !data) return <Loading />;
+  // The section was already submitted server-side (e.g. the countdown auto-submitted it just before
+  // this query refetched) — the API then returns a result, not a paper. Resync the stage instead of
+  // rendering a paper that no longer exists.
+  useEffect(() => {
+    if (data && !data.paper) onAdvance();
+  }, [data, onAdvance]);
 
-  const total = data.paper.reduce((n, s) => n + s.questions.length, 0);
+  if (isLoading || !data || !data.paper || !data.assessment) return <Loading />;
+  const paper = data.paper;
+  const assessment = data.assessment;
+
+  const total = paper.reduce((n, s) => n + s.questions.length, 0);
   const answered = Object.keys(answers).filter((k) => answers[k] !== null && answers[k] !== undefined).length;
   const mm = remaining !== null ? `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}` : null;
   const low = remaining !== null && remaining < 300;
@@ -215,7 +232,7 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
       <div className="sticky top-0 z-10 -mx-4 space-y-4 border-b border-border bg-surface/95 px-4 py-4 shadow-sm backdrop-blur sm:-mx-6 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="font-display font-semibold text-fg">{data.assessment.title}</h2>
+            <h2 className="font-display font-semibold text-fg">{assessment.title}</h2>
             <p className="mt-0.5 text-xs text-fg-muted">{answered}/{total} answered</p>
           </div>
           <div className="flex items-center gap-4 text-sm">
@@ -228,7 +245,7 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
         </div>
         <ProgressBar value={total ? (answered / total) * 100 : 0} />
         <div className="no-scrollbar flex gap-5 overflow-x-auto rounded-xl bg-surface-muted/60 px-3 py-2.5">
-          {data.paper.map((s) => (
+          {paper.map((s) => (
             <div key={s.id} className="flex shrink-0 items-center gap-2">
               <span className="text-[11px] font-medium whitespace-nowrap text-fg-subtle">{s.title.replace(/^(Part|Reading Passage)\s*/i, '')}</span>
               <div className="flex gap-1">
@@ -256,12 +273,12 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
         </div>
       </div>
       {error && <Alert>{error}</Alert>}
-      {data.paper.map((s, sIdx) => {
-        const offset = data.paper.slice(0, sIdx).reduce((n, p) => n + p.questions.length, 0);
+      {paper.map((s, sIdx) => {
+        const offset = paper.slice(0, sIdx).reduce((n, p) => n + p.questions.length, 0);
         return (
           <section key={s.id} aria-labelledby={`s-${s.id}`} className="space-y-4">
             <div className="flex items-center gap-2">
-              <span className="rounded-full bg-primary-soft px-2.5 py-0.5 text-xs font-semibold text-primary">Part {sIdx + 1} of {data.paper.length}</span>
+              <span className="rounded-full bg-primary-soft px-2.5 py-0.5 text-xs font-semibold text-primary">Part {sIdx + 1} of {paper.length}</span>
               <h3 id={`s-${s.id}`} className="text-lg font-semibold text-fg">{s.title}</h3>
             </div>
             {s.content.instructions && (
