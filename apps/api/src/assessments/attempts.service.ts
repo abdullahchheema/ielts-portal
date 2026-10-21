@@ -74,10 +74,13 @@ export class AttemptsService implements OnModuleInit {
   private async paper(versionId: string) {
     const { sections, questions } = await this.questions(versionId);
     return Promise.all(sections.map(async (s) => {
-      const c = (s.content ?? {}) as { passage?: string; instructions?: string; audioKey?: string };
+      const c = (s.content ?? {}) as { passage?: string; instructions?: string; audioKey?: string; instructionGroups?: { text: string; count: number }[] };
       return {
         id: s.id, title: s.title,
-        content: { passage: c.passage, instructions: c.instructions, audioUrl: c.audioKey ? await this.storage.signedUrl(c.audioKey, 3600) : undefined },
+        content: {
+          passage: c.passage, instructions: c.instructions, instructionGroups: c.instructionGroups,
+          audioUrl: c.audioKey ? await this.storage.signedUrl(c.audioKey, 3600) : undefined,
+        },
         questions: questions.filter((q) => q.sectionId === s.id).map((q) => ({
           id: q.id, type: q.type, prompt: q.prompt, marks: q.marks,
           options: q.options.length ? q.options.map((o) => ({ id: o.id, label: o.label })) : undefined,

@@ -148,7 +148,10 @@ export class FreeTestService {
     const assessment = await this.assessmentsAdmin.create({ title: set.title, type: 'DIAGNOSTIC', skill, passPercent: 0, showAnswers: true, timeLimitMin }, SYSTEM_ACTOR);
     const full = await this.assessmentsAdmin.get(assessment.id);
     const versionId = full.versions[0].id;
-    const stimulus = (set.stimulus ?? {}) as { passage?: string; audioKey?: string; sections?: { title: string; instructions?: string; passage?: string; audioKey?: string }[] };
+    const stimulus = (set.stimulus ?? {}) as {
+      passage?: string; audioKey?: string;
+      sections?: { title: string; instructions?: string; passage?: string; audioKey?: string; instructionGroups?: { text: string; count: number }[] }[];
+    };
 
     // A multi-passage set (sections[]) gets one AssessmentSection per passage, each copying only its
     // own questions — this is what makes the existing section-by-section renderer (AttemptsService's
@@ -162,17 +165,22 @@ export class FreeTestService {
     // separate file for that part) always takes priority over the whole-module one.
     const parts = stimulus.sections?.length
       ? stimulus.sections.map((s, i) => ({
-          title: s.title, instructions: s.instructions, passage: s.passage,
+          title: s.title, instructions: s.instructions, passage: s.passage, instructionGroups: s.instructionGroups,
           audioKey: s.audioKey ?? (i === 0 ? stimulus.audioKey : undefined),
           bankSectionIndex: i as number | null,
         }))
-      : [{ title: set.title, instructions: undefined, passage: stimulus.passage, audioKey: stimulus.audioKey, bankSectionIndex: null as number | null }];
+      : [{ title: set.title, instructions: undefined, passage: stimulus.passage, instructionGroups: undefined, audioKey: stimulus.audioKey, bankSectionIndex: null as number | null }];
 
     for (const part of parts) {
-      const content = part.passage || part.instructions ? { passage: part.passage, instructions: part.instructions } : undefined;
+      const content = part.passage || part.instructions || part.instructionGroups
+        ? { passage: part.passage, instructions: part.instructions, instructionGroups: part.instructionGroups }
+        : undefined;
       const section = await this.assessmentsAdmin.createSection(versionId, { title: part.title, content }, SYSTEM_ACTOR);
       if (part.audioKey) {
-        await this.prisma.assessmentSection.update({ where: { id: section.id }, data: { content: { passage: part.passage, instructions: part.instructions, audioKey: part.audioKey } } });
+        await this.prisma.assessmentSection.update({
+          where: { id: section.id },
+          data: { content: { passage: part.passage, instructions: part.instructions, instructionGroups: part.instructionGroups, audioKey: part.audioKey } },
+        });
       }
       const questionIds = (await this.prisma.question.findMany({
         where: { questionSetId: setId, bankSectionIndex: part.bankSectionIndex }, orderBy: { sequence: 'asc' }, select: { id: true },

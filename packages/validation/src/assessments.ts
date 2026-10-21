@@ -26,6 +26,11 @@ export const assessmentSectionSchema = z.object({
   content: z.object({
     passage: z.string().max(50_000).optional(),
     instructions: z.string().max(5_000).optional(),
+    /** Several instruction blocks, each covering a sub-range of this section's questions in order —
+     *  how a real IELTS paper prints a Part with more than one instruction ("Questions 1-7: ...
+     *  Questions 8-10: ..."). Set by the free-test wrapper builder from the bank set's own sections;
+     *  not authored directly through this admin schema. */
+    instructionGroups: z.array(z.object({ text: z.string().max(2_000), count: z.number().int().min(1).max(50) })).optional(),
   }).optional(),
 });
 export const updateAssessmentSectionSchema = assessmentSectionSchema.partial().extend({ sequence: z.number().int().min(0).optional() });

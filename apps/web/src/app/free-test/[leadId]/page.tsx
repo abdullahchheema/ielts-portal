@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Badge, Button, Card, Field, Loading, PageHeader, ProgressBar, Select, Textarea } from '@/components/ui';
+import { Alert, Badge, Button, Card, Field, Loading, PageHeader, ProgressBar, Select, Textarea, useConfirm } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
@@ -26,7 +26,11 @@ interface Exam {
 
 interface Option { id: string; label: string }
 interface Question { id: string; type: string; prompt: { text: string }; marks: number; options?: Option[] }
-interface Section { id: string; title: string; content: { passage?: string; instructions?: string; audioUrl?: string }; questions: Question[] }
+interface Section {
+  id: string; title: string;
+  content: { passage?: string; instructions?: string; audioUrl?: string; instructionGroups?: { text: string; count: number }[] };
+  questions: Question[];
+}
 type Answers = Record<string, unknown>;
 interface SectionPaper {
   attempt: { id: string; revision: number; remainingSeconds: number | null };
@@ -150,6 +154,7 @@ export default function FreeTestPage() {
 }
 
 function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: string; stage: 'LISTENING' | 'READING'; onAdvance: () => void; busy: boolean }) {
+  const confirm = useConfirm();
   const { data, isLoading } = useQuery({ queryKey: ['free-test-section', leadId, stage], queryFn: () => api<SectionPaper>(`/free-test/${leadId}/section`) });
   const [answers, setAnswers] = useState<Answers>({});
   const [status, setStatus] = useState<'saved' | 'saving' | 'offline' | 'conflict'>('saved');
@@ -190,19 +195,34 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
   useEffect(() => { const t = setInterval(flush, 10_000); return () => clearInterval(t); }, [flush]);
   useEffect(() => { const t = setTimeout(flush, 1500); return () => clearTimeout(t); }, [answers, flush]);
 
-  const submitAndContinue = useCallback(async () => {
+  const doSubmit = useCallback(async () => {
     setSubmitting(true); setError(null);
     try { await flush(); await api(`/free-test/${leadId}/section/submit`, { method: 'POST' }); onAdvance(); }
     catch (e) { setError(errorMessage(e)); } finally { setSubmitting(false); }
   }, [flush, leadId, onAdvance]);
 
+  // Manual click: confirm first if anything is still unanswered. Auto-submit at zero never asks —
+  // time simply ran out, same as the authenticated attempt page's auto-submit.
+  async function submitAndContinue() {
+    const paperNow = data?.paper;
+    if (paperNow) {
+      const totalNow = paperNow.reduce((n, s) => n + s.questions.length, 0);
+      const answeredNow = Object.keys(answersRef.current).filter((k) => answersRef.current[k] !== null && answersRef.current[k] !== undefined).length;
+      if (answeredNow < totalNow) {
+        const ok = await confirm({ message: `You have answered ${answeredNow} of ${totalNow} questions. Submit anyway?`, confirmLabel: 'Submit' });
+        if (!ok) return;
+      }
+    }
+    await doSubmit();
+  }
+
   // Countdown; auto-submit at zero, mirroring the authenticated attempt page.
   useEffect(() => {
     if (remaining === null || submitting) return;
-    if (remaining <= 0) { submitAndContinue(); return; }
+    if (remaining <= 0) { doSubmit(); return; }
     const t = setTimeout(() => setRemaining((r) => (r === null ? r : r - 1)), 1000);
     return () => clearTimeout(t);
-  }, [remaining, submitting, submitAndContinue]);
+  }, [remaining, submitting, doSubmit]);
 
   function jumpTo(id: string) {
     document.getElementById(`q-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -260,7 +280,7 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
                       aria-label={`Go to question ${num}`}
                       className={cx(
                         'grid size-6 shrink-0 place-items-center rounded-md text-[11px] font-semibold tabular-nums ring-1 ring-inset transition-colors',
-                        isAnswered ? 'bg-primary-soft text-primary ring-primary/30 hover:bg-primary/20' : 'bg-surface text-fg-subtle ring-border-strong hover:bg-surface-muted',
+                        isAnswered ? 'bg-primary text-primary-fg ring-primary hover:bg-primary-hover' : 'bg-surface text-fg-subtle ring-border-strong hover:bg-surface-muted',
                       )}
                     >
                       {num}
@@ -281,7 +301,7 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
               <span className="rounded-full bg-primary-soft px-2.5 py-0.5 text-xs font-semibold text-primary">Part {sIdx + 1} of {paper.length}</span>
               <h3 id={`s-${s.id}`} className="text-lg font-semibold text-fg">{s.title}</h3>
             </div>
-            {s.content.instructions && (
+            {!s.content.instructionGroups && s.content.instructions && (
               <div className="rounded-lg bg-info-soft px-4 py-2.5 text-sm text-sky-800">{s.content.instructions}</div>
             )}
             {s.content.audioUrl && (
@@ -296,19 +316,50 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
                   {s.content.passage}
                 </Card>
               )}
-              <ol className="space-y-4">
-                {s.questions.map((q, i) => (
-                  <li key={q.id} id={`q-${q.id}`} className="scroll-mt-48">
-                    <Card className={cx('transition-shadow duration-300', focusedId === q.id && 'shadow-lg ring-2 ring-primary ring-offset-2 ring-offset-surface')}>
-                      <p className="mb-3 flex items-start gap-2.5 text-sm font-medium text-fg">
-                        <span className="grid size-5.5 shrink-0 place-items-center rounded-full bg-surface-muted text-xs font-semibold text-fg-muted tabular-nums">{offset + i + 1}</span>
-                        <span>{q.prompt.text}</span>
-                      </p>
-                      <QuestionInput q={q} value={answers[q.id]} onChange={(v) => { dirty.current.add(q.id); setAnswers((a) => ({ ...a, [q.id]: v })); }} />
-                    </Card>
-                  </li>
-                ))}
-              </ol>
+              {s.content.instructionGroups ? (
+                <div className="space-y-5">
+                  {(() => {
+                    let consumed = 0;
+                    return s.content.instructionGroups.map((g, gi) => {
+                      const slice = s.questions.slice(consumed, consumed + g.count);
+                      const startIndex = consumed;
+                      consumed += g.count;
+                      return (
+                        <div key={gi} className="space-y-4">
+                          <div className="rounded-lg bg-info-soft px-4 py-2.5 text-sm text-sky-800">{g.text}</div>
+                          <ol className="space-y-4">
+                            {slice.map((q, i) => (
+                              <li key={q.id} id={`q-${q.id}`} className="scroll-mt-48">
+                                <Card className={cx('transition-shadow duration-300', focusedId === q.id && 'shadow-lg ring-2 ring-primary ring-offset-2 ring-offset-surface')}>
+                                  <p className="mb-3 flex items-start gap-2.5 text-sm font-medium text-fg">
+                                    <span className="grid size-5.5 shrink-0 place-items-center rounded-full bg-surface-muted text-xs font-semibold text-fg-muted tabular-nums">{offset + startIndex + i + 1}</span>
+                                    <span>{q.prompt.text}</span>
+                                  </p>
+                                  <QuestionInput q={q} value={answers[q.id]} onChange={(v) => { dirty.current.add(q.id); setAnswers((a) => ({ ...a, [q.id]: v })); }} />
+                                </Card>
+                              </li>
+                            ))}
+                          </ol>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              ) : (
+                <ol className="space-y-4">
+                  {s.questions.map((q, i) => (
+                    <li key={q.id} id={`q-${q.id}`} className="scroll-mt-48">
+                      <Card className={cx('transition-shadow duration-300', focusedId === q.id && 'shadow-lg ring-2 ring-primary ring-offset-2 ring-offset-surface')}>
+                        <p className="mb-3 flex items-start gap-2.5 text-sm font-medium text-fg">
+                          <span className="grid size-5.5 shrink-0 place-items-center rounded-full bg-surface-muted text-xs font-semibold text-fg-muted tabular-nums">{offset + i + 1}</span>
+                          <span>{q.prompt.text}</span>
+                        </p>
+                        <QuestionInput q={q} value={answers[q.id]} onChange={(v) => { dirty.current.add(q.id); setAnswers((a) => ({ ...a, [q.id]: v })); }} />
+                      </Card>
+                    </li>
+                  ))}
+                </ol>
+              )}
             </div>
           </section>
         );

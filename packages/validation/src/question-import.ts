@@ -39,6 +39,15 @@ export const importSectionSchema = z.object({
   passage: z.string().max(40_000).optional(),
   cueCard: z.string().max(4_000).optional(),
   questions: z.array(importQuestionSchema).min(1).max(100),
+  /** A Part often has several instruction blocks, each covering a sub-range of its questions
+   *  ("Questions 1-7: ... Questions 8-10: ..."), the way a real IELTS paper prints them — rather
+   *  than one combined `instructions` string for the whole Part. When given, these replace
+   *  `instructions` in the renderer; each group's `count` must sum to the Part's question count,
+   *  in question order. Optional and backward compatible — omit for a Part with one instruction block. */
+  instructionGroups: z.array(z.object({ text: z.string().trim().min(1).max(2_000), count: z.number().int().min(1).max(50) })).min(1).max(6).optional(),
+}).refine((v) => !v.instructionGroups || v.instructionGroups.reduce((n, g) => n + g.count, 0) === v.questions.length, {
+  message: 'instructionGroups counts must add up to the number of questions in this section.',
+  path: ['instructionGroups'],
 });
 
 export const importSetSchema = z.object({

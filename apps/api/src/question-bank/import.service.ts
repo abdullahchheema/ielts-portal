@@ -70,7 +70,7 @@ export class QuestionImportService {
       // A sectioned set (several passages) stores its sections' own metadata — title, instructions,
       // passage — as stimulus.sections[]; audio is attached afterward, per section, via attachSetAudio.
       const stimulus = set.sections
-        ? { sections: set.sections.map(({ title, instructions, passage, cueCard }) => ({ title, instructions, passage, cueCard })) }
+        ? { sections: set.sections.map(({ title, instructions, passage, cueCard, instructionGroups }) => ({ title, instructions, passage, cueCard, instructionGroups })) }
         : (set.stimulus ?? Prisma.JsonNull);
       setRows.push({
         id: setId, title: set.title, skill: set.skill, module: set.module, topic: set.topic ?? null, difficulty: set.difficulty,
