@@ -155,7 +155,7 @@ export default function FreeTestPage() {
 
 function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: string; stage: 'LISTENING' | 'READING'; onAdvance: () => void; busy: boolean }) {
   const confirm = useConfirm();
-  const { data, isLoading } = useQuery({ queryKey: ['free-test-section', leadId, stage], queryFn: () => api<SectionPaper>(`/free-test/${leadId}/section`) });
+  const { data, isLoading, isError, refetch, isRefetching } = useQuery({ queryKey: ['free-test-section', leadId, stage], queryFn: () => api<SectionPaper>(`/free-test/${leadId}/section`) });
   const [answers, setAnswers] = useState<Answers>({});
   const [status, setStatus] = useState<'saved' | 'saving' | 'offline' | 'conflict'>('saved');
   const [submitting, setSubmitting] = useState(false);
@@ -237,6 +237,16 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
     if (data && !data.paper) onAdvance();
   }, [data, onAdvance]);
 
+  if (isError) {
+    return (
+      <Alert>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span>Could not load this section. The connection may be slow — please try again.</span>
+          <Button variant="secondary" size="sm" onClick={() => refetch()} busy={isRefetching}>Try again</Button>
+        </div>
+      </Alert>
+    );
+  }
   if (isLoading || !data || !data.paper || !data.assessment) return <Loading />;
   const paper = data.paper;
   const assessment = data.assessment;
@@ -369,11 +379,21 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
 }
 
 function WritingStage({ leadId, onAdvance, busy: parentBusy }: { leadId: string; onAdvance: () => void; busy: boolean }) {
-  const { data, refetch } = useQuery({ queryKey: ['free-test-writing', leadId], queryFn: () => api<{ body: string; revision: number; promptText: string; status: string }>(`/free-test/${leadId}/writing`) });
+  const { data, refetch, isError, isRefetching } = useQuery({ queryKey: ['free-test-writing', leadId], queryFn: () => api<{ body: string; revision: number; promptText: string; status: string }>(`/free-test/${leadId}/writing`) });
   const [text, setText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => { if (data && text === null) setText(data.body); }, [data, text]);
+  if (isError) {
+    return (
+      <Alert>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span>Could not load the writing task. The connection may be slow — please try again.</span>
+          <Button variant="secondary" size="sm" onClick={() => refetch()} busy={isRefetching}>Try again</Button>
+        </div>
+      </Alert>
+    );
+  }
   if (!data || text === null) return <Loading />;
   const editable = data.status === 'DRAFT';
 
