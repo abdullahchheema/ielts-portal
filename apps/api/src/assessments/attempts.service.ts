@@ -25,6 +25,7 @@ interface FlatQuestion extends GradableQuestion {
   sectionId: string;
   prompt: unknown;
   options: { id: string; label: string; isCorrect: boolean }[];
+  images: { fileKey: string; altText: string | null }[];
 }
 
 interface Finished {
@@ -57,14 +58,14 @@ export class AttemptsService implements OnModuleInit {
   private async questions(versionId: string): Promise<{ sections: { id: string; title: string; content: unknown }[]; questions: FlatQuestion[] }> {
     const sections = await this.prisma.assessmentSection.findMany({
       where: { assessmentVersionId: versionId }, orderBy: [{ sequence: 'asc' }, { title: 'asc' }],
-      include: { questions: { where: { deletedAt: null }, orderBy: [{ sequence: 'asc' }, { createdAt: 'asc' }], include: { versions: { include: { options: { orderBy: { sequence: 'asc' } } } } } } },
+      include: { questions: { where: { deletedAt: null }, orderBy: [{ sequence: 'asc' }, { createdAt: 'asc' }], include: { versions: { include: { options: { orderBy: { sequence: 'asc' } }, images: { orderBy: { sequence: 'asc' } } } } } } },
     });
     const questions: FlatQuestion[] = sections.flatMap((s) => s.questions.map((q) => {
       const qv = q.versions[0];
       return {
         id: qv.id, sectionId: s.id, type: q.questionType as QuestionType, marks: Number(qv.marks), prompt: qv.prompt,
         answerKey: qv.answerKey as FlatQuestion['answerKey'], options: qv.options.map((o) => ({ id: o.id, label: o.label, isCorrect: o.isCorrect })),
-        partialCredit: qv.partialCredit,
+        partialCredit: qv.partialCredit, images: qv.images.map((img) => ({ fileKey: img.fileKey, altText: img.altText })),
       };
     }));
     return { sections: sections.map((s) => ({ id: s.id, title: s.title, content: s.content })), questions };
@@ -87,10 +88,13 @@ export class AttemptsService implements OnModuleInit {
             ? await Promise.all(c.imageKeys.map(async (img) => ({ url: await this.storage.signedUrl(img.key, 3600), alt: img.alt })))
             : undefined,
         },
-        questions: questions.filter((q) => q.sectionId === s.id).map((q) => ({
+        questions: await Promise.all(questions.filter((q) => q.sectionId === s.id).map(async (q) => ({
           id: q.id, type: q.type, prompt: q.prompt, marks: q.marks,
           options: q.options.length ? q.options.map((o) => ({ id: o.id, label: o.label })) : undefined,
-        })),
+          images: q.images.length
+            ? await Promise.all(q.images.map(async (img) => ({ url: await this.storage.signedUrl(img.fileKey, 3600), alt: img.altText ?? undefined })))
+            : undefined,
+        }))),
       };
     }));
   }
@@ -366,19 +370,22 @@ export class AttemptsService implements OnModuleInit {
     const answerOf = new Map(attempt.answers.map((r) => [r.questionVersionId, r]));
     return {
       ...base,
-      review: sections.map((s) => ({
+      review: await Promise.all(sections.map(async (s) => ({
         id: s.id, title: s.title,
-        questions: questions.filter((q) => q.sectionId === s.id).map((q) => {
+        questions: await Promise.all(questions.filter((q) => q.sectionId === s.id).map(async (q) => {
           const ans = answerOf.get(q.id);
           // ORDERING and mapping-based MATCHING keep options for display but the answer lives in the answer key.
           const usesOptionsForAnswer = q.options.length > 0 && q.type !== 'ORDERING' && !(q.type === 'MATCHING' && q.answerKey?.mappings?.length);
           return {
             id: q.id, type: q.type, prompt: q.prompt, marks: q.marks, options: q.options.map((o) => ({ id: o.id, label: o.label })),
+            images: q.images.length
+              ? await Promise.all(q.images.map(async (img) => ({ url: await this.storage.signedUrl(img.fileKey, 3600), alt: img.altText ?? undefined })))
+              : undefined,
             yourAnswer: ans?.answer ?? null, correct: ans?.isCorrect ?? false,
             correctAnswer: usesOptionsForAnswer ? { optionIds: q.options.filter((o) => o.isCorrect).map((o) => o.id) } : q.answerKey,
           };
-        }),
-      })),
+        })),
+      }))),
     };
   }
 

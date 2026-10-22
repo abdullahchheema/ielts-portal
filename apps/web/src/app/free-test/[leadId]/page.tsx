@@ -3,9 +3,12 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { BookOpen, Headphones, Mic, PenLine, Trophy } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Badge, Button, Card, Field, Loading, PageHeader, ProgressBar, Select, Textarea, useConfirm } from '@/components/ui';
-import { Q, QuestionInput } from '@/components/question-input';
+import { Stepper, type StepDef } from '@/components/ui/stepper';
+import { AudioPlayer } from '@/components/audio-player';
+import { Q, QuestionImages, QuestionInput } from '@/components/question-input';
 import { ContentBlock, RichContent, RichImage } from '@/components/rich-content';
 import { ApiError, api } from '@/lib/api';
 import { cx } from '@/lib/cx';
@@ -14,6 +17,13 @@ import { extensionFor, useRecorder } from '@/lib/use-recorder';
 
 type Stage = 'LISTENING' | 'READING' | 'WRITING' | 'SPEAKING' | 'DONE';
 const ORDER: Stage[] = ['LISTENING', 'READING', 'WRITING', 'SPEAKING', 'DONE'];
+const STAGE_STEPS: Record<Stage, StepDef> = {
+  LISTENING: { key: 'LISTENING', label: 'Listening', icon: Headphones },
+  READING: { key: 'READING', label: 'Reading', icon: BookOpen },
+  WRITING: { key: 'WRITING', label: 'Writing', icon: PenLine },
+  SPEAKING: { key: 'SPEAKING', label: 'Speaking', icon: Mic },
+  DONE: { key: 'DONE', label: 'Results', icon: Trophy },
+};
 
 interface Exam {
   id: string; status: string; stage: Stage; stageRevision: number; includeSpeaking: boolean;
@@ -70,8 +80,9 @@ export default function FreeTestPage() {
   if (isLoading) return <Loading />;
   if (isError || !exam) return <Alert>Could not load this free test. Your link may have expired.</Alert>;
 
-  const currentIndex = ORDER.indexOf(exam.stage);
   const done = exam.status === 'COMPLETED';
+  const steps = ORDER.filter((s) => s !== 'SPEAKING' || exam.includeSpeaking).map((s) => STAGE_STEPS[s]);
+  const activeIndex = Math.max(0, steps.findIndex((s) => s.key === exam.stage));
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-7 sm:px-6 sm:py-9 lg:px-10 lg:py-12">
@@ -82,13 +93,9 @@ export default function FreeTestPage() {
       />
       {error && <Alert>{error}</Alert>}
 
-      <ol className="mb-8 flex flex-wrap gap-2 text-sm">
-        {ORDER.filter((s) => s !== 'SPEAKING' || exam.includeSpeaking).map((s, i) => (
-          <li key={s} className={`rounded-full px-3 py-1 ${i < currentIndex || done ? 'bg-success-soft text-success' : s === exam.stage ? 'bg-primary-soft text-primary' : 'bg-surface-muted text-fg-subtle'}`}>
-            {s === 'DONE' ? 'Results' : s[0] + s.slice(1).toLowerCase()}
-          </li>
-        ))}
-      </ol>
+      <div className="mb-8">
+        <Stepper steps={steps} activeIndex={activeIndex} />
+      </div>
 
       {(exam.stage === 'LISTENING' || exam.stage === 'READING') && <SectionStage leadId={leadId} stage={exam.stage} onAdvance={advance} busy={busy} />}
       {exam.stage === 'WRITING' && <WritingStage leadId={leadId} onAdvance={advance} busy={busy} />}
@@ -126,6 +133,7 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
   const [error, setError] = useState<string | null>(null);
   const [remaining, setRemaining] = useState<number | null>(null);
   const [focusedId, setFocusedId] = useState<string | null>(null);
+  const [activePassage, setActivePassage] = useState(0);
   const revision = useRef(0);
   const dirty = useRef(new Set<string>());
   const answersRef = useRef<Answers>({});
@@ -189,9 +197,18 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
   }, [remaining, submitting, doSubmit]);
 
   function jumpTo(id: string) {
-    document.getElementById(`q-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    setFocusedId(id);
-    window.setTimeout(() => setFocusedId((cur) => (cur === id ? null : cur)), 1500);
+    // Reading shows one passage at a time — switch to whichever passage owns this question before
+    // scrolling, so a chip from another passage doesn't try to scroll to a hidden element.
+    const sIdx = data?.paper?.findIndex((s) => s.questions.some((q) => q.id === id));
+    if (sIdx !== undefined && sIdx >= 0) setActivePassage(sIdx);
+    const scroll = () => {
+      document.getElementById(`q-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setFocusedId(id);
+      window.setTimeout(() => setFocusedId((cur) => (cur === id ? null : cur)), 1500);
+    };
+    // Give the tab switch a tick to render before scrolling to the (possibly now-mounted) element.
+    if (sIdx !== undefined && sIdx >= 0 && sIdx !== activePassage) window.setTimeout(scroll, 50);
+    else scroll();
   }
 
   // The section was already submitted server-side (e.g. the countdown auto-submitted it just before
@@ -219,6 +236,11 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
   const answered = Object.keys(answers).filter((k) => answers[k] !== null && answers[k] !== undefined).length;
   const mm = remaining !== null ? `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}` : null;
   const low = remaining !== null && remaining < 300;
+  // Reading shows one passage at a time via tabs (closer to the real test and easier to navigate on
+  // mobile); Listening keeps every part on one scrolling page so its single audio track stays mounted
+  // and playing without interruption while the student works through later parts.
+  const isTabbedReading = stage === 'READING' && paper.length > 1;
+  const visibleSections = isTabbedReading ? [paper[activePassage]] : paper;
   let runningIndex = 0;
 
   return (
@@ -239,9 +261,11 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
         </div>
         <ProgressBar value={total ? (answered / total) * 100 : 0} />
         <div className="no-scrollbar flex gap-5 overflow-x-auto rounded-xl bg-surface-muted/60 px-3 py-2.5">
-          {paper.map((s) => (
+          {paper.map((s, sIdx) => (
             <div key={s.id} className="flex shrink-0 items-center gap-2">
-              <span className="text-[11px] font-medium whitespace-nowrap text-fg-subtle">{s.title.replace(/^(Part|Reading Passage)\s*/i, '')}</span>
+              <span className={cx('text-[11px] font-medium whitespace-nowrap', isTabbedReading && sIdx === activePassage ? 'text-primary' : 'text-fg-subtle')}>
+                {s.title.replace(/^(Part|Reading Passage)\s*/i, '')}
+              </span>
               <div className="flex gap-1">
                 {s.questions.map((q) => {
                   const num = ++runningIndex;
@@ -267,7 +291,24 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
         </div>
       </div>
       {error && <Alert>{error}</Alert>}
-      {paper.map((s, sIdx) => {
+      {isTabbedReading && (
+        <div className="flex flex-wrap gap-2" role="tablist" aria-label="Reading passages">
+          {paper.map((s, i) => (
+            <button
+              key={s.id} type="button" role="tab" aria-selected={i === activePassage}
+              onClick={() => setActivePassage(i)}
+              className={cx(
+                'rounded-full px-4 py-1.5 text-sm font-medium transition-colors',
+                i === activePassage ? 'bg-primary text-primary-fg' : 'bg-surface-muted text-fg-subtle hover:bg-surface-muted/70 hover:text-fg',
+              )}
+            >
+              Passage {i + 1}
+            </button>
+          ))}
+        </div>
+      )}
+      {visibleSections.map((s) => {
+        const sIdx = paper.indexOf(s);
         const offset = paper.slice(0, sIdx).reduce((n, p) => n + p.questions.length, 0);
         return (
           <section key={s.id} aria-labelledby={`s-${s.id}`} className="space-y-4">
@@ -280,8 +321,7 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
             )}
             {s.content.audioUrl && (
               <Card className="!p-4">
-                <p className="mb-2 text-xs font-medium text-fg-muted">🎧 Listen to the recording — it plays once, just like the real test.</p>
-                <audio controls className="w-full" src={s.content.audioUrl} />
+                <AudioPlayer src={s.content.audioUrl} label="🎧 Listen to the recording — it plays once, just like the real test." />
               </Card>
             )}
             {s.content.contentBlocks ? (
@@ -320,6 +360,7 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
                                       <span className="grid size-5.5 shrink-0 place-items-center rounded-full bg-surface-muted text-xs font-semibold text-fg-muted tabular-nums">{offset + startIndex + i + 1}</span>
                                       <span>{q.prompt.text}</span>
                                     </p>
+                                    <QuestionImages images={q.images} />
                                     <QuestionInput q={q} value={answers[q.id]} onChange={(v) => { dirty.current.add(q.id); setAnswers((a) => ({ ...a, [q.id]: v })); }} />
                                   </Card>
                                 </li>
@@ -339,6 +380,7 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
                             <span className="grid size-5.5 shrink-0 place-items-center rounded-full bg-surface-muted text-xs font-semibold text-fg-muted tabular-nums">{offset + i + 1}</span>
                             <span>{q.prompt.text}</span>
                           </p>
+                          <QuestionImages images={q.images} />
                           <QuestionInput q={q} value={answers[q.id]} onChange={(v) => { dirty.current.add(q.id); setAnswers((a) => ({ ...a, [q.id]: v })); }} />
                         </Card>
                       </li>

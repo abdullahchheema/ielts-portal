@@ -7,7 +7,8 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Badge, Button, Card, Loading, PageHeader } from '@/components/ui';
-import { Q, QuestionInput } from '@/components/question-input';
+import { AudioPlayer } from '@/components/audio-player';
+import { Q, QuestionImages, QuestionInput } from '@/components/question-input';
 import { ContentBlock, RichContent, RichImage } from '@/components/rich-content';
 import { ApiError, api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
@@ -47,6 +48,7 @@ function ResultView({ r, attemptId, lessonHref }: { r: Result; attemptId: string
             {s.questions.map((q, i) => (
               <li key={q.id}><Card className={q.correct ? 'ring-success/40' : 'ring-danger/40'}>
                 <p className="mb-2 text-sm font-medium"><span className="mr-2 text-fg-subtle">{i + 1}.</span>{q.prompt.text} <span className={q.correct ? 'text-success' : 'text-danger'}>{q.correct ? '✓ Correct' : '✗ Incorrect'}</span></p>
+                <QuestionImages images={q.images} />
                 <p className="text-sm text-fg-muted">Your answer: <strong>{describe(q, q.yourAnswer)}</strong></p>
                 {!q.correct && <p className="text-sm text-fg-muted">Correct answer: <strong>{describe(q, q.correctAnswer)}</strong></p>}
                 <ExplainButton attemptId={attemptId} questionVersionId={q.id} />
@@ -188,7 +190,7 @@ export default function AttemptPage() {
           <section key={s.id} aria-labelledby={`s-${s.id}`}>
             <h2 id={`s-${s.id}`} className="mb-2 text-lg font-semibold">{s.title}</h2>
             {s.content.instructions && <p className="mb-3 text-base text-fg-muted">{s.content.instructions}</p>}
-            {s.content.audioUrl && <audio controls className="mb-4 w-full" src={s.content.audioUrl} />}
+            {s.content.audioUrl && <div className="mb-4"><AudioPlayer src={s.content.audioUrl} /></div>}
             {s.content.contentBlocks ? (
               <RichContent
                 blocks={s.content.contentBlocks}
@@ -206,6 +208,7 @@ export default function AttemptPage() {
                   {s.questions.map((q, i) => (
                     <li key={q.id}><Card>
                       <p className="mb-3 text-base font-medium"><span className="mr-2 text-fg-subtle">{i + 1}.</span>{q.prompt.text}</p>
+                      <QuestionImages images={q.images} />
                       <QuestionInput q={q} value={answers[q.id]} onChange={(v) => { dirty.current.add(q.id); setAnswers((a) => ({ ...a, [q.id]: v })); }} />
                     </Card></li>
                   ))}

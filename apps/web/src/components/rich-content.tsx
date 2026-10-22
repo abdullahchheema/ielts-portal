@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import { Card } from '@/components/ui';
 import { cx } from '@/lib/cx';
-import { Q, QuestionInput } from './question-input';
+import { Q, QuestionImages, QuestionInput } from './question-input';
 
 export type ContentBlock =
   | { type: 'heading'; value: string; level?: 2 | 3 | 4 }
@@ -91,6 +91,7 @@ export function RichContent({ blocks, questions, offset, answers, onChange, imag
                     <span className="grid size-5.5 shrink-0 place-items-center rounded-full bg-surface-muted text-xs font-semibold text-fg-muted tabular-nums">{offset + b.from + qi}</span>
                     <span>{q.prompt.text}</span>
                   </p>
+                  <QuestionImages images={q.images} />
                   <QuestionInput q={q} value={answers[q.id]} onChange={(v) => onChange(q.id, v)} />
                 </Card>
               </li>

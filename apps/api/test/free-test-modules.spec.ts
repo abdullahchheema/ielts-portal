@@ -274,4 +274,33 @@ describe('free-test content lives only in the question bank', () => {
     // Answer keys / correctness never reach the student paper, same guarantee as every other question type.
     expect(JSON.stringify(section.questions)).not.toContain('isCorrect');
   });
+
+  it('a question\'s own attached image (e.g. a diagram-labelling figure) survives the free-test wrapper copy and reaches the student paper', async () => {
+    const payload = {
+      sets: [{
+        title: `Free Listening question-image ${uniq()}`, skill: 'LISTENING', module: 'BOTH', difficulty: 3,
+        questions: [{ ieltsType: 'MAP_LABELLING', prompt: { text: `Label the castle ${uniq()}` }, marks: 1, options: [{ label: 'A', isCorrect: true }, { label: 'B', isCorrect: false }] }],
+      }],
+    };
+    const commit = (await post('/admin/question-sets/import/commit', payload).expect(201)).body;
+    const setId = commit.created[0].setId as string;
+    const bankQuestionId = (await prisma.question.findFirstOrThrow({ where: { questionSetId: setId } })).id;
+
+    await as(admin)(http(app).post(`/admin/question-sets/questions/${bankQuestionId}/images`)).attach('file', JPEG, { filename: 'castle.jpg', contentType: 'image/jpeg' }).expect(201);
+    await post(`/admin/question-sets/${setId}/status`, { status: 'APPROVED' }).expect(200);
+    await post(`/admin/question-sets/${setId}/status`, { status: 'PUBLISHED', studentFacing: true }).expect(200);
+
+    let wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
+    let leadId = '';
+    for (let i = 0; i < 5 && !wrapped.wrapperAssessmentId; i++) {
+      leadId = (await http(app).post('/free-test/claim').send({ email: `lead-${uniq()}@test.local`, phone: randomPhone() }).expect(201)).body.leadId;
+      wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
+    }
+    expect(wrapped.wrapperAssessmentId).not.toBeNull();
+
+    const studentSection = (await http(app).get(`/free-test/${leadId}/section`).expect(200)).body;
+    const q = studentSection.paper[0].questions[0];
+    expect(q.images).toHaveLength(1);
+    expect(q.images[0].url).toBeTruthy();
+  });
 });

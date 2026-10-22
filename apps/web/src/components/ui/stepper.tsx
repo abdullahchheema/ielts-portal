@@ -1,28 +1,30 @@
 'use client';
 
-import { Check } from 'lucide-react';
+import { Check, type LucideIcon } from 'lucide-react';
 import { cx } from '@/lib/cx';
 
-export interface StepDef { key: string; label: string }
+export interface StepDef { key: string; label: string; icon?: LucideIcon }
 
-/** Horizontal progress stepper: done steps get a check, the current step is emphasised, future steps are dimmed. */
+/** Horizontal progress stepper: done steps get a check, the current step is emphasised, future steps are dimmed.
+ *  When a step defines `icon`, it's shown in place of the step number for active/upcoming steps. */
 export function Stepper({ steps, activeIndex }: { steps: StepDef[]; activeIndex: number }) {
   return (
     <ol className="flex items-center gap-1.5" aria-label="Progress">
       {steps.map((s, i) => {
         const done = i < activeIndex;
         const active = i === activeIndex;
+        const Icon = s.icon;
         return (
           <li key={s.key} className="flex flex-1 items-center gap-1.5">
             <div className="flex items-center gap-2">
               <span
                 aria-hidden
                 className={cx(
-                  'grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold ring-1 ring-inset transition-colors duration-[var(--dur-fast)] ease-out-soft',
+                  'grid size-8 shrink-0 place-items-center rounded-full text-xs font-semibold ring-1 ring-inset transition-colors duration-[var(--dur-fast)] ease-out-soft',
                   done ? 'bg-primary text-primary-fg ring-primary' : active ? 'bg-primary-soft text-primary ring-primary' : 'bg-surface text-fg-subtle ring-border-strong',
                 )}
               >
-                {done ? <Check className="size-3.5" strokeWidth={2.25} /> : i + 1}
+                {done ? <Check className="size-4" strokeWidth={2.25} /> : Icon ? <Icon className="size-4" strokeWidth={2.25} /> : i + 1}
               </span>
               <span className={cx('hidden text-sm font-medium sm:inline', active ? 'text-fg' : done ? 'text-fg-muted' : 'text-fg-subtle')}>{s.label}</span>
             </div>

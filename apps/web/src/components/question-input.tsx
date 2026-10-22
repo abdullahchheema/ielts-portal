@@ -1,11 +1,26 @@
 'use client';
 
 export interface QOption { id: string; label: string }
-export interface Q { id: string; type: string; prompt: { text: string }; marks: number; options?: QOption[] }
+export interface QImage { url: string; alt?: string }
+export interface Q { id: string; type: string; prompt: { text: string }; marks: number; options?: QOption[]; images?: QImage[] }
 export type QAnswer = { optionIds?: string[]; value?: string; text?: string; blanks?: Record<string, string> };
 
 const TFNG = [['TRUE', 'True'], ['FALSE', 'False'], ['NOT_GIVEN', 'Not given']];
 const YNNG = [['YES', 'Yes'], ['NO', 'No'], ['NOT_GIVEN', 'Not given']];
+
+/** A question's own attached figure (e.g. a map-labelling or diagram-labelling image), shown above
+ *  its input. Shared across every question-card layout so this never silently gets skipped again. */
+export function QuestionImages({ images }: { images?: QImage[] }) {
+  if (!images?.length) return null;
+  return (
+    <div className="mb-3 space-y-2">
+      {images.map((img, i) => (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img key={i} src={img.url} alt={img.alt ?? ''} className="mx-auto max-h-96 w-full rounded-md object-contain ring-1 ring-border" />
+      ))}
+    </div>
+  );
+}
 
 /** Renders the right input for a question's grader type. Shared between the free-test and
  *  authenticated attempt pages, and reused inline (compact variant) by RichContent. */

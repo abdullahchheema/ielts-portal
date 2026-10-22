@@ -441,7 +441,7 @@ export class QuestionBankService {
     if (section.version.publishedAt) throw conflict('VERSION_PUBLISHED_IMMUTABLE', 'This version is published. Create a new version first.');
     const sources = await this.prisma.question.findMany({
       where: { id: { in: questionIds }, deletedAt: null, questionSetId: { not: null } },
-      include: { versions: { orderBy: { version: 'desc' }, take: 1, include: { options: { orderBy: { sequence: 'asc' } } } } },
+      include: { versions: { orderBy: { version: 'desc' }, take: 1, include: { options: { orderBy: { sequence: 'asc' } }, images: { orderBy: { sequence: 'asc' } } } } },
     });
     if (sources.length !== questionIds.length) throw notFound('Question');
     const byId = new Map(sources.map((s) => [s.id, s]));
@@ -451,6 +451,7 @@ export class QuestionBankService {
     const questionRows: Prisma.QuestionCreateManyInput[] = [];
     const versionRows: Prisma.QuestionVersionCreateManyInput[] = [];
     const optionRows: Prisma.QuestionOptionCreateManyInput[] = [];
+    const imageRows: Prisma.QuestionImageCreateManyInput[] = [];
     let added = 0;
     for (const src of ordered) {
       const v = src.versions[0];
@@ -471,6 +472,14 @@ export class QuestionBankService {
       if (storeOptions && v.options.length) {
         optionRows.push(...v.options.map((o, i) => ({ id: randomUUID(), questionVersionId: versionId, label: o.label, isCorrect: o.isCorrect, sequence: i })));
       }
+      // A diagram/photo attached directly to this question (e.g. map labelling) must follow it into
+      // the assessment copy — otherwise the student sees the question with no image at all.
+      if (v.images.length) {
+        imageRows.push(...v.images.map((img) => ({
+          questionVersionId: versionId, fileKey: img.fileKey, fileMime: img.fileMime, altText: img.altText,
+          width: img.width, height: img.height, sequence: img.sequence,
+        })));
+      }
       added++;
     }
 
@@ -478,6 +487,7 @@ export class QuestionBankService {
       if (questionRows.length) await tx.question.createMany({ data: questionRows });
       if (versionRows.length) await tx.questionVersion.createMany({ data: versionRows });
       if (optionRows.length) await tx.questionOption.createMany({ data: optionRows });
+      if (imageRows.length) await tx.questionImage.createMany({ data: imageRows });
       await this.audit.record({ ...actor, action: 'ASSESSMENT_QUESTIONS_FROM_BANK', entityType: 'AssessmentSection', entityId: sectionId, after: { count: added } }, tx);
     });
     return { added };
@@ -491,7 +501,7 @@ export class QuestionBankService {
   async buildPaper(tx: Prisma.TransactionClient, assessmentId: string, questionIds: string[], publish: boolean) {
     const sources = await tx.question.findMany({
       where: { id: { in: questionIds } },
-      include: { questionSet: true, versions: { orderBy: { version: 'desc' }, take: 1, include: { options: { orderBy: { sequence: 'asc' } } } } },
+      include: { questionSet: true, versions: { orderBy: { version: 'desc' }, take: 1, include: { options: { orderBy: { sequence: 'asc' } }, images: { orderBy: { sequence: 'asc' } } } } },
     });
     const byId = new Map(sources.map((s) => [s.id, s]));
     const ordered = questionIds.map((id) => byId.get(id)).filter((s): s is NonNullable<typeof s> => !!s && !!s.questionSet && !!s.versions[0]);
@@ -509,10 +519,18 @@ export class QuestionBankService {
         const v = src.versions[0];
         const grader = src.ieltsType ? graderType(src.ieltsType as IeltsItemType) : src.questionType;
         const q = await tx.question.create({ data: { sectionId: section.id, questionType: grader, sequence: seq++, sourceQuestionId: src.id, ieltsType: src.ieltsType } });
-        await writeVersion(tx, q.id, 1, {
+        const qv = await writeVersion(tx, q.id, 1, {
           prompt: v.prompt as Prisma.InputJsonValue, marks: Number(v.marks), answerKey: v.answerKey as Prisma.InputJsonValue | null,
           options: v.options.map((o) => ({ label: o.label, isCorrect: o.isCorrect })), grader, partialCredit: v.partialCredit,
         });
+        // Same copy as copyIntoSection: a question's own image (e.g. a diagram-labelling figure) must
+        // follow it into the built paper, or the student sees the question with no image at all.
+        if (v.images.length) {
+          await tx.questionImage.createMany({ data: v.images.map((img) => ({
+            questionVersionId: qv.id, fileKey: img.fileKey, fileMime: img.fileMime, altText: img.altText,
+            width: img.width, height: img.height, sequence: img.sequence,
+          })) });
+        }
       }
     }
     return { versionId: version.id, questionCount: ordered.length, minutes: ordered.reduce((sum, q) => sum + (q.questionSet?.timeEstimateMin ?? 2), 0) };
