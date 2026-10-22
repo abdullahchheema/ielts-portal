@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Alert, Button, Card, Field, Input } from '@/components/ui';
-import { api } from '@/lib/api';
+import { ApiError, api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 
 export default function FreeTestLandingPage() {
@@ -18,7 +18,13 @@ export default function FreeTestLandingPage() {
     try {
       const res = await api<{ leadId: string }>('/free-test/claim', { method: 'POST', body: { email, phone } });
       router.push(`/free-test/${res.leadId}`);
-    } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
+    } catch (e) {
+      // A slow connection can time out before the response arrives even when the claim itself
+      // succeeded server-side — claiming again with the same email+phone is safe either way: it
+      // resumes the same test instead of starting a second one.
+      const genericFailure = e instanceof ApiError && (e.code === 'INTERNAL_ERROR' || e.status >= 500);
+      setError(genericFailure ? 'That took too long to respond. Please try again — if your test was already set up, trying again will resume it, not start a new one.' : errorMessage(e));
+    } finally { setBusy(false); }
   }
 
   return (
@@ -34,6 +40,7 @@ export default function FreeTestLandingPage() {
           <Field label="Email">{(p) => <Input {...p} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />}</Field>
           <Field label="Phone">{(p) => <Input {...p} type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="03XXXXXXXXX" />}</Field>
           <Button onClick={claim} busy={busy} disabled={!email.trim() || !phone.trim()} className="w-full">Start the free test</Button>
+          {busy && <p aria-live="polite" className="text-xs text-fg-muted">Setting up your test — this can take a few seconds the first time.</p>}
           <p className="text-xs text-fg-muted">One free test per person. We use this only to save your progress and prevent duplicate attempts.</p>
         </div>
       </Card>
