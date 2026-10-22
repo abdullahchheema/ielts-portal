@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import { Prisma } from '@ielts/db';
-import type { AddSpeakingResponseInput, SaveAnswersInput, SaveWritingInput } from '@ielts/validation';
+import type { AddSpeakingResponseInput, ImportContentBlock, SaveAnswersInput, SaveWritingInput } from '@ielts/validation';
 import { AppError, conflict, notFound } from '../common/app-error';
 import { PrismaService } from '../prisma/prisma.service';
 import { AssessmentsAdminService } from '../assessments/assessments-admin.service';
@@ -150,8 +150,17 @@ export class FreeTestService {
     const versionId = full.versions[0].id;
     const stimulus = (set.stimulus ?? {}) as {
       passage?: string; audioKey?: string;
-      sections?: { title: string; instructions?: string; passage?: string; audioKey?: string; instructionGroups?: { text: string; count: number }[] }[];
+      sections?: { title: string; instructions?: string; passage?: string; audioKey?: string; instructionGroups?: { text: string; count: number }[]; contentBlocks?: ImportContentBlock[] }[];
     };
+    // Shared stimulus images (e.g. a labelled map) are attached per bankSectionIndex (null = whole-set,
+    // for a single-passage set) — carry their storage keys into each part's content the same way audio is.
+    const imagesByIndex = new Map<number | null, { fileKey: string; altText: string | null }[]>();
+    for (const img of await this.prisma.questionImage.findMany({
+      where: { questionSetId: setId }, orderBy: { sequence: 'asc' }, select: { sectionIndex: true, fileKey: true, altText: true },
+    })) {
+      const key = img.sectionIndex ?? null;
+      imagesByIndex.set(key, [...(imagesByIndex.get(key) ?? []), { fileKey: img.fileKey, altText: img.altText }]);
+    }
 
     // A multi-passage set (sections[]) gets one AssessmentSection per passage, each copying only its
     // own questions — this is what makes the existing section-by-section renderer (AttemptsService's
@@ -165,21 +174,22 @@ export class FreeTestService {
     // separate file for that part) always takes priority over the whole-module one.
     const parts = stimulus.sections?.length
       ? stimulus.sections.map((s, i) => ({
-          title: s.title, instructions: s.instructions, passage: s.passage, instructionGroups: s.instructionGroups,
+          title: s.title, instructions: s.instructions, passage: s.passage, instructionGroups: s.instructionGroups, contentBlocks: s.contentBlocks,
           audioKey: s.audioKey ?? (i === 0 ? stimulus.audioKey : undefined),
           bankSectionIndex: i as number | null,
         }))
-      : [{ title: set.title, instructions: undefined, passage: stimulus.passage, instructionGroups: undefined, audioKey: stimulus.audioKey, bankSectionIndex: null as number | null }];
+      : [{ title: set.title, instructions: undefined, passage: stimulus.passage, instructionGroups: undefined, contentBlocks: undefined as ImportContentBlock[] | undefined, audioKey: stimulus.audioKey, bankSectionIndex: null as number | null }];
 
     for (const part of parts) {
-      const content = part.passage || part.instructions || part.instructionGroups
-        ? { passage: part.passage, instructions: part.instructions, instructionGroups: part.instructionGroups }
+      const imageKeys = imagesByIndex.get(part.bankSectionIndex)?.map((img) => ({ key: img.fileKey, alt: img.altText ?? undefined }));
+      const content = part.passage || part.instructions || part.instructionGroups || part.contentBlocks
+        ? { passage: part.passage, instructions: part.instructions, instructionGroups: part.instructionGroups, contentBlocks: part.contentBlocks }
         : undefined;
       const section = await this.assessmentsAdmin.createSection(versionId, { title: part.title, content }, SYSTEM_ACTOR);
-      if (part.audioKey) {
+      if (part.audioKey || imageKeys?.length) {
         await this.prisma.assessmentSection.update({
           where: { id: section.id },
-          data: { content: { passage: part.passage, instructions: part.instructions, instructionGroups: part.instructionGroups, audioKey: part.audioKey } },
+          data: { content: { passage: part.passage, instructions: part.instructions, instructionGroups: part.instructionGroups, contentBlocks: part.contentBlocks, audioKey: part.audioKey, imageKeys } as Prisma.InputJsonValue },
         });
       }
       const questionIds = (await this.prisma.question.findMany({

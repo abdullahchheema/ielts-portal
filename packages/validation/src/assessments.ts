@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { contentBlockSchema } from './question-import';
 
 export const ASSESSMENT_TYPES = ['PRACTICE', 'QUIZ', 'LISTENING', 'READING', 'MOCK', 'DIAGNOSTIC', 'FINAL'] as const;
 export const SKILLS = ['LISTENING', 'READING', 'WRITING', 'SPEAKING'] as const;
@@ -31,6 +32,13 @@ export const assessmentSectionSchema = z.object({
      *  Questions 8-10: ..."). Set by the free-test wrapper builder from the bank set's own sections;
      *  not authored directly through this admin schema. */
     instructionGroups: z.array(z.object({ text: z.string().max(2_000), count: z.number().int().min(1).max(50) })).optional(),
+    /** Reproduces the original paper layout (tables, diagrams, note-completion paragraphs) with
+     *  inline inputs — copied from the bank set's own section by the free-test wrapper builder; not
+     *  authored directly through this admin schema. */
+    contentBlocks: z.array(contentBlockSchema).optional(),
+    /** Signed-URL images resolved for this section (from the bank set's per-section QuestionImage
+     *  rows), in the order `contentBlocks[].image.index` refers to. Response-only; never authored here. */
+    images: z.array(z.object({ url: z.string(), alt: z.string().optional() })).optional(),
   }).optional(),
 });
 export const updateAssessmentSectionSchema = assessmentSectionSchema.partial().extend({ sequence: z.number().int().min(0).optional() });

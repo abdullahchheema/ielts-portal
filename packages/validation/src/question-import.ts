@@ -11,6 +11,36 @@ import { ITEM_TYPE_KEYS, IeltsItemType, SKILL_KEYS } from './question-bank';
 
 const importOption = z.object({ label: z.string().trim().min(1).max(500), isCorrect: z.boolean().default(false) });
 
+/**
+ * Describes a section's original paper layout (a form table, a labelled diagram, a note-completion
+ * paragraph, etc.) so the student sees inputs embedded exactly where the printed blank was, instead
+ * of a separate question-card list. `{{N}}` inside a `text`/`table` block's content is a 1-based
+ * reference to that section's `questions[N-1]` and renders as an inline input/select there. Question
+ * types that aren't fill-in-the-blank (MCQ, TFNG, YNNG, ORDERING) are placed with a `questions` block
+ * instead, which renders them as the existing interactive cards.
+ */
+export const contentBlockSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('heading'), value: z.string().trim().min(1).max(500), level: z.union([z.literal(2), z.literal(3), z.literal(4)]).optional() }),
+  z.object({ type: z.literal('text'), value: z.string().max(10_000) }),
+  z.object({ type: z.literal('table'), rows: z.array(z.array(z.string().max(2_000)).min(1).max(20)).min(1).max(50) }),
+  /** `index` into the section's own `images[]` (the set's QuestionImage rows for this sectionIndex, in sequence order). */
+  z.object({ type: z.literal('image'), index: z.number().int().min(0).max(10), alt: z.string().max(300).optional() }),
+  /** 1-based, inclusive — renders questions[from-1..to-1] as standard interactive cards. */
+  z.object({ type: z.literal('questions'), from: z.number().int().min(1), to: z.number().int().min(1) }),
+]);
+export type ImportContentBlock = z.infer<typeof contentBlockSchema>;
+
+const PLACEHOLDER_RE = /\{\{(\d+)\}\}/g;
+function referencedQuestionNumbers(blocks: z.infer<typeof contentBlockSchema>[]): number[] {
+  const nums: number[] = [];
+  for (const b of blocks) {
+    if (b.type === 'text') for (const m of b.value.matchAll(PLACEHOLDER_RE)) nums.push(Number(m[1]));
+    if (b.type === 'table') for (const row of b.rows) for (const cell of row) for (const m of cell.matchAll(PLACEHOLDER_RE)) nums.push(Number(m[1]));
+    if (b.type === 'questions') for (let n = b.from; n <= b.to; n++) nums.push(n);
+  }
+  return nums;
+}
+
 export const importQuestionSchema = z.object({
   ieltsType: z.enum(ITEM_TYPE_KEYS as [IeltsItemType, ...IeltsItemType[]]),
   prompt: z.object({ text: z.string().trim().min(1).max(5_000) }),
@@ -45,9 +75,21 @@ export const importSectionSchema = z.object({
    *  `instructions` in the renderer; each group's `count` must sum to the Part's question count,
    *  in question order. Optional and backward compatible — omit for a Part with one instruction block. */
   instructionGroups: z.array(z.object({ text: z.string().trim().min(1).max(2_000), count: z.number().int().min(1).max(50) })).min(1).max(6).optional(),
+  /** When present, the renderer reproduces the original paper layout (tables, labelled diagrams,
+   *  note-completion paragraphs) with inputs inline via `{{N}}` placeholders, instead of the default
+   *  passage-plus-question-cards layout. Optional and backward compatible. */
+  contentBlocks: z.array(contentBlockSchema).max(50).optional(),
 }).refine((v) => !v.instructionGroups || v.instructionGroups.reduce((n, g) => n + g.count, 0) === v.questions.length, {
   message: 'instructionGroups counts must add up to the number of questions in this section.',
   path: ['instructionGroups'],
+}).refine((v) => {
+  if (!v.contentBlocks) return true;
+  const nums = referencedQuestionNumbers(v.contentBlocks);
+  const expected = Array.from({ length: v.questions.length }, (_, i) => i + 1);
+  return nums.length === expected.length && [...nums].sort((a, b) => a - b).every((n, i) => n === expected[i]);
+}, {
+  message: 'contentBlocks must reference every question in this section exactly once (via {{N}} or a questions block), with no gaps, duplicates, or out-of-range numbers.',
+  path: ['contentBlocks'],
 });
 
 export const importSetSchema = z.object({

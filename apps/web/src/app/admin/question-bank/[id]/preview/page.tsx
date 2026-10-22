@@ -2,7 +2,9 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
+import type { ReactNode } from 'react';
 import { Alert, Card, Loading, PageHeader } from '@/components/ui';
+import { ContentBlock } from '@/components/rich-content';
 import { api } from '@/lib/api';
 
 interface Option { label: string; isCorrect: boolean }
@@ -11,11 +13,71 @@ interface Question {
   id: string; ieltsType: string | null; questionType: string; bankSectionIndex: number | null;
   versions: { prompt: { text: string }; marks: string; answerKey: { value?: string; accepted?: string[] } | null; options: Option[]; images: QImage[] }[];
 }
-interface StimulusSection { title: string; instructions?: string; passage?: string; audioUrl?: string; images?: QImage[] }
+interface StimulusSection { title: string; instructions?: string; passage?: string; audioUrl?: string; images?: QImage[]; contentBlocks?: ContentBlock[] }
 interface SetDetail {
   id: string; title: string; skill: string; status: string;
   stimulus: { passage?: string; instructions?: string; audioUrl?: string; sections?: StimulusSection[] } | null;
   images: QImage[]; questions: Question[];
+}
+
+const PLACEHOLDER_RE = /\{\{(\d+)\}\}/g;
+
+/** Admin-only read-only answer badge for a {{N}} placeholder — shows the correct answer instead of an input. */
+function AnswerBadge({ q, n }: { q: Question | undefined; n: number }) {
+  const v = q?.versions[0];
+  const text = v?.answerKey?.value || (v?.answerKey?.accepted ?? []).join(' / ') || v?.options.find((o) => o.isCorrect)?.label || '—';
+  return (
+    <span className="inline-flex items-center gap-1 align-middle rounded-md bg-success-soft px-2 py-0.5 text-sm font-medium text-success">
+      <span className="text-xs font-semibold tabular-nums">{n}</span>{text}
+    </span>
+  );
+}
+
+function withInlineAnswers(text: string, questions: Question[]): ReactNode[] {
+  const parts: ReactNode[] = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
+  PLACEHOLDER_RE.lastIndex = 0;
+  while ((m = PLACEHOLDER_RE.exec(text))) {
+    if (m.index > last) parts.push(text.slice(last, m.index));
+    const n = Number(m[1]);
+    parts.push(<AnswerBadge key={`${n}-${m.index}`} q={questions[n - 1]} n={n} />);
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return parts;
+}
+
+function ContentBlocksPreview({ blocks, questions }: { blocks: ContentBlock[]; questions: Question[]; images?: QImage[] }) {
+  return (
+    <div className="space-y-5">
+      {blocks.map((b, i) => {
+        if (b.type === 'heading') {
+          const Tag = (`h${b.level ?? 3}`) as 'h2' | 'h3' | 'h4';
+          return <Tag key={i} className="font-semibold text-fg">{b.value}</Tag>;
+        }
+        if (b.type === 'text') return <p key={i} className="text-base leading-relaxed">{withInlineAnswers(b.value, questions)}</p>;
+        if (b.type === 'table') {
+          return (
+            <div key={i} className="overflow-x-auto rounded-lg ring-1 ring-border">
+              <table className="w-full border-collapse text-base">
+                <tbody>
+                  {b.rows.map((row, ri) => (
+                    <tr key={ri} className={ri > 0 ? 'border-t border-border' : undefined}>
+                      {row.map((cell, ci) => <td key={ci} className="px-4 py-2.5 align-top">{withInlineAnswers(cell, questions)}</td>)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        }
+        // 'image' blocks are already rendered as a flat list above the section (same as before contentBlocks existed).
+        if (b.type === 'questions') return <ol key={i} className="space-y-4">{questions.slice(b.from - 1, b.to).map((q, qi) => <li key={q.id}><QuestionPreview q={q} index={b.from - 1 + qi} /></li>)}</ol>;
+        return null;
+      })}
+    </div>
+  );
 }
 
 const TIME_LIMIT: Record<string, string> = { LISTENING: '30 minutes', READING: '60 minutes', WRITING: '60 minutes', SPEAKING: '11-14 minutes' };
@@ -51,7 +113,7 @@ export default function PreviewPage() {
 
   const sections: (StimulusSection & { questions: Question[] })[] = data.stimulus?.sections?.length
     ? data.stimulus.sections.map((s, i) => ({ ...s, questions: data.questions.filter((q) => q.bankSectionIndex === i) }))
-    : [{ title: data.title, passage: data.stimulus?.passage, audioUrl: data.stimulus?.audioUrl, images: data.images, questions: data.questions }];
+    : [{ title: data.title, passage: data.stimulus?.passage, audioUrl: data.stimulus?.audioUrl, images: data.images, contentBlocks: undefined, questions: data.questions }];
 
   return (
     <>
@@ -66,15 +128,19 @@ export default function PreviewPage() {
         {sections.map((s, i) => (
           <section key={i} aria-labelledby={`s-${i}`}>
             <h2 id={`s-${i}`} className="mb-2 text-lg font-semibold">{s.title}</h2>
-            {s.instructions && <p className="mb-3 text-sm text-fg-muted">{s.instructions}</p>}
+            {s.instructions && <p className="mb-3 text-base text-fg-muted">{s.instructions}</p>}
             {s.audioUrl && <audio controls className="mb-4 w-full" src={s.audioUrl} />}
             {s.images?.map((img) => <img key={img.id} src={img.url} alt={img.altText ?? ''} className="mb-4 max-h-96 rounded-md ring-1 ring-border" />)}
-            <div className={s.passage ? 'grid gap-6 lg:grid-cols-2' : ''}>
-              {s.passage && <Card className="max-h-[70vh] overflow-auto whitespace-pre-wrap text-sm leading-relaxed lg:sticky lg:top-24">{s.passage}</Card>}
-              <ol className="space-y-4">
-                {s.questions.map((q, qi) => <li key={q.id}><QuestionPreview q={q} index={qi} /></li>)}
-              </ol>
-            </div>
+            {s.contentBlocks ? (
+              <ContentBlocksPreview blocks={s.contentBlocks} questions={s.questions} images={s.images} />
+            ) : (
+              <div className={s.passage ? 'grid gap-6 lg:grid-cols-2' : ''}>
+                {s.passage && <Card className="max-h-[70vh] overflow-auto whitespace-pre-wrap text-sm leading-relaxed lg:sticky lg:top-24">{s.passage}</Card>}
+                <ol className="space-y-4">
+                  {s.questions.map((q, qi) => <li key={q.id}><QuestionPreview q={q} index={qi} /></li>)}
+                </ol>
+              </div>
+            )}
           </section>
         ))}
       </div>

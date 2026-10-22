@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Badge, Button, Card, Field, Loading, PageHeader, ProgressBar, Select, Textarea, useConfirm } from '@/components/ui';
+import { Q, QuestionInput } from '@/components/question-input';
+import { ContentBlock, RichContent, RichImage } from '@/components/rich-content';
 import { ApiError, api } from '@/lib/api';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
@@ -24,11 +26,13 @@ interface Exam {
   };
 }
 
-interface Option { id: string; label: string }
-interface Question { id: string; type: string; prompt: { text: string }; marks: number; options?: Option[] }
+type Question = Q;
 interface Section {
   id: string; title: string;
-  content: { passage?: string; instructions?: string; audioUrl?: string; instructionGroups?: { text: string; count: number }[] };
+  content: {
+    passage?: string; instructions?: string; audioUrl?: string; instructionGroups?: { text: string; count: number }[];
+    contentBlocks?: ContentBlock[]; images?: RichImage[];
+  };
   questions: Question[];
 }
 type Answers = Record<string, unknown>;
@@ -40,46 +44,6 @@ interface SectionPaper {
   assessment?: { title: string; timeLimitMin: number | null };
   paper?: Section[];
   answers?: Answers;
-}
-
-const TFNG = [['TRUE', 'True'], ['FALSE', 'False'], ['NOT_GIVEN', 'Not given']];
-const YNNG = [['YES', 'Yes'], ['NO', 'No'], ['NOT_GIVEN', 'Not given']];
-
-function QuestionInput({ q, value, onChange, disabled }: { q: Question; value: unknown; onChange: (v: unknown) => void; disabled?: boolean }) {
-  const v = (value ?? {}) as { optionIds?: string[]; value?: string; text?: string };
-  if (q.type === 'TFNG' || q.type === 'YNNG') {
-    return (
-      <div role="radiogroup" aria-label={q.prompt.text} className="flex flex-wrap gap-2">
-        {(q.type === 'TFNG' ? TFNG : YNNG).map(([val, text]) => (
-          <label key={val} className={`cursor-pointer rounded-md px-3 py-1.5 text-sm ring-1 ${v.value === val ? 'bg-primary-soft ring-2 ring-primary' : 'ring-border-strong'}`}>
-            <input type="radio" className="sr-only" name={q.id} disabled={disabled} checked={v.value === val} onChange={() => onChange({ value: val })} />{text}
-          </label>
-        ))}
-      </div>
-    );
-  }
-  if (q.type === 'COMPLETION') {
-    return <input aria-label={q.prompt.text} disabled={disabled} className="w-full max-w-sm rounded-md px-3 py-2 text-sm ring-1 ring-inset ring-border-strong focus:ring-2 focus:ring-primary" value={v.text ?? ''} maxLength={500} autoComplete="off" onChange={(e) => onChange({ text: e.target.value })} />;
-  }
-  if (q.options?.length) {
-    const multi = q.type === 'MCQ_MULTI';
-    const chosen = v.optionIds ?? [];
-    return (
-      <ul className="space-y-1.5">
-        {q.options.map((o) => (
-          <li key={o.id}>
-            <label className={`flex cursor-pointer items-start gap-2 rounded-md p-2 text-sm ring-1 ${chosen.includes(o.id) ? 'bg-primary-soft ring-2 ring-primary' : 'ring-border'}`}>
-              <input type={multi ? 'checkbox' : 'radio'} name={q.id} disabled={disabled} className="mt-0.5" checked={chosen.includes(o.id)}
-                onChange={(e) => onChange({ optionIds: multi ? (e.target.checked ? [...chosen, o.id] : chosen.filter((x) => x !== o.id)) : [o.id] })} />
-              {o.label}
-            </label>
-          </li>
-        ))}
-        {multi && <li className="text-xs text-fg-muted">Choose all that apply.</li>}
-      </ul>
-    );
-  }
-  return <p className="text-xs text-fg-muted">This question type is not supported in the free test preview.</p>;
 }
 
 const countWords = (t: string) => (t.match(/[A-Za-z’'-]+/g) ?? []).length;
@@ -312,7 +276,7 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
               <h3 id={`s-${s.id}`} className="text-lg font-semibold text-fg">{s.title}</h3>
             </div>
             {!s.content.instructionGroups && s.content.instructions && (
-              <div className="rounded-lg bg-info-soft px-4 py-2.5 text-sm text-sky-800">{s.content.instructions}</div>
+              <div className="rounded-lg bg-info-soft px-4 py-2.5 text-base text-sky-800">{s.content.instructions}</div>
             )}
             {s.content.audioUrl && (
               <Card className="!p-4">
@@ -320,57 +284,69 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
                 <audio controls className="w-full" src={s.content.audioUrl} />
               </Card>
             )}
-            <div className={s.content.passage ? 'grid gap-6 lg:grid-cols-2' : ''}>
-              {s.content.passage && (
-                <Card className="max-h-[70vh] overflow-auto bg-surface-muted/40 text-sm leading-relaxed whitespace-pre-wrap lg:sticky lg:top-48">
-                  {s.content.passage}
-                </Card>
-              )}
-              {s.content.instructionGroups ? (
-                <div className="space-y-5">
-                  {(() => {
-                    let consumed = 0;
-                    return s.content.instructionGroups.map((g, gi) => {
-                      const slice = s.questions.slice(consumed, consumed + g.count);
-                      const startIndex = consumed;
-                      consumed += g.count;
-                      return (
-                        <div key={gi} className="space-y-4">
-                          <div className="rounded-lg bg-info-soft px-4 py-2.5 text-sm text-sky-800">{g.text}</div>
-                          <ol className="space-y-4">
-                            {slice.map((q, i) => (
-                              <li key={q.id} id={`q-${q.id}`} className="scroll-mt-48">
-                                <Card className={cx('transition-shadow duration-300', focusedId === q.id && 'shadow-lg ring-2 ring-primary ring-offset-2 ring-offset-surface')}>
-                                  <p className="mb-3 flex items-start gap-2.5 text-sm font-medium text-fg">
-                                    <span className="grid size-5.5 shrink-0 place-items-center rounded-full bg-surface-muted text-xs font-semibold text-fg-muted tabular-nums">{offset + startIndex + i + 1}</span>
-                                    <span>{q.prompt.text}</span>
-                                  </p>
-                                  <QuestionInput q={q} value={answers[q.id]} onChange={(v) => { dirty.current.add(q.id); setAnswers((a) => ({ ...a, [q.id]: v })); }} />
-                                </Card>
-                              </li>
-                            ))}
-                          </ol>
-                        </div>
-                      );
-                    });
-                  })()}
-                </div>
-              ) : (
-                <ol className="space-y-4">
-                  {s.questions.map((q, i) => (
-                    <li key={q.id} id={`q-${q.id}`} className="scroll-mt-48">
-                      <Card className={cx('transition-shadow duration-300', focusedId === q.id && 'shadow-lg ring-2 ring-primary ring-offset-2 ring-offset-surface')}>
-                        <p className="mb-3 flex items-start gap-2.5 text-sm font-medium text-fg">
-                          <span className="grid size-5.5 shrink-0 place-items-center rounded-full bg-surface-muted text-xs font-semibold text-fg-muted tabular-nums">{offset + i + 1}</span>
-                          <span>{q.prompt.text}</span>
-                        </p>
-                        <QuestionInput q={q} value={answers[q.id]} onChange={(v) => { dirty.current.add(q.id); setAnswers((a) => ({ ...a, [q.id]: v })); }} />
-                      </Card>
-                    </li>
-                  ))}
-                </ol>
-              )}
-            </div>
+            {s.content.contentBlocks ? (
+              <RichContent
+                blocks={s.content.contentBlocks}
+                questions={s.questions}
+                offset={offset}
+                answers={answers}
+                onChange={(qId, v) => { dirty.current.add(qId); setAnswers((a) => ({ ...a, [qId]: v })); }}
+                images={s.content.images}
+                focusedId={focusedId}
+              />
+            ) : (
+              <div className={s.content.passage ? 'grid gap-6 lg:grid-cols-2' : ''}>
+                {s.content.passage && (
+                  <Card className="max-h-[70vh] overflow-auto bg-surface-muted/40 text-sm leading-relaxed whitespace-pre-wrap lg:sticky lg:top-48">
+                    {s.content.passage}
+                  </Card>
+                )}
+                {s.content.instructionGroups ? (
+                  <div className="space-y-5">
+                    {(() => {
+                      let consumed = 0;
+                      return s.content.instructionGroups.map((g, gi) => {
+                        const slice = s.questions.slice(consumed, consumed + g.count);
+                        const startIndex = consumed;
+                        consumed += g.count;
+                        return (
+                          <div key={gi} className="space-y-4">
+                            <div className="rounded-lg bg-info-soft px-4 py-2.5 text-base text-sky-800">{g.text}</div>
+                            <ol className="space-y-4">
+                              {slice.map((q, i) => (
+                                <li key={q.id} id={`q-${q.id}`} className="scroll-mt-48">
+                                  <Card className={cx('transition-shadow duration-300', focusedId === q.id && 'shadow-lg ring-2 ring-primary ring-offset-2 ring-offset-surface')}>
+                                    <p className="mb-3 flex items-start gap-2.5 text-base font-medium text-fg">
+                                      <span className="grid size-5.5 shrink-0 place-items-center rounded-full bg-surface-muted text-xs font-semibold text-fg-muted tabular-nums">{offset + startIndex + i + 1}</span>
+                                      <span>{q.prompt.text}</span>
+                                    </p>
+                                    <QuestionInput q={q} value={answers[q.id]} onChange={(v) => { dirty.current.add(q.id); setAnswers((a) => ({ ...a, [q.id]: v })); }} />
+                                  </Card>
+                                </li>
+                              ))}
+                            </ol>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                ) : (
+                  <ol className="space-y-4">
+                    {s.questions.map((q, i) => (
+                      <li key={q.id} id={`q-${q.id}`} className="scroll-mt-48">
+                        <Card className={cx('transition-shadow duration-300', focusedId === q.id && 'shadow-lg ring-2 ring-primary ring-offset-2 ring-offset-surface')}>
+                          <p className="mb-3 flex items-start gap-2.5 text-base font-medium text-fg">
+                            <span className="grid size-5.5 shrink-0 place-items-center rounded-full bg-surface-muted text-xs font-semibold text-fg-muted tabular-nums">{offset + i + 1}</span>
+                            <span>{q.prompt.text}</span>
+                          </p>
+                          <QuestionInput q={q} value={answers[q.id]} onChange={(v) => { dirty.current.add(q.id); setAnswers((a) => ({ ...a, [q.id]: v })); }} />
+                        </Card>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </div>
+            )}
           </section>
         );
       })}

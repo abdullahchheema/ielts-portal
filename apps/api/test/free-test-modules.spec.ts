@@ -227,4 +227,51 @@ describe('free-test content lives only in the question bank', () => {
     expect(p1.content.audioKey).toBeTruthy(); // the whole-module file landed on the first part
     expect(p2.content?.audioKey).toBeFalsy(); // not duplicated onto the second part
   });
+
+  it('a section\'s contentBlocks (inline-input paper layout) and its shared image survive import, wrapper build and reach the student paper with a signed image URL', async () => {
+    const payload = {
+      sets: [{
+        title: `Free Listening inline ${uniq()}`, skill: 'LISTENING', module: 'BOTH', difficulty: 3,
+        sections: [{
+          title: 'Part 1',
+          questions: [
+            { ieltsType: 'FORM_COMPLETION', prompt: { text: `Guests ${uniq()}` }, marks: 1, answerKey: { accepted: ['12'] } },
+            { ieltsType: 'MAP_LABELLING', prompt: { text: `Label A ${uniq()}` }, marks: 1, options: [{ label: 'A', isCorrect: true }, { label: 'B', isCorrect: false }] },
+          ],
+          contentBlocks: [
+            { type: 'heading', value: 'Details of Order' },
+            { type: 'table', rows: [['Number of Guests Invited', '{{1}}'], ['Marquee position', '{{2}}']] },
+            { type: 'image', index: 0, alt: 'Castle diagram' },
+          ],
+        }],
+      }],
+    };
+    const commit = (await post('/admin/question-sets/import/commit', payload).expect(201)).body;
+    const setId = commit.created[0].setId as string;
+
+    const stored = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
+    const storedSections = (stored.stimulus as { sections: { contentBlocks?: unknown[] }[] }).sections;
+    expect(storedSections[0].contentBlocks).toHaveLength(3);
+
+    await as(admin)(http(app).post(`/admin/question-sets/${setId}/images?sectionIndex=0`)).attach('file', JPEG, { filename: 'castle.jpg', contentType: 'image/jpeg' }).expect(201);
+    await post(`/admin/question-sets/${setId}/status`, { status: 'APPROVED' }).expect(200);
+    await post(`/admin/question-sets/${setId}/status`, { status: 'PUBLISHED', studentFacing: true }).expect(200);
+
+    let wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
+    let leadId = '';
+    for (let i = 0; i < 5 && !wrapped.wrapperAssessmentId; i++) {
+      leadId = (await http(app).post('/free-test/claim').send({ email: `lead-${uniq()}@test.local`, phone: randomPhone() }).expect(201)).body.leadId;
+      wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
+    }
+    expect(wrapped.wrapperAssessmentId).not.toBeNull();
+
+    const studentSection = (await http(app).get(`/free-test/${leadId}/section`).expect(200)).body;
+    const section = studentSection.paper[0];
+    expect(section.content.contentBlocks).toHaveLength(3);
+    expect(section.content.contentBlocks[1].rows[0][1]).toBe('{{1}}');
+    expect(section.content.images).toHaveLength(1);
+    expect(section.content.images[0].url).toBeTruthy();
+    // Answer keys / correctness never reach the student paper, same guarantee as every other question type.
+    expect(JSON.stringify(section.questions)).not.toContain('isCorrect');
+  });
 });

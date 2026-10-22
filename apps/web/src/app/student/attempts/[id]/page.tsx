@@ -7,13 +7,18 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Badge, Button, Card, Loading, PageHeader } from '@/components/ui';
+import { Q, QuestionInput } from '@/components/question-input';
+import { ContentBlock, RichContent, RichImage } from '@/components/rich-content';
 import { ApiError, api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { band, label } from '@/lib/format';
 
-interface Option { id: string; label: string }
-interface Question { id: string; type: string; prompt: { text: string }; marks: number; options?: Option[] }
-interface Section { id: string; title: string; content: { passage?: string; instructions?: string; audioUrl?: string }; questions: Question[] }
+type Question = Q;
+interface Section {
+  id: string; title: string;
+  content: { passage?: string; instructions?: string; audioUrl?: string; contentBlocks?: ContentBlock[]; images?: RichImage[] };
+  questions: Question[];
+}
 type Answers = Record<string, unknown>;
 interface Paper { attempt: { id: string; revision: number; remainingSeconds: number | null; attemptNumber: number }; assessment: { title: string; type: string; timeLimitMin: number | null }; paper: Section[]; answers: Answers }
 interface ReviewQ extends Question { yourAnswer: Record<string, unknown> | null; correct: boolean; correctAnswer: { optionIds?: string[]; value?: string; accepted?: string[] } | null }
@@ -23,43 +28,6 @@ interface Result {
   review: { id: string; title: string; questions: ReviewQ[] }[] | null;
 }
 interface AttemptResponse extends Partial<Paper> { result?: Result }
-
-const TFNG = [['TRUE', 'True'], ['FALSE', 'False'], ['NOT_GIVEN', 'Not given']];
-const YNNG = [['YES', 'Yes'], ['NO', 'No'], ['NOT_GIVEN', 'Not given']];
-
-function QuestionInput({ q, value, onChange, disabled }: { q: Question; value: unknown; onChange: (v: unknown) => void; disabled?: boolean }) {
-  const v = (value ?? {}) as { optionIds?: string[]; value?: string; text?: string };
-  if (q.type === 'TFNG' || q.type === 'YNNG') {
-    return (
-      <div role="radiogroup" aria-label={q.prompt.text} className="flex flex-wrap gap-2">
-        {(q.type === 'TFNG' ? TFNG : YNNG).map(([val, text]) => (
-          <label key={val} className={`cursor-pointer rounded-md px-3 py-1.5 text-sm ring-1 ${v.value === val ? 'bg-primary-soft ring-2 ring-primary' : 'ring-border-strong'}`}>
-            <input type="radio" className="sr-only" name={q.id} disabled={disabled} checked={v.value === val} onChange={() => onChange({ value: val })} />{text}
-          </label>
-        ))}
-      </div>
-    );
-  }
-  if (q.type === 'COMPLETION') {
-    return <input aria-label={q.prompt.text} disabled={disabled} className="w-full max-w-sm rounded-md px-3 py-2 text-sm ring-1 ring-inset ring-border-strong focus:ring-2 focus:ring-primary" value={v.text ?? ''} maxLength={500} autoComplete="off" onChange={(e) => onChange({ text: e.target.value })} />;
-  }
-  const multi = q.type === 'MCQ_MULTI';
-  const chosen = v.optionIds ?? [];
-  return (
-    <ul className="space-y-1.5">
-      {q.options?.map((o) => (
-        <li key={o.id}>
-          <label className={`flex cursor-pointer items-start gap-2 rounded-md p-2 text-sm ring-1 ${chosen.includes(o.id) ? 'bg-primary-soft ring-2 ring-primary' : 'ring-border'}`}>
-            <input type={multi ? 'checkbox' : 'radio'} name={q.id} disabled={disabled} className="mt-0.5" checked={chosen.includes(o.id)}
-              onChange={(e) => onChange({ optionIds: multi ? (e.target.checked ? [...chosen, o.id] : chosen.filter((x) => x !== o.id)) : [o.id] })} />
-            {o.label}
-          </label>
-        </li>
-      ))}
-      {multi && <li className="text-xs text-fg-muted">Choose all that apply.</li>}
-    </ul>
-  );
-}
 
 function ResultView({ r, attemptId, lessonHref }: { r: Result; attemptId: string; lessonHref: string }) {
   const { score } = r;
@@ -219,19 +187,31 @@ export default function AttemptPage() {
         {data.paper!.map((s) => (
           <section key={s.id} aria-labelledby={`s-${s.id}`}>
             <h2 id={`s-${s.id}`} className="mb-2 text-lg font-semibold">{s.title}</h2>
-            {s.content.instructions && <p className="mb-3 text-sm text-fg-muted">{s.content.instructions}</p>}
+            {s.content.instructions && <p className="mb-3 text-base text-fg-muted">{s.content.instructions}</p>}
             {s.content.audioUrl && <audio controls className="mb-4 w-full" src={s.content.audioUrl} />}
-            <div className={s.content.passage ? 'grid gap-6 lg:grid-cols-2' : ''}>
-              {s.content.passage && <Card className="max-h-[70vh] overflow-auto whitespace-pre-wrap text-sm leading-relaxed lg:sticky lg:top-24">{s.content.passage}</Card>}
-              <ol className="space-y-4">
-                {s.questions.map((q, i) => (
-                  <li key={q.id}><Card>
-                    <p className="mb-3 text-sm font-medium"><span className="mr-2 text-fg-subtle">{i + 1}.</span>{q.prompt.text}</p>
-                    <QuestionInput q={q} value={answers[q.id]} onChange={(v) => { dirty.current.add(q.id); setAnswers((a) => ({ ...a, [q.id]: v })); }} />
-                  </Card></li>
-                ))}
-              </ol>
-            </div>
+            {s.content.contentBlocks ? (
+              <RichContent
+                blocks={s.content.contentBlocks}
+                questions={s.questions}
+                offset={0}
+                answers={answers}
+                onChange={(qId, v) => { dirty.current.add(qId); setAnswers((a) => ({ ...a, [qId]: v })); }}
+                images={s.content.images}
+                focusedId={null}
+              />
+            ) : (
+              <div className={s.content.passage ? 'grid gap-6 lg:grid-cols-2' : ''}>
+                {s.content.passage && <Card className="max-h-[70vh] overflow-auto whitespace-pre-wrap text-sm leading-relaxed lg:sticky lg:top-24">{s.content.passage}</Card>}
+                <ol className="space-y-4">
+                  {s.questions.map((q, i) => (
+                    <li key={q.id}><Card>
+                      <p className="mb-3 text-base font-medium"><span className="mr-2 text-fg-subtle">{i + 1}.</span>{q.prompt.text}</p>
+                      <QuestionInput q={q} value={answers[q.id]} onChange={(v) => { dirty.current.add(q.id); setAnswers((a) => ({ ...a, [q.id]: v })); }} />
+                    </Card></li>
+                  ))}
+                </ol>
+              </div>
+            )}
           </section>
         ))}
       </div>
