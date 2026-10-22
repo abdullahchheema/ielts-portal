@@ -16,9 +16,11 @@ export interface RichImage { url: string; alt?: string }
 
 const PLACEHOLDER_RE = /\{\{(\d+)\}\}/g;
 
-/** Splits text on {{N}} placeholders, rendering each as an inline input/select for questions[N-1]. */
-function InlineSpans({ text, questions, answers, onChange, focusedId }: {
-  text: string; questions: Q[]; answers: Record<string, unknown>; onChange: (qId: string, v: unknown) => void; focusedId: string | null;
+/** Splits text on {{N}} placeholders, rendering each as an inline input/select for questions[N-1].
+ *  {{N}} is 1-based WITHIN this section; `offset` (the running count of questions in prior sections)
+ *  is added only to the displayed number, so a Part 2 {{1}} correctly shows as "11", not "1". */
+function InlineSpans({ text, questions, offset, answers, onChange, focusedId }: {
+  text: string; questions: Q[]; offset: number; answers: Record<string, unknown>; onChange: (qId: string, v: unknown) => void; focusedId: string | null;
 }) {
   const parts: ReactNode[] = [];
   let last = 0;
@@ -31,7 +33,7 @@ function InlineSpans({ text, questions, answers, onChange, focusedId }: {
     if (q) {
       parts.push(
         <span key={`${q.id}-${m.index}`} id={`q-${q.id}`} className={cx('inline-flex scroll-mt-48 items-center gap-1 align-middle', focusedId === q.id && 'rounded-md ring-2 ring-primary ring-offset-1 ring-offset-surface')}>
-          <span className="text-xs font-semibold tabular-nums text-fg-muted">{n}</span>
+          <span className="text-xs font-semibold tabular-nums text-fg-muted">{offset + n}</span>
           <QuestionInput q={q} value={answers[q.id]} onChange={(v) => onChange(q.id, v)} compact />
         </span>,
       );
@@ -54,7 +56,7 @@ export function RichContent({ blocks, questions, offset, answers, onChange, imag
           return <Tag key={i} className="font-semibold text-fg">{b.value}</Tag>;
         }
         if (b.type === 'text') {
-          return <p key={i} className="text-base leading-relaxed text-fg"><InlineSpans text={b.value} questions={questions} answers={answers} onChange={onChange} focusedId={focusedId} /></p>;
+          return <p key={i} className="text-base leading-relaxed text-fg"><InlineSpans text={b.value} questions={questions} offset={offset} answers={answers} onChange={onChange} focusedId={focusedId} /></p>;
         }
         if (b.type === 'table') {
           return (
@@ -65,7 +67,7 @@ export function RichContent({ blocks, questions, offset, answers, onChange, imag
                     <tr key={ri} className={ri > 0 ? 'border-t border-border' : undefined}>
                       {row.map((cell, ci) => (
                         <td key={ci} className="px-4 py-2.5 align-top">
-                          <InlineSpans text={cell} questions={questions} answers={answers} onChange={onChange} focusedId={focusedId} />
+                          <InlineSpans text={cell} questions={questions} offset={offset} answers={answers} onChange={onChange} focusedId={focusedId} />
                         </td>
                       ))}
                     </tr>
