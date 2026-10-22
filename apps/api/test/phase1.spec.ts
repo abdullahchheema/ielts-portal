@@ -55,9 +55,14 @@ describe('question bank access and publishing', () => {
     await post(admin, `/admin/question-sets/${set.id}/questions`, { ieltsType: 'MCQ_SINGLE', prompt: { text: 'Pick' }, marks: 1, options: [{ label: 'a', isCorrect: true }, { label: 'b', isCorrect: true }] }).expect(422);
   });
 
-  it('a published set cannot be edited in place; cloning makes a draft copy', async () => {
+  it('a published set can be edited in place (no clone-to-edit round trip); archived sets still cannot', async () => {
     const id = await publishedSet(1);
-    await as(admin)(http(app).patch(`/admin/question-sets/${id}`)).send({ title: 'Changed' }).expect(409);
+    const edited = (await as(admin)(http(app).patch(`/admin/question-sets/${id}`)).send({ title: 'Changed' }).expect(200)).body;
+    expect(edited.title).toBe('Changed');
+    expect(edited.status).toBe('PUBLISHED'); // still published — editing doesn't knock it back to draft
+
+    await post(admin, `/admin/question-sets/${id}/status`, { status: 'ARCHIVED' }).expect(200);
+    await as(admin)(http(app).patch(`/admin/question-sets/${id}`)).send({ title: 'Too late' }).expect(409);
     const copy = (await post(admin, `/admin/question-sets/${id}/clone`).expect(200)).body;
     expect(copy.status).toBe('DRAFT');
     expect(copy.studentFacing).toBe(false);

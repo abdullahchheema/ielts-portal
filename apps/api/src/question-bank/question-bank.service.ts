@@ -18,7 +18,12 @@ const MAX_AUDIO_BYTES = 100 * 1024 * 1024;
 
 export type Actor = { userId?: string; ip?: string; userAgent?: string };
 type Tx = Prisma.TransactionClient;
-const EDITABLE: QuestionSetStatus[] = ['DRAFT', 'APPROVED'];
+// PUBLISHED is intentionally editable: an admin fixing a typo or adding an image to a live module
+// shouldn't have to clone, re-approve and re-publish a whole new set just to change one word. What a
+// published set must never do is silently desync from its already-built wrapper Assessment (the
+// actual copy free-test claims serve) — see invalidateWrapperIfPublished() below, called after every
+// mutation here. ARCHIVED stays immutable: that's the deliberate "done being used" signal.
+const EDITABLE: QuestionSetStatus[] = ['DRAFT', 'APPROVED', 'PUBLISHED'];
 
 export const graderType = (t: IeltsItemType) => IELTS_ITEM_TYPES[t].grader;
 /** Graders whose correctness lives entirely in the answer key (no options table rows). */
@@ -62,6 +67,15 @@ export class QuestionBankService {
     private readonly entitlements: EntitlementService,
   ) {}
 
+  /** A content edit to an already-published Listening/Reading set must not silently desync from its
+   *  already-built wrapper Assessment (the live copy free-test claims actually serve) — clearing this
+   *  makes the next pick rebuild fresh from the edited content. Already-started student attempts are
+   *  unaffected: they reference the old wrapper Assessment row directly, which still exists untouched.
+   *  A no-op for a non-PUBLISHED set or one with no wrapper yet (Writing/Speaking never get one). */
+  private async invalidateWrapperIfPublished(db: Tx | PrismaService, setId: string) {
+    await db.questionSet.updateMany({ where: { id: setId, status: 'PUBLISHED', wrapperAssessmentId: { not: null } }, data: { wrapperAssessmentId: null } });
+  }
+
   // ───────── images ─────────
   /** A stimulus image attached to a whole set, or to one section of a multi-passage set when
    *  `sectionIndex` is given (e.g. a map labelled A-G that several of that section's questions all
@@ -75,12 +89,13 @@ export class QuestionBankService {
       if (!stimulus?.sections?.[sectionIndex]) throw notFound('Section');
     }
     const image = await this.storeImage(file, altText, { questionSetId: setId, sectionIndex });
+    await this.invalidateWrapperIfPublished(this.prisma, setId);
     await this.audit.record({ ...actor, action: 'ADMIN_ADDED_QUESTION_IMAGE', entityType: 'QuestionSet', entityId: setId, after: { imageId: image.id, sectionIndex } });
     return image;
   }
 
-  /** Listening audio for a set, stored alongside its stimulus. Must be attached before publishing —
-   *  same rule as the assessment-side equivalent — since a published set is otherwise immutable. For
+  /** Listening audio for a set, stored alongside its stimulus. Can be attached any time, including
+   *  after publishing — adding it later just (safely) invalidates the live wrapper so it rebuilds. For
    *  a multi-passage set, `sectionIndex` says which of `stimulus.sections[]` the file belongs to
    *  (a real Listening paper often has a separate track per section); omitted for a single-passage set.
    *  Only used as a fallback when direct upload isn't available (presignSetAudio() below is preferred —
@@ -147,6 +162,7 @@ export class QuestionBankService {
       ? { ...current, sections: current.sections!.map((s, i) => (i === sectionIndex ? { ...s, audioKey } : s)) }
       : { ...current, audioKey };
     await this.prisma.questionSet.update({ where: { id: setId }, data: { stimulus: stimulus as Prisma.InputJsonValue } });
+    await this.invalidateWrapperIfPublished(this.prisma, setId);
   }
 
   /** An image attached to one question's current version (e.g. a diagram for diagram labelling). */
@@ -157,14 +173,19 @@ export class QuestionBankService {
     const qv = q.versions[0];
     if (!qv) throw notFound('Question version');
     const image = await this.storeImage(file, altText, { questionVersionId: qv.id });
+    await this.invalidateWrapperIfPublished(this.prisma, q.questionSet.id);
     await this.audit.record({ ...actor, action: 'ADMIN_ADDED_QUESTION_IMAGE', entityType: 'Question', entityId: questionId, after: { imageId: image.id } });
     return image;
   }
 
   async removeImage(imageId: string, actor: Actor) {
-    const image = await this.prisma.questionImage.findUnique({ where: { id: imageId } });
+    const image = await this.prisma.questionImage.findUnique({
+      where: { id: imageId }, include: { questionVersion: { select: { question: { select: { questionSetId: true } } } } },
+    });
     if (!image) throw notFound('Image');
+    const setId = image.questionSetId ?? image.questionVersion?.question.questionSetId;
     await this.prisma.questionImage.delete({ where: { id: imageId } });
+    if (setId) await this.invalidateWrapperIfPublished(this.prisma, setId);
     await this.audit.record({ ...actor, action: 'ADMIN_REMOVED_QUESTION_IMAGE', entityType: 'QuestionImage', entityId: imageId });
     return { ok: true };
   }
@@ -285,9 +306,10 @@ export class QuestionBankService {
       const before = await tx.questionSet.findUnique({ where: { id } });
       if (!before) throw notFound('Question set');
       if (!EDITABLE.includes(before.status as QuestionSetStatus)) {
-        throw conflict('VERSION_PUBLISHED_IMMUTABLE', 'Published and archived sets cannot be edited. Clone the set to make a new draft.');
+        throw conflict('VERSION_PUBLISHED_IMMUTABLE', 'Archived sets cannot be edited. Clone the set to make a new draft.');
       }
       const after = await tx.questionSet.update({ where: { id }, data: this.setData(input, actor, true) as Prisma.QuestionSetUncheckedUpdateInput });
+      await this.invalidateWrapperIfPublished(tx, id);
       await this.audit.record({ ...actor, action: 'ADMIN_CHANGED_QUESTION_SET', entityType: 'QuestionSet', entityId: id, before: { title: before.title, difficulty: before.difficulty }, after: { title: after.title, difficulty: after.difficulty } }, tx);
       return after;
     });
@@ -370,6 +392,7 @@ export class QuestionBankService {
       const sequence = await tx.question.count({ where: { questionSetId: setId, deletedAt: null } });
       const q = await tx.question.create({ data: { questionSetId: setId, questionType: grader, ieltsType: input.ieltsType, sequence } });
       await writeVersion(tx, q.id, 1, { prompt: input.prompt, marks: input.marks, answerKey: input.answerKey as Prisma.InputJsonValue | undefined, options: input.options, grader, partialCredit: input.partialCredit });
+      await this.invalidateWrapperIfPublished(tx, setId);
       await this.audit.record({ ...actor, action: 'ADMIN_ADDED_BANK_QUESTION', entityType: 'Question', entityId: q.id, after: { setId, ieltsType: input.ieltsType } }, tx);
       return { id: q.id };
     });
@@ -385,6 +408,7 @@ export class QuestionBankService {
       await tx.question.update({ where: { id }, data: { questionType: grader, ieltsType: input.ieltsType } });
       const next = (q.versions[0]?.version ?? 0) + 1;
       await writeVersion(tx, id, next, { prompt: input.prompt, marks: input.marks, answerKey: input.answerKey as Prisma.InputJsonValue | undefined, options: input.options, grader, partialCredit: input.partialCredit });
+      await this.invalidateWrapperIfPublished(tx, q.questionSet.id);
       await this.audit.record({ ...actor, action: 'ADMIN_CHANGED_BANK_QUESTION', entityType: 'Question', entityId: id, after: { version: next } }, tx);
       return { id, version: next };
     });
@@ -397,6 +421,7 @@ export class QuestionBankService {
       if (!EDITABLE.includes(q.questionSet.status as QuestionSetStatus)) throw conflict('VERSION_PUBLISHED_IMMUTABLE', 'Clone the set before removing questions.');
       // Soft delete: attempts that already used the question still resolve it.
       await tx.question.update({ where: { id }, data: { deletedAt: new Date() } });
+      await this.invalidateWrapperIfPublished(tx, q.questionSet.id);
       await this.audit.record({ ...actor, action: 'ADMIN_REMOVED_BANK_QUESTION', entityType: 'Question', entityId: id }, tx);
       return { ok: true };
     });

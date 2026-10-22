@@ -303,4 +303,38 @@ describe('free-test content lives only in the question bank', () => {
     expect(q.images).toHaveLength(1);
     expect(q.images[0].url).toBeTruthy();
   });
+
+  it('editing a PUBLISHED set is allowed (no more clone-to-edit) and safely invalidates its already-built wrapper so the next pick rebuilds with the edit', async () => {
+    const { setId } = await buildListeningSet();
+
+    let wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
+    for (let i = 0; i < 5 && !wrapped.wrapperAssessmentId; i++) {
+      await http(app).post('/free-test/claim').send({ email: `lead-${uniq()}@test.local`, phone: randomPhone() }).expect(201);
+      wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
+    }
+    const firstWrapperId = wrapped.wrapperAssessmentId;
+    expect(firstWrapperId).not.toBeNull();
+
+    // Editing a published set used to 409 with VERSION_PUBLISHED_IMMUTABLE — now it just works, and
+    // clears the stale wrapper so the edit actually reaches the next student instead of silently not.
+    const added = (await post(`/admin/question-sets/${setId}/questions`, {
+      ieltsType: 'TFNG', prompt: { text: `New question ${uniq()}` }, marks: 1, answerKey: { value: 'FALSE' },
+    }).expect(201)).body;
+    const afterEdit = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
+    expect(afterEdit.wrapperAssessmentId).toBeNull();
+
+    let rewrapped = afterEdit;
+    let leadId = '';
+    for (let i = 0; i < 8 && !rewrapped.wrapperAssessmentId; i++) {
+      leadId = (await http(app).post('/free-test/claim').send({ email: `lead-${uniq()}@test.local`, phone: randomPhone() }).expect(201)).body.leadId;
+      rewrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
+    }
+    expect(rewrapped.wrapperAssessmentId).not.toBeNull();
+    expect(rewrapped.wrapperAssessmentId).not.toBe(firstWrapperId); // a genuinely new wrapper, not the stale one
+
+    const studentSection = (await http(app).get(`/free-test/${leadId}/section`).expect(200)).body;
+    const prompts = studentSection.paper[0].questions.map((q: { prompt: { text: string } }) => q.prompt.text);
+    expect(prompts).toHaveLength(2);
+    expect(prompts).toContain((await get(`/admin/question-sets/${setId}`).expect(200)).body.questions.find((q: { id: string }) => q.id === added.id).versions[0].prompt.text);
+  });
 });

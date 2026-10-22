@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { IELTS_ITEM_TYPES, IeltsItemType, ITEM_TYPE_KEYS } from '@ielts/validation';
 import { Accordion, Alert, Badge, Button, Card, Dialog, Empty, Field, FileInput, Input, Loading, PageHeader, Section, Select, Textarea, useConfirm } from '@/components/ui';
+import { AudioAttach, QuestionImageAttach, SectionImageAttach } from '@/components/question-bank-uploads';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 
@@ -22,8 +23,6 @@ interface SetDetail {
 }
 
 const ITEM_TYPES = ITEM_TYPE_KEYS;
-const NEXT: Record<string, string[]> = { DRAFT: ['APPROVED', 'ARCHIVED'], APPROVED: ['DRAFT', 'PUBLISHED', 'ARCHIVED'], PUBLISHED: ['ARCHIVED'], ARCHIVED: [] };
-const LABEL: Record<string, string> = { APPROVED: 'Approve', DRAFT: 'Return to draft', PUBLISHED: 'Publish', ARCHIVED: 'Archive' };
 
 export default function QuestionSetPage() {
   const { id } = useParams<{ id: string }>();
@@ -37,21 +36,29 @@ export default function QuestionSetPage() {
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: ['question-set', id] }), qc.invalidateQueries({ queryKey: ['question-sets'] })]);
 
-  async function move(status: string) {
+  // Publish is DRAFT/APPROVED -> PUBLISHED in one click — the backend still moves through APPROVED
+  // internally (its transition rules require it), but nobody needs to think about that step separately.
+  async function publish() {
     setError(null);
-    let studentFacing = false;
-    if (status === 'PUBLISHED') {
-      const ok = await confirm({ message: 'Make this set visible to students in practice? You can change this later by archiving it.', confirmLabel: 'Publish for students' });
-      if (!ok) return;
-      studentFacing = true;
-    }
-    setActionBusy(status);
+    const ok = await confirm({ message: 'Publish this set so students see it in practice and free tests?', confirmLabel: 'Publish' });
+    if (!ok) return;
+    setActionBusy('PUBLISHED');
     try {
-      await api(`/admin/question-sets/${id}/status`, { method: 'POST', body: { status, studentFacing } });
+      if (data!.status === 'DRAFT') await api(`/admin/question-sets/${id}/status`, { method: 'POST', body: { status: 'APPROVED', studentFacing: false } });
+      await api(`/admin/question-sets/${id}/status`, { method: 'POST', body: { status: 'PUBLISHED', studentFacing: true } });
       await refresh();
     } catch (e) { setError(errorMessage(e)); } finally { setActionBusy(null); }
   }
-  async function clone() {
+  async function unpublish() {
+    const ok = await confirm({ message: 'Take this set down? Students will stop seeing it in practice and free tests.', confirmLabel: 'Unpublish', tone: 'danger' });
+    if (!ok) return;
+    setActionBusy('ARCHIVED');
+    try {
+      await api(`/admin/question-sets/${id}/status`, { method: 'POST', body: { status: 'ARCHIVED', studentFacing: false } });
+      await refresh();
+    } catch (e) { setError(errorMessage(e)); } finally { setActionBusy(null); }
+  }
+  async function duplicate() {
     setActionBusy('clone');
     try {
       const copy = await api<{ id: string }>(`/admin/question-sets/${id}/clone`, { method: 'POST' });
@@ -73,7 +80,9 @@ export default function QuestionSetPage() {
 
   if (isLoading) return <Loading />;
   if (isError || !data) return <Alert>Could not load this set.</Alert>;
-  const editable = data.status === 'DRAFT' || data.status === 'APPROVED';
+  // Everything short of ARCHIVED is directly editable, including PUBLISHED — a change to a live set
+  // just invalidates its already-built free-test wrapper so the next pick rebuilds from the edit.
+  const editable = data.status !== 'ARCHIVED';
 
   return (
     <>
@@ -85,10 +94,9 @@ export default function QuestionSetPage() {
           <Badge status={data.status} />
           {data.studentFacing && <Badge status="PUBLISHED" tone="green" text="Student-facing" />}
           <Link href={`/admin/question-bank/${id}/preview`}><Button variant="secondary">Preview</Button></Link>
-          {(NEXT[data.status] ?? []).map((s) => (
-            <Button key={s} variant={s === 'PUBLISHED' ? 'primary' : 'secondary'} onClick={() => move(s)} busy={actionBusy === s} disabled={!!actionBusy}>{LABEL[s]}</Button>
-          ))}
-          {!editable && <Button variant="secondary" onClick={clone} busy={actionBusy === 'clone'} disabled={!!actionBusy}>Clone to edit</Button>}
+          {(data.status === 'DRAFT' || data.status === 'APPROVED') && <Button onClick={publish} busy={actionBusy === 'PUBLISHED'} disabled={!!actionBusy}>Publish</Button>}
+          {data.status === 'PUBLISHED' && <Button variant="secondary" onClick={unpublish} busy={actionBusy === 'ARCHIVED'} disabled={!!actionBusy}>Unpublish</Button>}
+          <Button variant="secondary" onClick={duplicate} busy={actionBusy === 'clone'} disabled={!!actionBusy}>Duplicate</Button>
           {(data.status === 'DRAFT' || data.status === 'ARCHIVED') && <Button variant="danger" onClick={remove} busy={actionBusy === 'delete'} disabled={!!actionBusy}>Delete</Button>}
         </div>}
       />
@@ -173,112 +181,6 @@ export default function QuestionSetPage() {
         <QuestionForm setId={id} question={editingQuestion} onDone={async () => { setEditingQuestion(null); await refresh(); }} onClose={() => setEditingQuestion(null)} />
       )}
     </>
-  );
-}
-
-function AudioAttach({ setId, sectionIndex, editable, attached, audioUrl, onDone }: {
-  setId: string; sectionIndex?: number; editable: boolean; attached: boolean; audioUrl?: string; onDone: () => void | Promise<unknown>;
-}) {
-  const [file, setFile] = useState<File | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function upload() {
-    if (!file) return;
-    setBusy(true); setError(null);
-    try {
-      const qs = sectionIndex !== undefined ? `?sectionIndex=${sectionIndex}` : '';
-      const p = await api<{ mode: 'direct' | 'multipart'; url?: string; headers?: Record<string, string>; key?: string }>(
-        `/admin/question-sets/${setId}/audio/presign${qs}`, { method: 'POST' },
-      );
-      if (p.mode === 'multipart') {
-        const fd = new FormData();
-        fd.append('file', file);
-        await api(`/admin/question-sets/${setId}/audio${qs}`, { method: 'POST', form: fd });
-      } else {
-        const put = await fetch(p.url!, { method: 'PUT', headers: p.headers, body: file });
-        if (!put.ok) throw new Error('The upload did not complete. Please try again.');
-        await api(`/admin/question-sets/${setId}/audio/complete${qs}`, { method: 'POST', body: { key: p.key } });
-      }
-      setFile(null);
-      await onDone();
-    } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
-  }
-
-  if (!editable) return attached ? <audio controls src={audioUrl} className="h-10 w-full max-w-md" /> : <p className="text-sm text-fg-muted">No audio attached.</p>;
-  return (
-    <div className="space-y-2">
-      {attached && <>
-        <p className="text-sm text-success">Audio attached — uploading a new file replaces it.</p>
-        {audioUrl && <audio controls src={audioUrl} className="h-10 w-full max-w-md" />}
-      </>}
-      {error && <Alert>{error}</Alert>}
-      <div className="flex flex-wrap items-center gap-2">
-        <FileInput accept="audio/mpeg,.mp3" file={file} onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-        <Button variant="secondary" onClick={upload} busy={busy} disabled={!file}>Upload MP3</Button>
-      </div>
-    </div>
-  );
-}
-
-/** A stimulus image shared by a whole section — a map labelled A-G that several questions in that
- *  section all refer to, shown once above them, the same way a passage or audio is section-wide. */
-function SectionImageAttach({ setId, sectionIndex, onDone }: { setId: string; sectionIndex: number; onDone: () => void | Promise<unknown> }) {
-  const [file, setFile] = useState<File | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function upload() {
-    if (!file) return;
-    setBusy(true); setError(null);
-    try {
-      const fd = new FormData();
-      fd.append('file', file);
-      await api(`/admin/question-sets/${setId}/images?sectionIndex=${sectionIndex}`, { method: 'POST', form: fd });
-      setFile(null);
-      await onDone();
-    } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
-  }
-
-  return (
-    <div className="space-y-1">
-      {error && <Alert>{error}</Alert>}
-      <div className="flex flex-wrap items-center gap-2">
-        <FileInput accept="image/jpeg,image/png,image/webp" file={file} onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-        <Button variant="secondary" size="xs" onClick={upload} busy={busy} disabled={!file}>Attach image to this section</Button>
-      </div>
-    </div>
-  );
-}
-
-/** For a question whose stimulus is itself an image (a chart to describe, a diagram to label) — the
- *  prompt text still carries the instruction/question; this is just the visual the student sees
- *  alongside it. */
-function QuestionImageAttach({ questionId, onDone }: { questionId: string; onDone: () => void | Promise<unknown> }) {
-  const [file, setFile] = useState<File | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function upload() {
-    if (!file) return;
-    setBusy(true); setError(null);
-    try {
-      const fd = new FormData();
-      fd.append('file', file);
-      await api(`/admin/question-sets/questions/${questionId}/images`, { method: 'POST', form: fd });
-      setFile(null);
-      await onDone();
-    } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
-  }
-
-  return (
-    <div className="space-y-1">
-      {error && <Alert>{error}</Alert>}
-      <div className="flex flex-wrap items-center gap-2">
-        <FileInput accept="image/jpeg,image/png,image/webp" file={file} onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-        <Button variant="secondary" size="xs" onClick={upload} busy={busy} disabled={!file}>Attach image</Button>
-      </div>
-    </div>
   );
 }
 
