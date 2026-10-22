@@ -138,6 +138,11 @@ export class FreeTestService {
    *  because Listening/Reading's timed, graded attempt machinery (AttemptsService/AssessmentAttempt)
    *  has no bank-native equivalent. Runs as its own small transactions (not nested in the caller's),
    *  same reasoning as `attempts.start()` needing the ghost student already committed. */
+  /** Builds the wrapper on the first pick of a set — this runs inline in the student's claim request,
+   *  so every round trip here is latency the student is actually waiting on. Kept to the minimum:
+   *  one batched insert for every section (instead of one create() call per part), the two lookup
+   *  queries run together, and the independent per-section question-copy work runs in parallel
+   *  instead of one part after another. */
   private async resolveWrapperAssessment(setId: string, skill: 'LISTENING' | 'READING') {
     const set = await this.prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
     if (set.wrapperAssessmentId) return set.wrapperAssessmentId;
@@ -146,20 +151,31 @@ export class FreeTestService {
     // composition (`/admin/mock-exams/compose`'s durationMin).
     const timeLimitMin = skill === 'LISTENING' ? 30 : 60;
     const assessment = await this.assessmentsAdmin.create({ title: set.title, type: 'DIAGNOSTIC', skill, passPercent: 0, showAnswers: true, timeLimitMin }, SYSTEM_ACTOR);
-    const full = await this.assessmentsAdmin.get(assessment.id);
-    const versionId = full.versions[0].id;
+    const versionId = assessment.versionId;
     const stimulus = (set.stimulus ?? {}) as {
       passage?: string; audioKey?: string;
       sections?: { title: string; instructions?: string; passage?: string; audioKey?: string; instructionGroups?: { text: string; count: number }[]; contentBlocks?: ImportContentBlock[] }[];
     };
+
+    const [images, allQuestions] = await Promise.all([
+      this.prisma.questionImage.findMany({
+        where: { questionSetId: setId }, orderBy: { sequence: 'asc' }, select: { sectionIndex: true, fileKey: true, altText: true },
+      }),
+      this.prisma.question.findMany({
+        where: { questionSetId: setId }, orderBy: { sequence: 'asc' }, select: { id: true, bankSectionIndex: true },
+      }),
+    ]);
     // Shared stimulus images (e.g. a labelled map) are attached per bankSectionIndex (null = whole-set,
     // for a single-passage set) — carry their storage keys into each part's content the same way audio is.
     const imagesByIndex = new Map<number | null, { fileKey: string; altText: string | null }[]>();
-    for (const img of await this.prisma.questionImage.findMany({
-      where: { questionSetId: setId }, orderBy: { sequence: 'asc' }, select: { sectionIndex: true, fileKey: true, altText: true },
-    })) {
+    for (const img of images) {
       const key = img.sectionIndex ?? null;
       imagesByIndex.set(key, [...(imagesByIndex.get(key) ?? []), { fileKey: img.fileKey, altText: img.altText }]);
+    }
+    const questionIdsByIndex = new Map<number | null, string[]>();
+    for (const q of allQuestions) {
+      const key = q.bankSectionIndex ?? null;
+      questionIdsByIndex.set(key, [...(questionIdsByIndex.get(key) ?? []), q.id]);
     }
 
     // A multi-passage set (sections[]) gets one AssessmentSection per passage, each copying only its
@@ -180,23 +196,24 @@ export class FreeTestService {
         }))
       : [{ title: set.title, instructions: undefined, passage: stimulus.passage, instructionGroups: undefined, contentBlocks: undefined as ImportContentBlock[] | undefined, audioKey: stimulus.audioKey, bankSectionIndex: null as number | null }];
 
-    for (const part of parts) {
-      const imageKeys = imagesByIndex.get(part.bankSectionIndex)?.map((img) => ({ key: img.fileKey, alt: img.altText ?? undefined }));
-      const content = part.passage || part.instructions || part.instructionGroups || part.contentBlocks
-        ? { passage: part.passage, instructions: part.instructions, instructionGroups: part.instructionGroups, contentBlocks: part.contentBlocks }
-        : undefined;
-      const section = await this.assessmentsAdmin.createSection(versionId, { title: part.title, content }, SYSTEM_ACTOR);
-      if (part.audioKey || imageKeys?.length) {
-        await this.prisma.assessmentSection.update({
-          where: { id: section.id },
-          data: { content: { passage: part.passage, instructions: part.instructions, instructionGroups: part.instructionGroups, contentBlocks: part.contentBlocks, audioKey: part.audioKey, imageKeys } as Prisma.InputJsonValue },
-        });
-      }
-      const questionIds = (await this.prisma.question.findMany({
-        where: { questionSetId: setId, bankSectionIndex: part.bankSectionIndex }, orderBy: { sequence: 'asc' }, select: { id: true },
-      })).map((q) => q.id);
-      await this.bank.copyIntoSection(section.id, questionIds, SYSTEM_ACTOR);
-    }
+    // One batched insert for every section, content fully baked in up front — no per-section
+    // create-then-update round trip. Sequence is just the part's position: this version is brand new,
+    // so there's no existing-section count to race against (unlike AssessmentsAdminService.createSection).
+    const sectionIds = parts.map(() => randomUUID());
+    await this.prisma.assessmentSection.createMany({
+      data: parts.map((part, i) => {
+        const imageKeys = imagesByIndex.get(part.bankSectionIndex)?.map((img) => ({ key: img.fileKey, alt: img.altText ?? undefined }));
+        const content = part.passage || part.instructions || part.instructionGroups || part.contentBlocks || part.audioKey || imageKeys?.length
+          ? { passage: part.passage, instructions: part.instructions, instructionGroups: part.instructionGroups, contentBlocks: part.contentBlocks, audioKey: part.audioKey, imageKeys }
+          : undefined;
+        return { id: sectionIds[i], assessmentVersionId: versionId, title: part.title, sequence: i, content: content as Prisma.InputJsonValue | undefined };
+      }),
+    });
+
+    // Each part writes to its own section, so these are independent — safe to run concurrently
+    // instead of waiting on one part's question-copy before starting the next.
+    await Promise.all(parts.map((part, i) => this.bank.copyIntoSection(sectionIds[i], questionIdsByIndex.get(part.bankSectionIndex) ?? [], SYSTEM_ACTOR)));
+
     await this.assessmentsAdmin.publishVersion(versionId, SYSTEM_ACTOR);
 
     // Only the first builder's id sticks; a concurrent duplicate build (rare — only possible the very
