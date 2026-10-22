@@ -1,0 +1,466 @@
+{
+  "sets": [
+    {
+      "title": "IELTS March 2025 — Listening Practice Test 1",
+      "skill": "LISTENING",
+      "module": "BOTH",
+      "difficulty": 3,
+      "source": "IELTS Mock Test 2025 — March",
+      "sections": [
+        {
+          "title": "Part 1",
+          "contentBlocks": [
+            { "type": "heading", "value": "Questions 1–7", "level": 3 },
+            { "type": "text", "value": "Complete the form below. Write NO MORE THAN THREE WORDS AND/OR A NUMBER for each answer." },
+            { "type": "heading", "value": "Details of Order", "level": 4 },
+            { "type": "table", "rows": [
+              ["Party Host", "Example: Customer's oldest daughter"],
+              ["Occasion", "18th birthday"],
+              ["Number of Guests Invited", "{{1}}"],
+              ["Customer Budget", "{{2}}   £800"],
+              ["Marquee Size", "{{3}}   x 9 metres"],
+              ["{{4}} Cost", "£450"],
+              ["{{5}}", "£150"],
+              ["Lighting Cost", "approximately £ {{6}}"],
+              ["Number of Guests", "seated 30 / standing 50"],
+              ["Furniture Cost", "per table £4.00 / per chair £3.00"],
+              ["Dates Marquee Required", "Set-up date {{7}} · To be taken down on June 7th"]
+            ] },
+            { "type": "heading", "value": "Questions 8–10", "level": 3 },
+            { "type": "text", "value": "Complete the form below. Write NO MORE THAN TWO WORDS AND/OR A NUMBER for each answer." },
+            { "type": "heading", "value": "Customer Details", "level": 4 },
+            { "type": "table", "rows": [
+              ["Name", "{{8}}"],
+              ["Postcode", "{{9}}"],
+              ["Contact Number", "{{10}}"]
+            ] }
+          ],
+          "questions": [
+            { "ieltsType": "FORM_COMPLETION", "prompt": { "text": "Number of Guests Invited" }, "marks": 1, "answerKey": { "accepted": ["80"] } },
+            { "ieltsType": "FORM_COMPLETION", "prompt": { "text": "Customer Budget (before the £800 figure)" }, "marks": 1, "answerKey": { "accepted": ["maximum limit"] } },
+            { "ieltsType": "FORM_COMPLETION", "prompt": { "text": "Marquee Size (before 'x 9 metres')" }, "marks": 1, "answerKey": { "accepted": ["4.5", "4.5 metres"] } },
+            { "ieltsType": "FORM_COMPLETION", "prompt": { "text": "The £450 cost is for" }, "marks": 1, "answerKey": { "accepted": ["Hire and installation"] } },
+            { "ieltsType": "FORM_COMPLETION", "prompt": { "text": "The £150 cost is for" }, "marks": 1, "answerKey": { "accepted": ["carpeting", "Cost of carpeting"] } },
+            { "ieltsType": "FORM_COMPLETION", "prompt": { "text": "Lighting cost (in pounds)" }, "marks": 1, "answerKey": { "accepted": ["55"] } },
+            { "ieltsType": "FORM_COMPLETION", "prompt": { "text": "Marquee set-up date" }, "marks": 1, "answerKey": { "accepted": ["June 5th", "5th June", "June 5"] } },
+            { "ieltsType": "FORM_COMPLETION", "prompt": { "text": "Customer's name" }, "marks": 1, "answerKey": { "accepted": ["Jenny Lakewell"] } },
+            { "ieltsType": "FORM_COMPLETION", "prompt": { "text": "Customer's postcode" }, "marks": 1, "answerKey": { "accepted": ["CV6TL3"] } },
+            { "ieltsType": "FORM_COMPLETION", "prompt": { "text": "Customer's contact number" }, "marks": 1, "answerKey": { "accepted": ["07944 325883"] } }
+          ]
+        },
+        {
+          "title": "Part 2",
+          "contentBlocks": [
+            { "type": "heading", "value": "Questions 11–15", "level": 3 },
+            { "type": "text", "value": "Label the map below of a typical medieval castle. Write the correct letter, A-G, next to questions 11-15." },
+            { "type": "image", "index": 0, "alt": "Medieval castle map labelled A to G, showing the entrance, towers, and various rooms" },
+            { "type": "table", "rows": [
+              ["{{1}}", "Chapel"],
+              ["{{2}}", "Great Hall"],
+              ["{{3}}", "Great Chambers"],
+              ["{{4}}", "Bakehouse"],
+              ["{{5}}", "Stables"]
+            ] },
+            { "type": "heading", "value": "Questions 16–20", "level": 3 },
+            { "type": "text", "value": "Choose the correct letter, A, B or C." },
+            { "type": "questions", "from": 6, "to": 10 }
+          ],
+          "questions": [
+            { "ieltsType": "MAP_LABELLING", "prompt": { "text": "Chapel" }, "marks": 1, "options": [
+              { "label": "A", "isCorrect": false }, { "label": "B", "isCorrect": false }, { "label": "C", "isCorrect": false }, { "label": "D", "isCorrect": false },
+              { "label": "E", "isCorrect": false }, { "label": "F", "isCorrect": false }, { "label": "G", "isCorrect": true }
+            ] },
+            { "ieltsType": "MAP_LABELLING", "prompt": { "text": "Great Hall" }, "marks": 1, "options": [
+              { "label": "A", "isCorrect": false }, { "label": "B", "isCorrect": false }, { "label": "C", "isCorrect": false }, { "label": "D", "isCorrect": true },
+              { "label": "E", "isCorrect": false }, { "label": "F", "isCorrect": false }, { "label": "G", "isCorrect": false }
+            ] },
+            { "ieltsType": "MAP_LABELLING", "prompt": { "text": "Great Chambers" }, "marks": 1, "options": [
+              { "label": "A", "isCorrect": false }, { "label": "B", "isCorrect": false }, { "label": "C", "isCorrect": true }, { "label": "D", "isCorrect": false },
+              { "label": "E", "isCorrect": false }, { "label": "F", "isCorrect": false }, { "label": "G", "isCorrect": false }
+            ] },
+            { "ieltsType": "MAP_LABELLING", "prompt": { "text": "Bakehouse" }, "marks": 1, "options": [
+              { "label": "A", "isCorrect": true }, { "label": "B", "isCorrect": false }, { "label": "C", "isCorrect": false }, { "label": "D", "isCorrect": false },
+              { "label": "E", "isCorrect": false }, { "label": "F", "isCorrect": false }, { "label": "G", "isCorrect": false }
+            ] },
+            { "ieltsType": "MAP_LABELLING", "prompt": { "text": "Stables" }, "marks": 1, "options": [
+              { "label": "A", "isCorrect": false }, { "label": "B", "isCorrect": false }, { "label": "C", "isCorrect": false }, { "label": "D", "isCorrect": false },
+              { "label": "E", "isCorrect": false }, { "label": "F", "isCorrect": true }, { "label": "G", "isCorrect": false }
+            ] },
+            { "ieltsType": "MCQ_SINGLE", "prompt": { "text": "Medieval castles" }, "marks": 1, "options": [
+              { "label": "shared a common design.", "isCorrect": false },
+              { "label": "were each unique.", "isCorrect": true },
+              { "label": "had the same methods of fortification in common.", "isCorrect": false }
+            ] },
+            { "ieltsType": "MCQ_SINGLE", "prompt": { "text": "The early medieval Keep served as" }, "marks": 1, "options": [
+              { "label": "a prison and fortified tower.", "isCorrect": false },
+              { "label": "a fortified tower and living area.", "isCorrect": true },
+              { "label": "a fortified entrance to the inner castle area.", "isCorrect": false }
+            ] },
+            { "ieltsType": "MCQ_SINGLE", "prompt": { "text": "In later medieval castles, the Keep" }, "marks": 1, "options": [
+              { "label": "evolved into a set of different buildings.", "isCorrect": false },
+              { "label": "was used purely for accommodation.", "isCorrect": false },
+              { "label": "played a less significant role in the castle's domestic life.", "isCorrect": true }
+            ] },
+            { "ieltsType": "MCQ_SINGLE", "prompt": { "text": "Underground dungeons were built in response to" }, "marks": 1, "options": [
+              { "label": "a shift in the medieval belief system.", "isCorrect": true },
+              { "label": "the Keep being no longer used for prisoners.", "isCorrect": false },
+              { "label": "a call for harsher treatment of prisoners.", "isCorrect": false }
+            ] },
+            { "ieltsType": "MCQ_SINGLE", "prompt": { "text": "The least effective line of defence was" }, "marks": 1, "options": [
+              { "label": "the portcullis.", "isCorrect": false },
+              { "label": "the drawbridge.", "isCorrect": false },
+              { "label": "the barbican.", "isCorrect": true }
+            ] }
+          ]
+        },
+        {
+          "title": "Part 3",
+          "contentBlocks": [
+            { "type": "heading", "value": "Questions 21–25", "level": 3 },
+            { "type": "text", "value": "Choose the correct letter, A, B or C." },
+            { "type": "questions", "from": 1, "to": 5 },
+            { "type": "heading", "value": "Questions 26–30", "level": 3 },
+            { "type": "text", "value": "What does Julie say about the following subjects? Write the correct letter, A, B or C, next to questions 26-30." },
+            { "type": "text", "value": "A  Scornful, dismissive    B  Open-minded    C  Believing" },
+            { "type": "table", "rows": [
+              ["{{6}}", "witches / astrology"],
+              ["{{7}}", "ghosts"],
+              ["{{8}}", "UFOs / aliens"],
+              ["{{9}}", "premonitions"],
+              ["{{10}}", "telepathy"]
+            ] }
+          ],
+          "questions": [
+            { "ieltsType": "MCQ_SINGLE", "prompt": { "text": "Julie and Dave thought the lecture" }, "marks": 1, "options": [
+              { "label": "gave a new insight into Shakespeare's style.", "isCorrect": false },
+              { "label": "offered a thought-provoking view on Shakespeare and his work.", "isCorrect": true },
+              { "label": "explained Shakespeare's belief in ghosts.", "isCorrect": false }
+            ] },
+            { "ieltsType": "MCQ_SINGLE", "prompt": { "text": "Hamlet was a play" }, "marks": 1, "options": [
+              { "label": "which reflected popular belief in the supernatural.", "isCorrect": false },
+              { "label": "that recorded historical events.", "isCorrect": false },
+              { "label": "seemingly in conflict with accepted beliefs.", "isCorrect": true }
+            ] },
+            { "ieltsType": "MCQ_SINGLE", "prompt": { "text": "In the time of James I" }, "marks": 1, "options": [
+              { "label": "a belief in ghosts was not tolerated.", "isCorrect": false },
+              { "label": "more people believed in ghosts.", "isCorrect": false },
+              { "label": "certain religious beliefs were not acceptable.", "isCorrect": true }
+            ] },
+            { "ieltsType": "MCQ_SINGLE", "prompt": { "text": "Shakespeare introduced ghosts into plays" }, "marks": 1, "options": [
+              { "label": "because he believed in a spirit world.", "isCorrect": false },
+              { "label": "as a theatrical device.", "isCorrect": true },
+              { "label": "to provoke religious debate.", "isCorrect": false }
+            ] },
+            { "ieltsType": "MCQ_SINGLE", "prompt": { "text": "Shakespeare's audience would probably have" }, "marks": 1, "options": [
+              { "label": "secretly approved of a supernatural content in plays.", "isCorrect": true },
+              { "label": "shown approval for plays with a supernatural content.", "isCorrect": false },
+              { "label": "disapproved of the inclusion of ghosts in plays.", "isCorrect": false }
+            ] },
+            { "ieltsType": "MATCHING_FEATURES", "prompt": { "text": "witches / astrology" }, "marks": 1, "options": [
+              { "label": "A", "isCorrect": true }, { "label": "B", "isCorrect": false }, { "label": "C", "isCorrect": false }
+            ] },
+            { "ieltsType": "MATCHING_FEATURES", "prompt": { "text": "ghosts" }, "marks": 1, "options": [
+              { "label": "A", "isCorrect": false }, { "label": "B", "isCorrect": true }, { "label": "C", "isCorrect": false }
+            ] },
+            { "ieltsType": "MATCHING_FEATURES", "prompt": { "text": "UFOs/aliens" }, "marks": 1, "options": [
+              { "label": "A", "isCorrect": false }, { "label": "B", "isCorrect": false }, { "label": "C", "isCorrect": true }
+            ] },
+            { "ieltsType": "MATCHING_FEATURES", "prompt": { "text": "premonitions" }, "marks": 1, "options": [
+              { "label": "A", "isCorrect": false }, { "label": "B", "isCorrect": true }, { "label": "C", "isCorrect": false }
+            ] },
+            { "ieltsType": "MATCHING_FEATURES", "prompt": { "text": "telepathy" }, "marks": 1, "options": [
+              { "label": "A", "isCorrect": false }, { "label": "B", "isCorrect": false }, { "label": "C", "isCorrect": true }
+            ] }
+          ]
+        },
+        {
+          "title": "Part 4",
+          "contentBlocks": [
+            { "type": "heading", "value": "Questions 31–35", "level": 3 },
+            { "type": "text", "value": "Complete the notes below. Write NO MORE THAN THREE WORDS for each answer." },
+            { "type": "text", "value": "Darwin is credited with having {{1}} popular beliefs about Man's creation. However, Alfred Russell Wallace simultaneously came up with an {{2}} to Darwin. Unfortunately for Wallace, Darwin seems to have been given the {{3}} for the theory of evolution. Darwin's theory {{4}}, upsetting the religious authorities of his time. Today, it is often accepted that Man is a product {{5}} and not spontaneous creation." },
+            { "type": "heading", "value": "Questions 36–40", "level": 3 },
+            { "type": "text", "value": "Complete the sentences below. Write NO MORE THAN TWO WORDS for each answer." },
+            { "type": "text", "value": "The absence of a {{6}} might be seen by some to discredit Darwin's theory." },
+            { "type": "text", "value": "Finding an evolutionary bridge between Man and ape would provide undeniable {{7}} the theory of evolution." },
+            { "type": "text", "value": "When {{8}} of the Piltdown Man was first unearthed in 1908, it seemed Darwin's theory was no longer in doubt." },
+            { "type": "text", "value": "In fact, the hoax proved {{9}} that scientists and the Press alike believed in its validity." },
+            { "type": "text", "value": "After 40 years, Piltdown Man {{10}} as being no more than a fake." }
+          ],
+          "questions": [
+            { "ieltsType": "NOTE_COMPLETION", "prompt": { "text": "Darwin is credited with having ___ popular beliefs about Man's creation." }, "marks": 1, "answerKey": { "accepted": ["single-handedly revolutionised", "revolutionised"] } },
+            { "ieltsType": "NOTE_COMPLETION", "prompt": { "text": "Alfred Russell Wallace simultaneously came up with an ___ to Darwin." }, "marks": 1, "answerKey": { "accepted": ["identical theory", "an identical theory"] } },
+            { "ieltsType": "NOTE_COMPLETION", "prompt": { "text": "Darwin seems to have been given the ___ for the theory of evolution." }, "marks": 1, "answerKey": { "accepted": ["sole credit"] } },
+            { "ieltsType": "NOTE_COMPLETION", "prompt": { "text": "Darwin's theory ___, upsetting the religious authorities of his time." }, "marks": 1, "answerKey": { "accepted": ["proved extremely controversial", "was extremely controversial"] } },
+            { "ieltsType": "NOTE_COMPLETION", "prompt": { "text": "Man is a product ___ and not spontaneous creation." }, "marks": 1, "answerKey": { "accepted": ["of evolution"] } },
+            { "ieltsType": "SENTENCE_COMPLETION", "prompt": { "text": "The absence of a ___ might be seen by some to discredit Darwin's theory." }, "marks": 1, "answerKey": { "accepted": ["missing link"] } },
+            { "ieltsType": "SENTENCE_COMPLETION", "prompt": { "text": "Finding an evolutionary bridge between Man and ape would provide undeniable ___ the theory of evolution." }, "marks": 1, "answerKey": { "accepted": ["proof of"] } },
+            { "ieltsType": "SENTENCE_COMPLETION", "prompt": { "text": "When ___ of the Piltdown Man was first unearthed in 1908, it seemed Darwin's theory was no longer in doubt." }, "marks": 1, "answerKey": { "accepted": ["the skull"] } },
+            { "ieltsType": "SENTENCE_COMPLETION", "prompt": { "text": "The hoax proved ___ that scientists and the Press alike believed in its validity." }, "marks": 1, "answerKey": { "accepted": ["so convincing"] } },
+            { "ieltsType": "SENTENCE_COMPLETION", "prompt": { "text": "After 40 years, Piltdown Man ___ as being no more than a fake." }, "marks": 1, "answerKey": { "accepted": ["was declared"] } }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "IELTS March 2025 — Reading Practice Test 1",
+      "skill": "READING",
+      "module": "ACADEMIC",
+      "difficulty": 3,
+      "source": "IELTS Mock Test 2025 — March",
+      "sections": [
+        {
+          "title": "Reading Passage 1",
+          "contentBlocks": [
+            { "type": "heading", "value": "Reading Passage 1", "level": 2 },
+            { "type": "text", "value": "Daydreaming" },
+            { "type": "text", "value": "Everyone daydreams sometimes. We sit or lie down, close our eyes and use our imagination to think about something that might happen in the future or could have happened in the past. Most daydreaming is pleasant. We would like the daydream to happen and we would be very happy if it did actually happen. We might daydream that we are in another person's place, or doing something that we have always wanted to do, or that other people like or admire us much more than they normally do." },
+            { "type": "text", "value": "Daydreams are not dreams, because we can only daydream if we are awake. Also, we choose what our daydreams will be about, which we cannot usually do with dreams. With many daydreams, we know that what we imagine is unlikely to happen. At least, if it does happen, it probably will not do so in the way we want it to. However, some daydreams are about things that are likely to happen. With these, our daydreams often help us to work out what we want to do, or how to do it to get the best results. So, these daydreams are helpful. We use our imagination to help us understand the world and other people." },
+            { "type": "text", "value": "Daydreams can help people to be creative. People in creative or artistic careers, such as composers, novelists and filmmakers, develop new ideas through daydreaming. This is also true of research scientists and mathematicians. In fact, Albert Einstein said that imagination is more important than knowledge because knowledge is limited whereas imagination is not." },
+            { "type": "text", "value": "Research in the 1980s showed that most daydreams are about ordinary, everyday events. It also showed that over 75% of workers in so-called 'boring jobs', such as lorry drivers and security guards, spend a lot of time daydreaming in order to make their time at work more interesting. Recent research has also shown that daydreaming has a positive effect on the brain. Experiments with MRI brain scans show that the parts of the brain linked with complex problem-solving are more active during daydreaming. Researchers conclude that daydreaming is an activity in which the brain consolidates learning. In this respect, daydreaming is the same as dreaming during sleep." },
+            { "type": "text", "value": "Although there do seem to be many advantages with daydreaming, in many cultures it is considered a bad thing to do. One reason for this is that when you are daydreaming, you are not working. In the 19th century, for example, people who daydreamed a lot were judged to be lazy. This happened in particular when people started working in factories on assembly lines. When you work on an assembly line, all you do is one small task again and again, every time exactly the same. It is rather repetitive and, obviously, you cannot be creative. So many people decided that there was no benefit in daydreaming." },
+            { "type": "text", "value": "Other people have said that daydreaming leads to 'escapism' and that this is not healthy, either. Escapist people spend a lot of time living in a dream world in which they are successful and popular, instead of trying to deal with the problems they face in the real world. Such people often seem to be unhappy and are unable or unwilling to improve their daily lives. Indeed, recent studies show that people who often daydream have fewer close friends than other people. In fact, they often do not have any close friends at all." },
+            { "type": "heading", "value": "Questions 1–8", "level": 3 },
+            { "type": "text", "value": "Do the following statements agree with the information given in the text? Write TRUE if the statement agrees with the information, FALSE if the statement contradicts the information, NOT GIVEN if there is no information on this." },
+            { "type": "questions", "from": 1, "to": 8 },
+            { "type": "heading", "value": "Questions 9–10", "level": 3 },
+            { "type": "text", "value": "Complete the sentences below. Choose NO MORE THAN THREE WORDS from the text for each answer." },
+            { "type": "text", "value": "Writers, artists and other creative people use daydreaming to {{9}}." },
+            { "type": "text", "value": "The areas of the brain used in daydreaming are also used for complicated {{10}}." },
+            { "type": "heading", "value": "Questions 11–13", "level": 3 },
+            { "type": "text", "value": "Choose the correct letter, A, B, C or D." },
+            { "type": "questions", "from": 11, "to": 13 }
+          ],
+          "questions": [
+            { "ieltsType": "TFNG", "prompt": { "text": "People usually daydream when they are walking around." }, "marks": 1, "answerKey": { "value": "FALSE" } },
+            { "ieltsType": "TFNG", "prompt": { "text": "Some people can daydream when they are asleep." }, "marks": 1, "answerKey": { "value": "FALSE" } },
+            { "ieltsType": "TFNG", "prompt": { "text": "Some daydreams help us to be more successful in our lives." }, "marks": 1, "answerKey": { "value": "TRUE" } },
+            { "ieltsType": "TFNG", "prompt": { "text": "Most lorry drivers daydream in their jobs to make them more interesting." }, "marks": 1, "answerKey": { "value": "TRUE" } },
+            { "ieltsType": "TFNG", "prompt": { "text": "Factory workers daydream more than lorry drivers." }, "marks": 1, "answerKey": { "value": "NOT_GIVEN" } },
+            { "ieltsType": "TFNG", "prompt": { "text": "Daydreaming helps people to be creative." }, "marks": 1, "answerKey": { "value": "TRUE" } },
+            { "ieltsType": "TFNG", "prompt": { "text": "Old people daydream more than young people." }, "marks": 1, "answerKey": { "value": "NOT_GIVEN" } },
+            { "ieltsType": "TFNG", "prompt": { "text": "Escapist people are generally very happy." }, "marks": 1, "answerKey": { "value": "FALSE" } },
+            { "ieltsType": "SENTENCE_COMPLETION", "prompt": { "text": "Writers, artists and other creative people use daydreaming to ___." }, "marks": 1, "answerKey": { "accepted": ["develop new ideas"] } },
+            { "ieltsType": "SENTENCE_COMPLETION", "prompt": { "text": "The areas of the brain used in daydreaming are also used for complicated ___." }, "marks": 1, "answerKey": { "accepted": ["problem-solving"] } },
+            { "ieltsType": "MCQ_SINGLE", "prompt": { "text": "Daydreams are" }, "marks": 1, "options": [
+              { "label": "dreams that we have when we fall asleep in daytime.", "isCorrect": false },
+              { "label": "about things that happened that make us sad.", "isCorrect": false },
+              { "label": "often about things that we would like to happen.", "isCorrect": true },
+              { "label": "activities that only a few people are able to do.", "isCorrect": false }
+            ] },
+            { "ieltsType": "MCQ_SINGLE", "prompt": { "text": "In the nineteenth century, many people believed that daydreaming was" }, "marks": 1, "options": [
+              { "label": "helpful in factory work.", "isCorrect": false },
+              { "label": "a way of avoiding work.", "isCorrect": true },
+              { "label": "something that few people did.", "isCorrect": false },
+              { "label": "a healthy activity.", "isCorrect": false }
+            ] },
+            { "ieltsType": "MCQ_SINGLE", "prompt": { "text": "People who daydream a lot" }, "marks": 1, "options": [
+              { "label": "usually have creative jobs.", "isCorrect": false },
+              { "label": "are much happier than other people.", "isCorrect": false },
+              { "label": "are less intelligent than other people.", "isCorrect": false },
+              { "label": "do not have as many friends as other people.", "isCorrect": true }
+            ] }
+          ]
+        },
+        {
+          "title": "Reading Passage 2",
+          "contentBlocks": [
+            { "type": "heading", "value": "Reading Passage 2", "level": 2 },
+            { "type": "text", "value": "Tricky Sums and Psychology" },
+            { "type": "text", "value": "A. In their first years of studying mathematics at school, children all over the world usually have to learn the times table, also known as the multiplication table, which shows what you get when you multiply numbers together. Children have traditionally learned their times table by going from '1 times 1 is 1' all the way up to '12 times 12 is 144'." },
+            { "type": "text", "value": "B. Times tables have been around for a very long time now. The oldest known tables using base 10 numbers, the base that is now used everywhere in the world, are written on bamboo strips dating from 305 BC, found in China. However, in many European cultures the times table is named after the Ancient Greek mathematician and philosopher Pythagoras (570-495 BC). And so it is called the Table of Pythagoras in many languages, including French and Italian." },
+            { "type": "text", "value": "C. In 1820, in his book The Philosophy of Arithmetic, the mathematician John Leslie recommended that young pupils memorise the times table up to 25 x 25. Nowadays, however, educators generally believe it is important for children to memorise the table up to 9 x 9, 10 x 10 or 12 x 12." },
+            { "type": "text", "value": "D. The current aim in the UK is for school pupils to know all their times tables up to 12 x 12 by the age of nine. However, many people do not know them, even as adults. Recently, some politicians have been asked arithmetical questions of this kind. For example, in 1998, the schools minister Stephen Byers was asked the answer to 7 x 8. He got the answer wrong, saying 54 rather than 56, and everyone laughed at him." },
+            { "type": "text", "value": "E. In 2014, a young boy asked the UK Chancellor George Osborne the exact same question. As he had passed A-level maths and was in charge of the UK's economic policies at the time, you would expect him to know the answer. However, he simply said, 'I've made it a rule in life not to answer such questions.'" },
+            { "type": "text", "value": "F. Why would a politician refuse to answer such a question? It is certainly true that some sums are much harder than others. Research has shown that learning and remembering sums involving 6, 7, 8 and 9 tends to be harder than remembering sums involving other numbers. And it is even harder when 6, 7, 8 and 9 are multiplied by each other. Studies often find that the hardest sum is 6x8, with 7x8 not far behind. However, even though 7x8 is a relatively difficult sum, it is unlikely that George Osborne did not know the answer. So there must be some other reason why he refused to answer the question." },
+            { "type": "text", "value": "G. The answer is that Osborne was being 'put on the spot' and he didn't like it. It is well known that when there is a lot of pressure to do something right, people often have difficulty doing something that they normally find easy. When you put someone on the spot and ask such a question, it causes stress. The person's heart beats faster and their adrenalin levels go up. As a result, people will often make mistakes that they would not normally make. This is called 'choking'. Choking often happens in sport, such as when a footballer takes a crucial penalty. In the same way, the boy's question put Osborne under great pressure. He knew it would be a disaster for him if he got the answer to such a simple question wrong and feared that he might choke. And that is why he refused to answer the question." },
+            { "type": "heading", "value": "Questions 14–19", "level": 3 },
+            { "type": "text", "value": "The text has seven paragraphs, A-G. Which paragraph contains the following information? Write the correct letter, A-G, next to questions 14-19." },
+            { "type": "table", "rows": [
+              ["{{1}}", "a 19th-century opinion of what children should learn"],
+              ["{{2}}", "the most difficult sums"],
+              ["{{3}}", "the effect of pressure on doing something"],
+              ["{{4}}", "how children learn the times table"],
+              ["{{5}}", "a politician who got a sum wrong"],
+              ["{{6}}", "a history of the times table"]
+            ] },
+            { "type": "heading", "value": "Questions 20–25", "level": 3 },
+            { "type": "text", "value": "Do the following statements agree with the information given in the text? Write TRUE if the statement agrees with the information, FALSE if the statement contradicts the information, NOT GIVEN if there is no information on this." },
+            { "type": "questions", "from": 7, "to": 12 }
+          ],
+          "questions": [
+            { "ieltsType": "MATCHING_INFORMATION", "prompt": { "text": "a 19th-century opinion of what children should learn" }, "marks": 1, "options": [
+              { "label": "A", "isCorrect": false }, { "label": "B", "isCorrect": false }, { "label": "C", "isCorrect": true }, { "label": "D", "isCorrect": false },
+              { "label": "E", "isCorrect": false }, { "label": "F", "isCorrect": false }, { "label": "G", "isCorrect": false }
+            ] },
+            { "ieltsType": "MATCHING_INFORMATION", "prompt": { "text": "the most difficult sums" }, "marks": 1, "options": [
+              { "label": "A", "isCorrect": false }, { "label": "B", "isCorrect": false }, { "label": "C", "isCorrect": false }, { "label": "D", "isCorrect": false },
+              { "label": "E", "isCorrect": false }, { "label": "F", "isCorrect": true }, { "label": "G", "isCorrect": false }
+            ] },
+            { "ieltsType": "MATCHING_INFORMATION", "prompt": { "text": "the effect of pressure on doing something" }, "marks": 1, "options": [
+              { "label": "A", "isCorrect": false }, { "label": "B", "isCorrect": false }, { "label": "C", "isCorrect": false }, { "label": "D", "isCorrect": false },
+              { "label": "E", "isCorrect": false }, { "label": "F", "isCorrect": false }, { "label": "G", "isCorrect": true }
+            ] },
+            { "ieltsType": "MATCHING_INFORMATION", "prompt": { "text": "how children learn the times table" }, "marks": 1, "options": [
+              { "label": "A", "isCorrect": true }, { "label": "B", "isCorrect": false }, { "label": "C", "isCorrect": false }, { "label": "D", "isCorrect": false },
+              { "label": "E", "isCorrect": false }, { "label": "F", "isCorrect": false }, { "label": "G", "isCorrect": false }
+            ] },
+            { "ieltsType": "MATCHING_INFORMATION", "prompt": { "text": "a politician who got a sum wrong" }, "marks": 1, "options": [
+              { "label": "A", "isCorrect": false }, { "label": "B", "isCorrect": false }, { "label": "C", "isCorrect": false }, { "label": "D", "isCorrect": true },
+              { "label": "E", "isCorrect": false }, { "label": "F", "isCorrect": false }, { "label": "G", "isCorrect": false }
+            ] },
+            { "ieltsType": "MATCHING_INFORMATION", "prompt": { "text": "a history of the times table" }, "marks": 1, "options": [
+              { "label": "A", "isCorrect": false }, { "label": "B", "isCorrect": true }, { "label": "C", "isCorrect": false }, { "label": "D", "isCorrect": false },
+              { "label": "E", "isCorrect": false }, { "label": "F", "isCorrect": false }, { "label": "G", "isCorrect": false }
+            ] },
+            { "ieltsType": "TFNG", "prompt": { "text": "Pythagoras invented the times table in China." }, "marks": 1, "answerKey": { "value": "FALSE" } },
+            { "ieltsType": "TFNG", "prompt": { "text": "Stephen Byers and George Osborne were asked the same question." }, "marks": 1, "answerKey": { "value": "TRUE" } },
+            { "ieltsType": "TFNG", "prompt": { "text": "All children in the UK have to learn the multiplication table." }, "marks": 1, "answerKey": { "value": "TRUE" } },
+            { "ieltsType": "TFNG", "prompt": { "text": "George Osborne did not know the answer to 7 x 8." }, "marks": 1, "answerKey": { "value": "FALSE" } },
+            { "ieltsType": "TFNG", "prompt": { "text": "7 x 8 is the hardest sum that children have to learn." }, "marks": 1, "answerKey": { "value": "FALSE" } },
+            { "ieltsType": "TFNG", "prompt": { "text": "Stephen Byers got the sum wrong because he choked." }, "marks": 1, "answerKey": { "value": "NOT_GIVEN" } }
+          ]
+        },
+        {
+          "title": "Reading Passage 3",
+          "contentBlocks": [
+            { "type": "heading", "value": "Reading Passage 3", "level": 2 },
+            { "type": "text", "value": "Care in the Community" },
+            { "type": "text", "value": "'Bedlam' is a word that has become synonymous in the English language with chaos and disorder. The term itself derives from the shortened name for a former 16th century London institution for the mentally ill, known as St. Mary of Bethlehem. This institution was so notorious that its name was to become a byword for mayhem. Patient 'treatment' amounted to little more than legitimised abuse. Inmates were beaten and forced to live in unsanitary conditions, whilst others were placed on display to a curious public as a side-show. There is little indication to suggest that other institutions founded at around the same time in other European countries were much better." },
+            { "type": "text", "value": "Even up until the mid-twentieth century, institutions for the mentally ill were regarded as being more places of isolation and punishment than healing and solace. In popular literature of the Victorian era that reflected true-life events, individuals were frequently sent to the 'madhouse' as a legal means of permanently disposing of an unwanted heir or spouse. Later, in the mid-twentieth century, institutes for the mentally ill regularly carried out invasive brain surgery known as a 'lobotomy' on violent patients without their consent. The aim was to 'calm' the patient but ended up producing a patient that was little more than a zombie. Such a procedure is well documented to devastating effect in the film 'One Flew Over the Cuckoo's Nest'. Little wonder then that the appalling catalogue of treatment of the mentally ill led to a call for change from social activists and psychologists alike." },
+            { "type": "text", "value": "Improvements began to be seen in institutions from the mid-50s onwards, along with the introduction of care in the community for less severely ill patients." },
+            { "type": "text", "value": "Community care was seen as a more humane and purposeful approach to dealing with the mentally ill. Whereas institutionalised patients lived out their existence in confinement, forced to obey institutional regulations, patients in the community were free to live a relatively independent life. The patient was never left purely to their own devices as a variety of services could theoretically be accessed by the individual. In its early stages, however, community care consisted primarily of help from the patient's extended family network. In more recent years, such care has extended to the provision of specialist community mental health teams (CMHTs) in the UK. Such teams cover a wide range of services from rehabilitation to home treatment and assessment. In addition, psychiatric nurses are on hand to administer prescription medication and give injections. The patient is therefore provided with the necessary help that they need to survive in the everyday world whilst maintaining a degree of autonomy." },
+            { "type": "text", "value": "Often, though, when a policy is put into practice, its failings become apparent. This is true for the policy of care in the community. Whilst back-up services may exist, an individual may not call upon them when needed, due to reluctance or inability to assess their own condition. As a result, such an individual may be alone during a critical phase of their illness, which could lead them to self-harm or even become a threat to other members of their community. Whilst this might be an extreme-case scenario, there is also the issue of social alienation that needs to be considered. Integration into the community may not be sufficient to allow the individual to find work, leading to poverty and isolation. Social exclusion could then cause a relapse as the individual is left to battle mental health problems alone. The solution, therefore, is to ensure that the patient is always in touch with professional helpers and not left alone to fend for themselves. It should always be remembered that whilst you can take the patient out of the institution, you can't take the institution out of the patient." },
+            { "type": "text", "value": "When questioned about care in the community, there seems to be a division of opinion amongst members of the public and within the mental healthcare profession itself. Dr. Mayalla, practising clinical psychologist, is inclined to believe that whilst certain patients may benefit from care in the community, the scheme isn't for everyone. 'Those suffering moderate cases of mental illness stand to gain more from care in the community than those with more pronounced mental illness. I don't think it's a one-size-fits-all policy. But I also think that there is a far better infrastructure of helpers and social workers in place now than previously and the scheme stands a greater chance of success than in the past.'" },
+            { "type": "text", "value": "Anita Brown, mother of three, takes a different view. 'As a mother, I'm very protective towards my children. As a result, I would not put my support behind any scheme that I felt might put my children in danger... I guess there must be assessment methods in place to ensure that dangerous individuals are not let loose amongst the public but I'm not for it at all. I like to feel secure where I live, but more to the point, that my children are not under any threat.'" },
+            { "type": "text", "value": "Bob Ratchett, a former mental health nurse, takes a more positive view on community care projects. 'Having worked in the field myself, I've seen how a patient can benefit from living an independent life, away from an institution. Obviously, only individuals well on their way to recovery would be suitable for consideration as participants in such a scheme. If you think about it, is it really fair to condemn an individual to a lifetime in an institution when they could be living a fairly fulfilled and independent life outside the institution?'" },
+            { "type": "heading", "value": "Questions 26–31", "level": 3 },
+            { "type": "text", "value": "Choose the correct letter, A, B, C or D." },
+            { "type": "questions", "from": 1, "to": 6 },
+            { "type": "heading", "value": "Questions 32–36", "level": 3 },
+            { "type": "text", "value": "Look at the following statements, 32-36, and the list of people, A-C. Match each statement to the correct person." },
+            { "type": "text", "value": "A  Dr. Mayalla    B  Anita Brown    C  Bob Ratchett" },
+            { "type": "table", "rows": [
+              ["{{7}}", "This person acknowledges certain inadequacies in the concept of care in the community, but recognises that attempts have been made to improve on existing schemes."],
+              ["{{8}}", "This person, whilst emphasising the benefits to the patient from care in the community schemes, is critical of traditional care methods."],
+              ["{{9}}", "This person's views have been moderated by their professional contact with the mentally ill."],
+              ["{{10}}", "This person places the welfare of others above that of the mentally ill."],
+              ["{{11}}", "This person acknowledges that a mistrust of care in the community schemes may be unfounded."]
+            ] },
+            { "type": "heading", "value": "Questions 37–40", "level": 3 },
+            { "type": "text", "value": "Do the following statements agree with the information given in the text? Write TRUE if the statement agrees with the information, FALSE if the statement contradicts the information, NOT GIVEN if there is no information on this." },
+            { "type": "questions", "from": 12, "to": 15 }
+          ],
+          "questions": [
+            { "ieltsType": "MCQ_SINGLE", "prompt": { "text": "Which of the following statements is accurate?" }, "marks": 1, "options": [
+              { "label": "In the 20th century, illegal surgical procedures were carried out on the mentally ill.", "isCorrect": false },
+              { "label": "The Victorian era saw an increase in mental illness amongst married couples.", "isCorrect": false },
+              { "label": "Mental institutions of the past were better-equipped for dealing with the mentally ill.", "isCorrect": false },
+              { "label": "In the past, others often benefitted when a patient was sent to a mental asylum.", "isCorrect": true }
+            ] },
+            { "ieltsType": "MCQ_SINGLE", "prompt": { "text": "What does the writer mean by patient treatment being 'legitimised abuse'?" }, "marks": 1, "options": [
+              { "label": "There were proper guidelines for the punishment of mentally ill patients.", "isCorrect": false },
+              { "label": "Maltreatment of mentally ill patients was not illegal and so was tolerated.", "isCorrect": true },
+              { "label": "Only those who were legally entitled to do so could punish mentally ill patients.", "isCorrect": false },
+              { "label": "Physical abuse of mentally ill patients was a legal requirement of mental institutions.", "isCorrect": false }
+            ] },
+            { "ieltsType": "MCQ_SINGLE", "prompt": { "text": "What brought about changes in the treatment of mentally ill patients?" }, "marks": 1, "options": [
+              { "label": "A radio documentary exposed patient maltreatment.", "isCorrect": false },
+              { "label": "People rebelled against the consistent abuse of mentally ill patients.", "isCorrect": true },
+              { "label": "Previous treatments of mentally ill patients were proved to be ineffective.", "isCorrect": false },
+              { "label": "The maltreatment of mentally ill patients could never be revealed.", "isCorrect": false }
+            ] },
+            { "ieltsType": "MCQ_SINGLE", "prompt": { "text": "What was a feature of early care in the community schemes?" }, "marks": 1, "options": [
+              { "label": "Patient support was the responsibility more of relatives than professionals.", "isCorrect": true },
+              { "label": "Advanced professional help was available to patients.", "isCorrect": false },
+              { "label": "All mentally ill patients could benefit from the scheme.", "isCorrect": false },
+              { "label": "Patients were allowed to enjoy full independence.", "isCorrect": false }
+            ] },
+            { "ieltsType": "MCQ_SINGLE", "prompt": { "text": "What is true of care in the community schemes today?" }, "marks": 1, "options": [
+              { "label": "They permit greater patient autonomy.", "isCorrect": false },
+              { "label": "More professional services are available to patients.", "isCorrect": true },
+              { "label": "Family support networks have become unnecessary.", "isCorrect": false },
+              { "label": "All patients can now become part of these schemes.", "isCorrect": false }
+            ] },
+            { "ieltsType": "MCQ_SINGLE", "prompt": { "text": "What can be said of the writer's attitude towards care in the community?" }, "marks": 1, "options": [
+              { "label": "He believes that the scheme has proved to be a failure.", "isCorrect": false },
+              { "label": "He believes that it can only work under certain circumstances.", "isCorrect": true },
+              { "label": "He believes that it will never work as mentally ill patients will always be disadvantaged.", "isCorrect": false },
+              { "label": "He believes it has failed due to patient neglect by professional helpers.", "isCorrect": false }
+            ] },
+            { "ieltsType": "MATCHING_FEATURES", "prompt": { "text": "This person acknowledges certain inadequacies in the concept of care in the community, but recognises that attempts have been made to improve on existing schemes." }, "marks": 1, "options": [
+              { "label": "A", "isCorrect": true }, { "label": "B", "isCorrect": false }, { "label": "C", "isCorrect": false }
+            ] },
+            { "ieltsType": "MATCHING_FEATURES", "prompt": { "text": "This person, whilst emphasising the benefits to the patient from care in the community schemes, is critical of traditional care methods." }, "marks": 1, "options": [
+              { "label": "A", "isCorrect": false }, { "label": "B", "isCorrect": false }, { "label": "C", "isCorrect": true }
+            ] },
+            { "ieltsType": "MATCHING_FEATURES", "prompt": { "text": "This person's views have been moderated by their professional contact with the mentally ill." }, "marks": 1, "options": [
+              { "label": "A", "isCorrect": false }, { "label": "B", "isCorrect": false }, { "label": "C", "isCorrect": true }
+            ] },
+            { "ieltsType": "MATCHING_FEATURES", "prompt": { "text": "This person places the welfare of others above that of the mentally ill." }, "marks": 1, "options": [
+              { "label": "A", "isCorrect": false }, { "label": "B", "isCorrect": true }, { "label": "C", "isCorrect": false }
+            ] },
+            { "ieltsType": "MATCHING_FEATURES", "prompt": { "text": "This person acknowledges that a mistrust of care in the community schemes may be unfounded." }, "marks": 1, "options": [
+              { "label": "A", "isCorrect": false }, { "label": "B", "isCorrect": true }, { "label": "C", "isCorrect": false }
+            ] },
+            { "ieltsType": "TFNG", "prompt": { "text": "There is a better understanding of the dynamics of mental illness today." }, "marks": 1, "answerKey": { "value": "NOT_GIVEN" } },
+            { "ieltsType": "TFNG", "prompt": { "text": "Community care schemes do not provide adequate psychological support for patients." }, "marks": 1, "answerKey": { "value": "FALSE" } },
+            { "ieltsType": "TFNG", "prompt": { "text": "Dr. Mayalla believes that the scheme is less successful than in the past." }, "marks": 1, "answerKey": { "value": "FALSE" } },
+            { "ieltsType": "TFNG", "prompt": { "text": "The goal of community care schemes is to make patients less dependent on the system." }, "marks": 1, "answerKey": { "value": "TRUE" } }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "IELTS March 2025 — Writing Task 1 and Task 2",
+      "skill": "WRITING",
+      "module": "ACADEMIC",
+      "difficulty": 3,
+      "source": "IELTS Mock Test 2025 — March",
+      "questions": [
+        {
+          "ieltsType": "WRITING_TASK1",
+          "prompt": { "text": "You should spend about 20 minutes on this task. The maps below show a bookstore in 2000 and now. Summarise the information by selecting and reporting the main features, and make comparisons where relevant. In 2000, the store had Fiction along the back wall, a Travel section, New books, a small Art/Hobbies/Cookery aisle, a Non-fiction area and a Service Desk near the entrance. Today, the layout has expanded: Art, Hobbies, Cookery and Fiction run along the back wall, Non-Fiction occupies the right-hand side, Travel and New Books remain near the entrance, several small tables have been added in the centre, the Service Desk has moved to the front-left, and a Café has replaced the old Non-fiction corner near the entrance. You should write at least 150 words." },
+          "marks": 1
+        },
+        {
+          "ieltsType": "WRITING_TASK2",
+          "prompt": { "text": "You should spend about 40 minutes on this task. Some people think that job satisfaction is more important than job security, while some people think that they cannot always expect job satisfaction, a permanent job is more important. Discuss both views and give your own opinion. You should write at least 250 words." },
+          "marks": 1
+        }
+      ]
+    },
+    {
+      "title": "IELTS Speaking Practice Test 1",
+      "skill": "SPEAKING",
+      "module": "BOTH",
+      "difficulty": 3,
+      "source": "IELTS Speaking Practice Test 1",
+      "questions": [
+        { "ieltsType": "SPEAKING_PART1", "prompt": { "text": "Do you work or are you a student?" }, "marks": 1 },
+        { "ieltsType": "SPEAKING_PART1", "prompt": { "text": "Why did you choose that particular subject or job?" }, "marks": 1 },
+        { "ieltsType": "SPEAKING_PART1", "prompt": { "text": "What do you find most interesting about your studies or work?" }, "marks": 1 },
+        { "ieltsType": "SPEAKING_PART1", "prompt": { "text": "Is there anything you would like to change about your studies or work?" }, "marks": 1 },
+        { "ieltsType": "SPEAKING_PART1", "prompt": { "text": "Where is your hometown?" }, "marks": 1 },
+        { "ieltsType": "SPEAKING_PART1", "prompt": { "text": "What do you like most about living there?" }, "marks": 1 },
+        { "ieltsType": "SPEAKING_PART1", "prompt": { "text": "Has your hometown changed much in recent years?" }, "marks": 1 },
+        { "ieltsType": "SPEAKING_PART1", "prompt": { "text": "Would you like to continue living there in the future?" }, "marks": 1 },
+        { "ieltsType": "SPEAKING_PART1", "prompt": { "text": "Do you usually follow the same routine every day?" }, "marks": 1 },
+        { "ieltsType": "SPEAKING_PART1", "prompt": { "text": "What is your favourite time of the day?" }, "marks": 1 },
+        { "ieltsType": "SPEAKING_PART1", "prompt": { "text": "Do you prefer to plan your day in advance?" }, "marks": 1 },
+        { "ieltsType": "SPEAKING_PART1", "prompt": { "text": "Have your daily routines changed since you were a child?" }, "marks": 1 },
+        { "ieltsType": "SPEAKING_PART2", "prompt": { "text": "Describe a place you visited that you would like to visit again. You should say: where this place is; when you visited it; what you did there; and explain why you would like to visit this place again. You will have 1 minute to prepare and should speak for 1-2 minutes." }, "marks": 1 },
+        { "ieltsType": "SPEAKING_PART3", "prompt": { "text": "Why do you think people enjoy travelling to different places?" }, "marks": 1 },
+        { "ieltsType": "SPEAKING_PART3", "prompt": { "text": "What are the main differences between travelling today and travelling in the past?" }, "marks": 1 },
+        { "ieltsType": "SPEAKING_PART3", "prompt": { "text": "Do you think tourism brings more benefits or problems to local communities?" }, "marks": 1 },
+        { "ieltsType": "SPEAKING_PART3", "prompt": { "text": "How can governments reduce the negative effects of tourism?" }, "marks": 1 },
+        { "ieltsType": "SPEAKING_PART3", "prompt": { "text": "Why is it important for people to learn about cultures different from their own?" }, "marks": 1 },
+        { "ieltsType": "SPEAKING_PART3", "prompt": { "text": "Do you think young people are more interested in international travel than older generations?" }, "marks": 1 },
+        { "ieltsType": "SPEAKING_PART3", "prompt": { "text": "Can people understand another culture without actually visiting that country?" }, "marks": 1 },
+        { "ieltsType": "SPEAKING_PART3", "prompt": { "text": "How do you think technology will influence the way people travel?" }, "marks": 1 },
+        { "ieltsType": "SPEAKING_PART3", "prompt": { "text": "Do you think environmental concerns will change people's travel habits?" }, "marks": 1 },
+        { "ieltsType": "SPEAKING_PART3", "prompt": { "text": "Should governments encourage people to travel within their own countries rather than abroad?" }, "marks": 1 }
+      ]
+    }
+  ]
+}
