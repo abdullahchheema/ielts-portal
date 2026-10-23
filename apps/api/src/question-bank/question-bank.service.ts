@@ -211,7 +211,7 @@ export class QuestionBankService {
     const [rows, total] = await Promise.all([
       this.prisma.questionSet.findMany({
         where, orderBy: { updatedAt: 'desc' }, skip: q.skip, take: q.take,
-        select: { id: true, title: true, skill: true, module: true, topic: true, difficulty: true, bandTarget: true, status: true, studentFacing: true, version: true, updatedAt: true, questions: { where: { deletedAt: null }, select: { id: true } } },
+        select: { id: true, title: true, skill: true, module: true, topic: true, difficulty: true, bandTarget: true, status: true, studentFacing: true, updatedAt: true, questions: { where: { deletedAt: null }, select: { id: true } } },
       }),
       this.prisma.questionSet.count({ where }),
     ]);
@@ -361,7 +361,7 @@ export class QuestionBankService {
         data: {
           title: `${src.title} (copy)`, skill: src.skill, module: src.module, sectionNumber: src.sectionNumber, topic: src.topic,
           difficulty: src.difficulty, bandTarget: src.bandTarget, tags: src.tags, source: src.source, timeEstimateMin: src.timeEstimateMin,
-          stimulus: src.stimulus ?? Prisma.JsonNull, version: src.version + 1, status: 'DRAFT', studentFacing: false, createdById: actor.userId ?? null,
+          stimulus: src.stimulus ?? Prisma.JsonNull, status: 'DRAFT', studentFacing: false, createdById: actor.userId ?? null,
         },
       });
       for (const q of src.questions) {

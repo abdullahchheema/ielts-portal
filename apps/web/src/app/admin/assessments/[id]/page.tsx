@@ -131,7 +131,11 @@ export default function AssessmentBuilderPage() {
 
   return (
     <>
-      <PageHeader title={asm.title} subtitle={`${label(asm.type)}${asm.skill ? ' · ' + label(asm.skill) : ''}${asm.timeLimitMin ? ' · ' + asm.timeLimitMin + ' min' : ''}${asm.maxAttempts ? ' · ' + asm.maxAttempts + ' attempts' : ''}${asm.passPercent ? ' · pass ' + asm.passPercent + '%' : ''}`} />
+      <PageHeader
+        title={asm.title}
+        subtitle={`${label(asm.type)}${asm.skill ? ' · ' + label(asm.skill) : ''}${asm.timeLimitMin ? ' · ' + asm.timeLimitMin + ' min' : ''}${asm.maxAttempts ? ' · ' + asm.maxAttempts + ' attempts' : ''}${asm.passPercent ? ' · pass ' + asm.passPercent + '%' : ''}`}
+        breadcrumbs={[{ href: '/admin/assessments', label: 'Assessments' }, { label: asm.title }]}
+      />
       {error && <div className="mb-4"><Alert>{error}</Alert></div>}
       <Card className="mb-6">
         <div className="flex flex-wrap items-center gap-3">

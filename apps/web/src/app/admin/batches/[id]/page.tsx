@@ -226,7 +226,11 @@ export default function BatchDetailPage() {
 
   return (
     <>
-      <PageHeader title={b.name} subtitle={`${b.course.title} · starts ${date(b.startAt, true)} · ${b.days.length ? b.days.join(', ') : 'days not set'}${b.classTime ? ` at ${b.classTime}` : ''} · ${b.timezone}`} actions={<>
+      <PageHeader
+        title={b.name}
+        subtitle={`${b.course.title} · starts ${date(b.startAt, true)} · ${b.days.length ? b.days.join(', ') : 'days not set'}${b.classTime ? ` at ${b.classTime}` : ''} · ${b.timezone}`}
+        breadcrumbs={[{ href: '/admin/batches', label: 'Batches' }, { label: b.name }]}
+        actions={<>
         <Badge status={b.status} />
         {canEdit && b.status !== 'ARCHIVED' && <Button variant="danger" onClick={() => confirm({ message: 'Remove this batch? Batches with past students are archived instead of deleted.', tone: 'danger', confirmLabel: 'Remove batch' }).then((ok) => { if (ok) { run(async () => { await api(`/admin/batches/${id}`, { method: 'DELETE' }); location.href = '/admin/batches'; }); } })}>Remove</Button>}
       </>} />

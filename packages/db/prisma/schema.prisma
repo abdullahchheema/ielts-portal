@@ -316,6 +316,10 @@ model StudentProfile {
   targetReading   Decimal? @map("target_reading")   @db.Decimal(3, 1)
   targetWriting   Decimal? @map("target_writing")   @db.Decimal(3, 1)
   targetSpeaking  Decimal? @map("target_speaking")  @db.Decimal(3, 1)
+  // A free-test ghost account (FreeTestService.createGhostStudent) — never a real person, no real
+  // email/phone collected. Excluded from every admin-facing student list/count; never shown as a
+  // "student category." Set once at creation, never flipped later.
+  isGhost               Boolean   @default(false) @map("is_ghost")
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
 
@@ -1737,7 +1741,6 @@ model QuestionSet {
   timeEstimateMin Int?      @map("time_estimate_min")
   status          String    @default("DRAFT")
   studentFacing   Boolean   @default(false) @map("student_facing")
-  version         Int       @default(1)
   stimulus        Json?
   createdById     String?   @map("created_by") @db.Uuid
   // A Listening/Reading set's one-time, lazily-built internal Assessment — the only thing the timed,

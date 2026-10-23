@@ -19,7 +19,7 @@ interface Question {
 interface StimulusSection { title: string; instructions?: string; passage?: string; audioKey?: string; audioUrl?: string; images?: QImage[] }
 interface SetDetail {
   id: string; title: string; skill: string; module: string; topic: string | null; difficulty: number; status: string; studentFacing: boolean;
-  version: number; stimulus: { passage?: string; audioKey?: string; audioUrl?: string; sections?: StimulusSection[] } | null; questions: Question[];
+  stimulus: { passage?: string; audioKey?: string; audioUrl?: string; sections?: StimulusSection[] } | null; questions: Question[];
 }
 
 const ITEM_TYPES = ITEM_TYPE_KEYS;
@@ -88,7 +88,7 @@ export default function QuestionSetPage() {
     <>
       <PageHeader
         title={data.title}
-        subtitle={`${data.skill} · ${data.module.toLowerCase()} · topic ${data.topic ?? '—'} · difficulty ${data.difficulty}/5 · v${data.version}`}
+        subtitle={`${data.skill} · ${data.module.toLowerCase()} · topic ${data.topic ?? '—'} · difficulty ${data.difficulty}/5`}
         breadcrumbs={[{ href: '/admin/question-bank', label: 'Question bank' }, { label: data.title }]}
         actions={<div className="flex flex-wrap gap-2">
           <Badge status={data.status} />

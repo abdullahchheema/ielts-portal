@@ -1,6 +1,6 @@
 'use client';
 
-import { UserCheck, BarChart3, Crown, Database, FileCheck2, Gift, GraduationCap, Layers, Lock, Library, LayoutDashboard, ListChecks, MessagesSquare, Receipt, RotateCcw, ScrollText, Settings, Scale, Sparkles, Star, Tag, UserRound, Wallet, ClipboardList, UsersRound } from 'lucide-react';
+import { BarChart3, Crown, Database, FileCheck2, Gift, GraduationCap, Layers, Lock, Library, LayoutDashboard, ListChecks, MessagesSquare, Receipt, RotateCcw, ScrollText, Settings, Scale, Sparkles, Star, Tag, UserRound, Wallet, ClipboardList, UsersRound } from 'lucide-react';
 import { ReactNode, useCallback, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Shell } from '@/components/Shell';
@@ -34,12 +34,11 @@ function AdminShell({ children }: { children: ReactNode }) {
       groups={[
         { items: [{ href: '/admin', label: 'Dashboard', icon: LayoutDashboard, show: c('dashboard.view') }] },
         { title: 'Enrollment', items: [
-          { href: '/admin/applications', label: 'Applications', icon: FileCheck2, show: c('payment.verify') },
+          { href: '/admin/applications', label: 'Applications', icon: FileCheck2, show: c('payment.verify') || c('teacher.manage') },
           { href: '/admin/students', label: 'Students', icon: GraduationCap, show: c('student.view') },
           { href: '/admin/enrollments', label: 'Enrollments', icon: ClipboardList, show: c('enrollment.view') },
           { href: '/admin/batches', label: 'Batches', icon: Layers, show: c('batch.view') },
           { href: '/admin/teachers', label: 'Teachers', icon: UserRound, show: c('mentor.assign') },
-          { href: '/admin/teacher-applications', label: 'Teacher applications', icon: UserCheck, show: c('teacher.manage') },
         ] },
         { title: 'Academics', items: [
           { href: '/admin/course', label: 'Course', icon: Library, show: c('course.view') },

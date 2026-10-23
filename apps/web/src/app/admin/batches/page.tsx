@@ -1,10 +1,10 @@
 'use client';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { DAY_TEXT } from '@/components/student';
-import { Alert, Badge, Button, Dialog, Empty, Field, FilterBar, Input, Loading, PageHeader, Select, Separator, Table, Td, Textarea } from '@/components/ui';
+import { Alert, Badge, Button, ClickableRow, Dialog, Empty, Field, FilterBar, Input, Loading, PageHeader, Select, Separator, Table, Td, Textarea } from '@/components/ui';
 import { api } from '@/lib/api';
 import { can, useMe } from '@/lib/auth';
 import { errorMessage } from '@/lib/errors';
@@ -82,6 +82,7 @@ function CreateBatch({ open, onClose }: { open: boolean; onClose: () => void }) 
 }
 
 export default function BatchesPage() {
+  const router = useRouter();
   const { data: me } = useMe();
   const [scope, setScope] = useState('');
   const [open, setOpen] = useState(false);
@@ -99,17 +100,16 @@ export default function BatchesPage() {
       {isLoading && <Loading />}
       {isError && <Alert>Could not load batches.</Alert>}
       {data && (data.length === 0 ? <Empty title="No batches yet">Create a batch to start taking applications.</Empty> : (
-        <Table head={['Batch', 'Starts', 'Schedule', 'Students', 'Teacher', 'Status', '']} sticky>
+        <Table head={['Batch', 'Starts', 'Schedule', 'Students', 'Teacher', 'Status']} sticky>
           {data.map((b) => (
-            <tr key={b.id}>
+            <ClickableRow key={b.id} onClick={() => router.push(`/admin/batches/${b.id}`)}>
               <Td className="font-medium">{b.name}<span className="block text-xs font-normal text-fg-muted">{label(b.deliveryMode)}</span></Td>
               <Td>{date(b.startAt)}</Td>
               <Td>{b.days.length ? b.days.map((d) => DAY_TEXT[d]).join(', ') : '—'}{b.classTime ? ` · ${b.classTime}` : ''}</Td>
               <Td>{b.counts.enrolled} enrolled{b.counts.pending > 0 && <span className="mt-1 block w-fit"><Badge status="PENDING" text={`${b.counts.pending} pending`} /></span>}</Td>
               <Td>{b.mentorAssigned ? b.mentors.map((m) => m.mentor.displayName).join(', ') : <Badge status="DRAFT" tone="amber" text="Not assigned" />}</Td>
               <Td><Badge status={b.status} /></Td>
-              <Td><Link href={`/admin/batches/${b.id}`} className="text-primary hover:underline">Manage</Link></Td>
-            </tr>
+            </ClickableRow>
           ))}
         </Table>
       ))}

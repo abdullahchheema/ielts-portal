@@ -2,20 +2,22 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Alert, Badge, Button, Dialog, Empty, Field, FilterBar, Input, Loading, PageHeader, Pagination, SearchInput, Select, Table, Td, useConfirm } from '@/components/ui';
+import { Alert, Badge, Button, ClickableRow, Dialog, Empty, Field, FilterBar, Input, Loading, PageHeader, Pagination, SearchInput, Select, Table, Td, useConfirm } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 
 interface SetRow {
   id: string; title: string; skill: string; module: string; topic: string | null; difficulty: number; status: string;
-  studentFacing: boolean; version: number; questionCount: number;
+  studentFacing: boolean; questionCount: number;
 }
 
 const SKILLS = ['LISTENING', 'READING', 'WRITING', 'SPEAKING'] as const;
 const TAKE = 25;
 
 export default function QuestionBankPage() {
+  const router = useRouter();
   const qc = useQueryClient();
   const confirm = useConfirm();
   const [skill, setSkill] = useState('');
@@ -75,18 +77,17 @@ export default function QuestionBankPage() {
       {isError && <Alert>Could not load the question bank.</Alert>}
       {data && (data.items.length === 0 ? <Empty title="No sets yet">Create a set to start building the bank.</Empty> : (
         <>
-          <Table head={['Title', 'Skill', 'Topic', 'Difficulty', 'Questions', 'Status', 'Version', '']} sticky>
+          <Table head={['Title', 'Skill', 'Topic', 'Difficulty', 'Questions', 'Status', '']} sticky>
             {data.items.map((s) => (
-              <tr key={s.id} className="hover:bg-surface-muted">
-                <Td><Link href={`/admin/question-bank/${s.id}`} className="font-medium text-primary hover:underline">{s.title}</Link></Td>
+              <ClickableRow key={s.id} onClick={() => router.push(`/admin/question-bank/${s.id}`)}>
+                <Td><Link href={`/admin/question-bank/${s.id}`} className="font-medium text-primary hover:underline" onClick={(e) => e.stopPropagation()}>{s.title}</Link></Td>
                 <Td>{s.skill}</Td>
                 <Td>{s.topic ?? '—'}</Td>
                 <Td>{s.difficulty}/5</Td>
                 <Td>{s.questionCount}</Td>
                 <Td><Badge status={s.status} />{s.studentFacing && <span className="ml-2 text-xs text-success">Student-facing</span>}</Td>
-                <Td>v{s.version}</Td>
-                <Td>{(s.status === 'DRAFT' || s.status === 'ARCHIVED') && <Button variant="ghost" tone="danger" size="xs" onClick={() => removeSet(s.id)} busy={deletingId === s.id} disabled={!!deletingId}>Delete</Button>}</Td>
-              </tr>
+                <Td>{(s.status === 'DRAFT' || s.status === 'ARCHIVED') && <Button variant="ghost" tone="danger" size="xs" onClick={(e) => { e.stopPropagation(); removeSet(s.id); }} busy={deletingId === s.id} disabled={!!deletingId}>Delete</Button>}</Td>
+              </ClickableRow>
             ))}
           </Table>
           <Pagination skip={skip} take={TAKE} total={data.total} onSkip={setSkip} />

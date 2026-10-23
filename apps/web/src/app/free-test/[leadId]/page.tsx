@@ -2,7 +2,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { BookOpen, Headphones, Mic, PenLine, Trophy } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Badge, Button, Card, Field, Loading, PageHeader, ProgressBar, Select, Textarea, useConfirm } from '@/components/ui';
@@ -60,6 +60,8 @@ const countWords = (t: string) => (t.match(/[A-Za-z’'-]+/g) ?? []).length;
 
 export default function FreeTestPage() {
   const { leadId } = useParams<{ leadId: string }>();
+  const router = useRouter();
+  const confirm = useConfirm();
   const qc = useQueryClient();
   const { data: exam, isLoading, isError } = useQuery({
     queryKey: ['free-test-exam', leadId],
@@ -69,6 +71,14 @@ export default function FreeTestPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const refresh = useCallback(() => qc.invalidateQueries({ queryKey: ['free-test-exam', leadId] }), [qc, leadId]);
+
+  async function exitTest() {
+    const ok = await confirm({
+      message: 'Leaving will stop your free test here. You can come back to this exact link within 7 days to pick up where you left off, but any section you\'ve already submitted can\'t be redone.',
+      confirmLabel: 'Exit test', tone: 'danger',
+    });
+    if (ok) router.push('/free-test');
+  }
 
   async function advance() {
     if (!exam) return;
@@ -89,7 +99,10 @@ export default function FreeTestPage() {
       <PageHeader
         title="Your free test"
         subtitle={done ? 'Finished. Scores below are estimates.' : `Stage: ${exam.stage.toLowerCase()}`}
-        actions={<Badge status={exam.status} />}
+        actions={<div className="flex items-center gap-2">
+          <Badge status={exam.status} />
+          {!done && <Button variant="secondary" size="sm" onClick={exitTest}>Exit test</Button>}
+        </div>}
       />
       {error && <Alert>{error}</Alert>}
 
@@ -134,11 +147,13 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
   const [remaining, setRemaining] = useState<number | null>(null);
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [activePassage, setActivePassage] = useState(0);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const revision = useRef(0);
   const dirty = useRef(new Set<string>());
   const answersRef = useRef<Answers>({});
   const inFlight = useRef(false);
   const hydrated = useRef(false);
+  const chipRefs = useRef(new Map<string, HTMLButtonElement>());
 
   useEffect(() => {
     if (data?.paper && !hydrated.current) {
@@ -166,6 +181,36 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
 
   useEffect(() => { const t = setInterval(flush, 10_000); return () => clearInterval(t); }, [flush]);
   useEffect(() => { const t = setTimeout(flush, 1500); return () => clearTimeout(t); }, [answers, flush]);
+
+  // Tracks which question is actually in view while the student scrolls manually, so the chip strip
+  // reflects real reading position rather than only ever showing the last place they clicked/jumped to.
+  useEffect(() => {
+    const sections = data?.paper;
+    if (!sections) return;
+    const tabbed = stage === 'READING' && sections.length > 1;
+    const visible = tabbed ? [sections[activePassage]] : sections;
+    const ids = visible.flatMap((s) => s.questions.map((q) => q.id));
+    if (ids.length === 0) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visibleEntries = entries.filter((e) => e.isIntersecting);
+        if (visibleEntries.length === 0) return;
+        const center = window.innerHeight / 2;
+        const best = visibleEntries.reduce((a, b) => {
+          const da = Math.abs(a.boundingClientRect.top + a.boundingClientRect.height / 2 - center);
+          const db = Math.abs(b.boundingClientRect.top + b.boundingClientRect.height / 2 - center);
+          return db < da ? b : a;
+        });
+        setActiveId(best.target.id.replace(/^q-/, ''));
+      },
+      { rootMargin: '-35% 0px -50% 0px', threshold: [0, 1] },
+    );
+    for (const id of ids) {
+      const el = document.getElementById(`q-${id}`);
+      if (el) observer.observe(el);
+    }
+    return () => observer.disconnect();
+  }, [data?.paper, stage, activePassage]);
 
   const doSubmit = useCallback(async () => {
     setSubmitting(true); setError(null);
@@ -203,7 +248,9 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
     if (sIdx !== undefined && sIdx >= 0) setActivePassage(sIdx);
     const scroll = () => {
       document.getElementById(`q-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      chipRefs.current.get(id)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
       setFocusedId(id);
+      setActiveId(id);
       window.setTimeout(() => setFocusedId((cur) => (cur === id ? null : cur)), 1500);
     };
     // Give the tab switch a tick to render before scrolling to the (possibly now-mounted) element.
@@ -270,15 +317,19 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
                 {s.questions.map((q) => {
                   const num = ++runningIndex;
                   const isAnswered = answers[q.id] !== null && answers[q.id] !== undefined;
+                  const isActive = activeId === q.id;
                   return (
                     <button
                       key={q.id}
+                      ref={(el) => { if (el) chipRefs.current.set(q.id, el); else chipRefs.current.delete(q.id); }}
                       type="button"
                       onClick={() => jumpTo(q.id)}
                       aria-label={`Go to question ${num}`}
+                      aria-current={isActive ? 'true' : undefined}
                       className={cx(
                         'grid size-6 shrink-0 place-items-center rounded-md text-[11px] font-semibold tabular-nums ring-1 ring-inset transition-colors',
                         isAnswered ? 'bg-primary text-primary-fg ring-primary hover:bg-primary-hover' : 'bg-surface text-fg-subtle ring-border-strong hover:bg-surface-muted',
+                        isActive && 'ring-2 ring-offset-1 ring-offset-surface-muted',
                       )}
                     >
                       {num}
