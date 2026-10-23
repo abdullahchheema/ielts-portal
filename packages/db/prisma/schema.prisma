@@ -1829,12 +1829,17 @@ model StudentPlan {
  * simulator (see SimulatorService) — Listening/Reading/Writing/Speaking are each picked independently
  * from a pool of published, eligible content, not from a small fixed set of bundled "configs."
  */
+/** Free-test claims are now fully anonymous (no email/phone collected) — email/phone/
+ *  emailNormalized/phoneNormalized are nullable and no longer written by new claims. The columns
+ *  and the registration-linking lookup that reads them (FreeTestService.linkToRegisteredStudent)
+ *  stay for one release cycle so pre-migration leads keep working, then a follow-up migration can
+ *  drop them physically. */
 model FreeAssessmentLead {
   id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email           String
-  phone           String
-  emailNormalized String    @map("email_normalized")
-  phoneNormalized String    @map("phone_normalized")
+  email           String?
+  phone           String?
+  emailNormalized String?   @map("email_normalized")
+  phoneNormalized String?   @map("phone_normalized")
   ghostStudentId  String?   @map("ghost_student_id") @db.Uuid
   examAttemptId   String?   @unique @map("exam_attempt_id") @db.Uuid
   status          String    @default("CLAIMED")
@@ -1846,7 +1851,6 @@ model FreeAssessmentLead {
 
   examAttempt ExamAttempt? @relation(fields: [examAttemptId], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
-  @@unique([emailNormalized, phoneNormalized])
   @@map("free_assessment_leads")
 }
 

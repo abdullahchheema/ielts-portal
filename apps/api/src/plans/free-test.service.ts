@@ -3,7 +3,7 @@ import { Injectable } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import { Prisma } from '@ielts/db';
 import type { AddSpeakingResponseInput, ImportContentBlock, SaveAnswersInput, SaveWritingInput } from '@ielts/validation';
-import { AppError, conflict, notFound } from '../common/app-error';
+import { AppError, notFound } from '../common/app-error';
 import { PrismaService } from '../prisma/prisma.service';
 import { AssessmentsAdminService } from '../assessments/assessments-admin.service';
 import { AttemptsService } from '../assessments/attempts.service';
@@ -54,59 +54,20 @@ export class FreeTestService {
     private readonly bank: QuestionBankService,
   ) {}
 
-  private normalize(email: string, phone: string) {
-    return { emailNormalized: email.trim().toLowerCase(), phoneNormalized: phone.replace(/\D/g, '') };
-  }
-
-  /** Claim (or resume, or reclaim after expiry) a free test. Never grants a second entitlement to
-   *  the same identity once it has been COMPLETED. */
-  async claim(email: string, phone: string, meta: { ip?: string; userAgent?: string }) {
-    const { emailNormalized, phoneNormalized } = this.normalize(email, phone);
-    if (!phoneNormalized || phoneNormalized.length < 6) throw new AppError('VALIDATION_ERROR', 422, 'Enter a valid phone number.', { phone: 'Invalid phone number.' });
-
-    const existing = await this.prisma.freeAssessmentLead.findUnique({ where: { emailNormalized_phoneNormalized: { emailNormalized, phoneNormalized } } });
-    if (existing) {
-      if (existing.status === 'COMPLETED') throw conflict('FREE_TEST_USED', 'You have already taken the free test. Register for a paid plan to unlock full results and more tests.');
-      if (existing.status === 'EXPIRED') return this.reclaim(existing.id, meta);
-      return { leadId: existing.id, resumable: !!existing.examAttemptId };
-    }
-
-    try {
-      // Not one big transaction: createExam() calls AttemptsService.start(), which opens its own
-      // transaction and needs the ghost student's row already committed and visible — not still
-      // sitting inside an uncommitted outer transaction, which would fail its FK check.
-      const ghostStudentId = await this.createGhostStudent(email, phone);
-      const examAttemptId = await this.createExam(ghostStudentId);
-      const lead = await this.prisma.freeAssessmentLead.create({
-        data: {
-          email, phone, emailNormalized, phoneNormalized, ghostStudentId, examAttemptId,
-          ipAddress: meta.ip, userAgent: meta.userAgent, expiresAt: new Date(Date.now() + LEAD_TTL_MS),
-        },
-      });
-      return { leadId: lead.id, resumable: false };
-    } catch (e) {
-      // Two near-simultaneous claims for the same identity: the loser's insert hits the unique
-      // index. Recover by returning the winner's lead instead of a spurious 500.
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-        const after = await this.prisma.freeAssessmentLead.findUnique({ where: { emailNormalized_phoneNormalized: { emailNormalized, phoneNormalized } } });
-        if (after) return { leadId: after.id, resumable: !!after.examAttemptId };
-      }
-      throw e;
-    }
-  }
-
-  private async reclaim(leadId: string, meta: { ip?: string; userAgent?: string }) {
-    const lead = await this.prisma.freeAssessmentLead.findUniqueOrThrow({ where: { id: leadId } });
-    const ghostStudentId = lead.ghostStudentId ?? await this.createGhostStudent(lead.email, lead.phone);
-    // An IN_PROGRESS exam already satisfies the one-open-exam-per-student constraint — reuse it
-    // rather than creating a second one, which that constraint would reject anyway.
-    const open = await this.prisma.examAttempt.findFirst({ where: { studentId: ghostStudentId, status: 'IN_PROGRESS' }, select: { id: true } });
-    const examAttemptId = open?.id ?? await this.createExam(ghostStudentId);
-    await this.prisma.freeAssessmentLead.update({
-      where: { id: leadId },
-      data: { ghostStudentId, examAttemptId, status: 'CLAIMED', expiresAt: new Date(Date.now() + LEAD_TTL_MS), ipAddress: meta.ip, userAgent: meta.userAgent },
+  /** Claims a brand-new, fully anonymous free test. No identity is collected, so there is nothing
+   *  to dedupe or resume server-side — the client is solely responsible for remembering its own
+   *  leadId (see the free-test pages' localStorage use) and calling GET /free-test/:leadId to
+   *  resume. This means "one free test per person" is no longer enforced — an accepted tradeoff. */
+  async claim(meta: { ip?: string; userAgent?: string }) {
+    // Not one big transaction: createExam() calls AttemptsService.start(), which opens its own
+    // transaction and needs the ghost student's row already committed and visible — not still
+    // sitting inside an uncommitted outer transaction, which would fail its FK check.
+    const ghostStudentId = await this.createGhostStudent();
+    const examAttemptId = await this.createExam(ghostStudentId);
+    const lead = await this.prisma.freeAssessmentLead.create({
+      data: { ghostStudentId, examAttemptId, ipAddress: meta.ip, userAgent: meta.userAgent, expiresAt: new Date(Date.now() + LEAD_TTL_MS) },
     });
-    return { leadId, resumable: !!open };
+    return { leadId: lead.id, resumable: false };
   }
 
   /** The least-used published, student-facing bank set for this skill, among however many exist.
@@ -257,12 +218,14 @@ export class FreeTestService {
     return examAttemptId;
   }
 
-  private async createGhostStudent(email: string, phone: string) {
+  /** No email/phone is ever collected for an anonymous free test, so the ghost's own synthetic
+   *  email (never real, never reachable) is its only identity. */
+  private async createGhostStudent() {
     const studentRole = await this.prisma.role.findUniqueOrThrow({ where: { name: 'STUDENT' } });
     const passwordHash = await argon2.hash(randomBytes(32).toString('hex'), { type: argon2.argon2id });
     const user = await this.prisma.user.create({
       data: {
-        email: `freelead-${randomUUID()}@${GHOST_EMAIL_DOMAIN}`, phone, passwordHash,
+        email: `freelead-${randomUUID()}@${GHOST_EMAIL_DOMAIN}`, passwordHash,
         student: { create: { firstName: 'Free', lastName: 'Trial', isGhost: true } },
         roles: { create: { roleId: studentRole.id } },
       },

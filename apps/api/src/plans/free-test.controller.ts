@@ -4,8 +4,8 @@ import { memoryStorage } from 'multer';
 import type { Request } from 'express';
 import { z } from 'zod';
 import {
-  AddSpeakingResponseInput, ClaimFreeTestInput, MAX_SPEAKING_BYTES, SaveAnswersInput, SaveWritingInput,
-  addSpeakingResponseSchema, claimFreeTestSchema, saveAnswersSchema, saveWritingSchema, simulatorAdvanceSchema,
+  AddSpeakingResponseInput, MAX_SPEAKING_BYTES, SaveAnswersInput, SaveWritingInput,
+  addSpeakingResponseSchema, saveAnswersSchema, saveWritingSchema, simulatorAdvanceSchema,
 } from '@ielts/validation';
 import { AppError } from '../common/app-error';
 import { Public, clientMeta } from '../common/decorators';
@@ -21,9 +21,11 @@ const speakingQuery = z.object({ part: z.enum(['PART1', 'PART2', 'PART3']) });
 export class FreeTestController {
   constructor(private readonly freeTest: FreeTestService) {}
 
+  /** Fully anonymous: no email, phone, or body at all. Every call mints a fresh claim — there is no
+   *  identity to dedupe against, so "one free test per person" is no longer enforced. */
   @Public() @Post('claim')
-  claim(@Body(new ZodPipe(claimFreeTestSchema)) body: ClaimFreeTestInput, @Req() req: Request) {
-    return this.freeTest.claim(body.email, body.phone, clientMeta(req));
+  claim(@Req() req: Request) {
+    return this.freeTest.claim(clientMeta(req));
   }
 
   @Public() @Get(':leadId')

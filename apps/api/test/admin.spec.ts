@@ -88,9 +88,7 @@ describe('students', () => {
     }
 
     const before = (await as(admin)(http(app).get('/admin/dashboard')).expect(200)).body.students;
-    const claim = (await http(app).post('/free-test/claim').send({
-      email: `ghost-${uniq()}@test.local`, phone: `03${Math.floor(100_000_000 + Math.random() * 899_999_999)}`,
-    }).expect(201)).body;
+    const claim = (await http(app).post('/free-test/claim').expect(201)).body;
     const lead = await prisma.freeAssessmentLead.findUniqueOrThrow({ where: { id: claim.leadId } });
     const ghost = await prisma.studentProfile.findUniqueOrThrow({ where: { id: lead.ghostStudentId! }, include: { user: true } });
     expect(ghost.isGhost).toBe(true);

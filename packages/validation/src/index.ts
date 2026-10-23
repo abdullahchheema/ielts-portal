@@ -88,7 +88,6 @@ export * from './lists';
 export * from './question-bank';
 export * from './question-import';
 export * from './plans';
-export * from './free-test';
 export * from './referrals';
 export * from './ai-practice';
 export * from './survey';

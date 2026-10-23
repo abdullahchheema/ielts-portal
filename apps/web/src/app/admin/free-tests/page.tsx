@@ -7,7 +7,9 @@ import { api } from '@/lib/api';
 
 interface PoolStats { listening: number; reading: number; writing: number; speaking: number }
 interface LeadRow {
-  id: string; email: string; phone: string; status: string; stage: string | null; examStatus: string | null;
+  // email/phone are null for anonymous claims (no identity is collected) — only pre-anonymous-
+  // rework leads still carry one.
+  id: string; email: string | null; phone: string | null; status: string; stage: string | null; examStatus: string | null;
   overallEstimate: number | null; missingSkills: string[]; createdAt: string; linked: boolean;
 }
 interface ModuleRow { id: string; skill: string; title: string; published: boolean; questionCount: number; createdAt: string }
@@ -62,8 +64,8 @@ export default function FreeTestsAdminPage() {
       <Table head={['Email', 'Phone', 'Status', 'Stage', 'Overall estimate', 'Linked to account', 'Claimed']}>
         {(leads?.items ?? []).map((l) => (
           <tr key={l.id}>
-            <Td>{l.email}</Td>
-            <Td>{l.phone}</Td>
+            <Td>{l.email ?? <span className="text-fg-subtle">Anonymous</span>}</Td>
+            <Td>{l.phone ?? '—'}</Td>
             <Td><Badge status={l.status} /></Td>
             <Td>{l.stage ?? '—'}</Td>
             <Td>{l.overallEstimate != null ? l.overallEstimate : l.missingSkills.length ? `Partial (missing ${l.missingSkills.join(', ')})` : '—'}</Td>

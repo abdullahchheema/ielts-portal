@@ -4,7 +4,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PrismaClient } from '@ielts/db';
 import { createApp } from '../src/app';
-import { Session, as, http, loginAdmin, uniq } from './helpers';
+import { Session, as, http, loginAdmin } from './helpers';
 
 /**
  * Validates the real March 2025 Listening/Reading/Writing/Speaking content (authored as
@@ -26,7 +26,6 @@ beforeAll(async () => {
 afterAll(async () => { await app.close(); await prisma.$disconnect(); });
 
 const post = (path: string, body: object) => as(admin)(http(app).post(path)).send(body);
-const randomPhone = () => `03${Math.floor(100_000_000 + Math.random() * 899_999_999)}`;
 
 describe('March 2025 content import', () => {
   it('imports clean (zero issues) and commits all 4 skills with the expected question counts', async () => {
@@ -71,7 +70,7 @@ describe('March 2025 content import', () => {
     let wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: listeningId } });
     let leadId = '';
     for (let i = 0; i < 8 && !wrapped.wrapperAssessmentId; i++) {
-      leadId = (await http(app).post('/free-test/claim').send({ email: `lead-${uniq()}@test.local`, phone: randomPhone() }).expect(201)).body.leadId;
+      leadId = (await http(app).post('/free-test/claim').expect(201)).body.leadId;
       wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: listeningId } });
     }
     expect(wrapped.wrapperAssessmentId, 'This set was never picked by a free-test claim after 8 tries — rerun or widen the retry bound.').not.toBeNull();

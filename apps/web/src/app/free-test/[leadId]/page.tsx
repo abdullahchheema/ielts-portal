@@ -72,6 +72,12 @@ export default function FreeTestPage() {
   const [busy, setBusy] = useState(false);
   const refresh = useCallback(() => qc.invalidateQueries({ queryKey: ['free-test-exam', leadId] }), [qc, leadId]);
 
+  // A direct/shared deep link (not the normal claim-then-redirect path) should still resume
+  // correctly from the landing page on a later visit, so remember this id too.
+  useEffect(() => {
+    try { localStorage.setItem('freeTestLeadId', leadId); } catch { /* private window etc. */ }
+  }, [leadId]);
+
   async function exitTest() {
     const ok = await confirm({
       message: 'Leaving will stop your free test here. You can come back to this exact link within 7 days to pick up where you left off, but any section you\'ve already submitted can\'t be redone.',

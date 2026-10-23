@@ -14,6 +14,10 @@ import { Session, as, http, loginAdmin, uniq } from './helpers';
  * selection unchanged. The ghost never has a plan (defaults to FREE), so Writing/Speaking are never
  * AI-evaluated — that is spec-correct, not a bug: `missingSkills` records them and `overallEstimate`
  * stays null.
+ *
+ * Claiming is fully anonymous (no email/phone, no body at all) — every POST /free-test/claim mints a
+ * brand-new ghost+exam+lead unconditionally. There is no identity to dedupe against, so "one free
+ * test per person" is no longer enforced; this is an accepted tradeoff, not a bug.
  */
 
 let app: NestExpressApplication;
@@ -34,7 +38,6 @@ afterAll(async () => {
 const post = (path: string, body: object = {}) => as(admin)(http(app).post(path)).send(body);
 
 interface PaperQ { id: string; prompt: { text: string }; options?: { id: string; label: string }[] }
-const randomPhone = () => `03${Math.floor(100_000_000 + Math.random() * 899_999_999)}`;
 
 /** A small published, student-facing bank set for one skill, with one TFNG question of a known
  *  answer — the only place Listening/Reading free-test content lives now. */
@@ -91,41 +94,25 @@ async function finishFreeTest(leadId: string) {
   return exam;
 }
 
-describe('free-test v2: claim and identity', () => {
-  it('claiming twice with the same identity returns the same lead (idempotent)', async () => {
+describe('free-test v2: anonymous claiming', () => {
+  it('claims a free test with no body at all — no email, phone, or any other identity', async () => {
     await buildBankModule('LISTENING'); await buildBankModule('READING');
-    const email = `lead-${uniq()}@test.local`;
-    const phone = randomPhone();
-    const first = (await http(app).post('/free-test/claim').send({ email, phone }).expect(201)).body;
-    const second = (await http(app).post('/free-test/claim').send({ email, phone }).expect(201)).body;
-    expect(second.leadId).toBe(first.leadId);
+    const res = await http(app).post('/free-test/claim').expect(201);
+    expect(res.body.leadId).toBeTruthy();
+    expect(res.body.resumable).toBe(false);
+    const lead = await prisma.freeAssessmentLead.findUniqueOrThrow({ where: { id: res.body.leadId } });
+    expect(lead.email).toBeNull();
+    expect(lead.phone).toBeNull();
   });
 
-  it('a different phone with the same email is a different identity (not a collision)', async () => {
+  it('every claim is independent — there is no dedup, by design', async () => {
     await buildBankModule('LISTENING'); await buildBankModule('READING');
-    const email = `lead-${uniq()}@test.local`;
-    const first = (await http(app).post('/free-test/claim').send({ email, phone: randomPhone() }).expect(201)).body;
-    const second = (await http(app).post('/free-test/claim').send({ email, phone: randomPhone() }).expect(201)).body;
-    expect(second.leadId).not.toBe(first.leadId);
-  });
-
-  it('rejects a malformed phone number', async () => {
-    await http(app).post('/free-test/claim').send({ email: `lead-${uniq()}@test.local`, phone: 'x' }).expect(422);
-  });
-
-  it('concurrent claims for the same identity do not create duplicate leads', async () => {
-    await buildBankModule('LISTENING'); await buildBankModule('READING');
-    const email = `lead-${uniq()}@test.local`;
-    const phone = randomPhone();
-    const [a, b, c] = await Promise.all([
-      http(app).post('/free-test/claim').send({ email, phone }),
-      http(app).post('/free-test/claim').send({ email, phone }),
-      http(app).post('/free-test/claim').send({ email, phone }),
-    ]);
-    const leadIds = new Set([a.body.leadId, b.body.leadId, c.body.leadId]);
-    expect(leadIds.size).toBe(1);
-    const count = await prisma.freeAssessmentLead.count({ where: { email, phone } });
-    expect(count).toBe(1);
+    const a = (await http(app).post('/free-test/claim').expect(201)).body;
+    const b = (await http(app).post('/free-test/claim').expect(201)).body;
+    expect(a.leadId).not.toBe(b.leadId);
+    const leads = await prisma.freeAssessmentLead.findMany({ where: { id: { in: [a.leadId, b.leadId] } } });
+    // Each gets its own ghost student — no two anonymous claims ever share one.
+    expect(new Set(leads.map((l) => l.ghostStudentId)).size).toBe(2);
   });
 
   it('rotation spreads new leads across published Listening modules', async () => {
@@ -137,7 +124,7 @@ describe('free-test v2: claim and identity', () => {
     const b = await buildBankModule('LISTENING');
     const picked = new Set<string>();
     for (let i = 0; i < 8 && !(picked.has(a) && picked.has(b)); i++) {
-      const claim = (await http(app).post('/free-test/claim').send({ email: `rot-${uniq()}@test.local`, phone: randomPhone() }).expect(201)).body;
+      const claim = (await http(app).post('/free-test/claim').expect(201)).body;
       const lead = await prisma.freeAssessmentLead.findUniqueOrThrow({ where: { id: claim.leadId }, include: { examAttempt: true } });
       // examAttempt.listeningAssessmentId is the lazily-built wrapper Assessment's id — map it back
       // to the bank set it was built from to compare against a/b.
@@ -156,9 +143,7 @@ describe('free-test v2: full 4-skill flow', () => {
   it('claim -> listening -> reading -> writing -> speaking -> done, with a restricted overall estimate', async () => {
     await buildBankModule('LISTENING'); await buildBankModule('READING');
     await buildWritingPrompt();
-    const email = `lead-${uniq()}@test.local`;
-    const phone = randomPhone();
-    const claim = (await http(app).post('/free-test/claim').send({ email, phone }).expect(201)).body;
+    const claim = (await http(app).post('/free-test/claim').expect(201)).body;
     expect(claim.resumable).toBe(false);
 
     let exam = (await http(app).get(`/free-test/${claim.leadId}`).expect(200)).body;
@@ -183,16 +168,13 @@ describe('free-test v2: full 4-skill flow', () => {
     // overall estimate is produced — this is correct behaviour, not a bug.
     expect(exam.missingSkills).toEqual(expect.arrayContaining(['WRITING', 'SPEAKING']));
     expect(exam.overallEstimate).toBeNull();
-
-    // A completed free test cannot be claimed again for the same identity.
-    await http(app).post('/free-test/claim').send({ email, phone }).expect(409);
   });
 });
 
 describe('free-test v2: conflict handling', () => {
   it('rejects a stale expectedRevision on advance with 409 CONFLICT, after a fresh one already succeeded', async () => {
     await buildBankModule('LISTENING'); await buildBankModule('READING');
-    const claim = (await http(app).post('/free-test/claim').send({ email: `lead-${uniq()}@test.local`, phone: randomPhone() }).expect(201)).body;
+    const claim = (await http(app).post('/free-test/claim').expect(201)).body;
     const exam = (await http(app).get(`/free-test/${claim.leadId}`).expect(200)).body;
     await answerAndSubmitSection(claim.leadId);
 
@@ -208,7 +190,7 @@ describe('free-test v2: conflict handling', () => {
 
   it('submitting the same section twice is idempotent, not an error — covers a retried request after a dropped response', async () => {
     await buildBankModule('LISTENING'); await buildBankModule('READING');
-    const claim = (await http(app).post('/free-test/claim').send({ email: `lead-${uniq()}@test.local`, phone: randomPhone() }).expect(201)).body;
+    const claim = (await http(app).post('/free-test/claim').expect(201)).body;
     const section = (await http(app).get(`/free-test/${claim.leadId}/section`).expect(200)).body;
     const q = section.paper[0].questions[0] as PaperQ;
     await http(app).put(`/free-test/${claim.leadId}/answers`).send({ revision: section.attempt.revision, answers: [{ questionVersionId: q.id, answer: { value: 'TRUE' } }] }).expect(200);
@@ -221,7 +203,7 @@ describe('free-test v2: conflict handling', () => {
 describe('free-test v2: speaking transcription carve-out', () => {
   it('a free-test ghost (on the FREE plan) still gets a transcript, but not the full AI evaluation', async () => {
     await buildBankModule('LISTENING'); await buildBankModule('READING');
-    const claim = (await http(app).post('/free-test/claim').send({ email: `lead-${uniq()}@test.local`, phone: randomPhone() }).expect(201)).body;
+    const claim = (await http(app).post('/free-test/claim').expect(201)).body;
     const exam = await finishFreeTest(claim.leadId);
     expect(exam.status).toBe('COMPLETED');
 
@@ -236,13 +218,17 @@ describe('free-test v2: speaking transcription carve-out', () => {
   });
 });
 
-describe('free-test v2: registration linking', () => {
-  it('registering with the same email links the lead without granting a new free attempt', async () => {
+describe('free-test v2: registration linking (legacy leads that still carry an email)', () => {
+  it('registering with a legacy lead\'s email links its history to the new account', async () => {
+    // New anonymous claims never have an email, so this exercises a pre-anonymous-rework lead —
+    // simulated here by writing email/emailNormalized directly, the same shape a lead row created
+    // before this rework would still have (those columns stay populated for existing rows).
     await buildBankModule('LISTENING'); await buildBankModule('READING');
-    const email = `lead-${uniq()}@test.local`;
-    const phone = randomPhone();
-    const claim = (await http(app).post('/free-test/claim').send({ email, phone }).expect(201)).body;
+    const claim = (await http(app).post('/free-test/claim').expect(201)).body;
     await finishFreeTest(claim.leadId);
+
+    const email = `lead-${uniq()}@test.local`;
+    await prisma.freeAssessmentLead.update({ where: { id: claim.leadId }, data: { email, emailNormalized: email.toLowerCase() } });
 
     await http(app).post('/auth/register').send({ email, password: 'Str0ngPassw0rd!', firstName: 'Real', lastName: 'Student', phone: '03009998888' }).expect(201);
 
@@ -251,8 +237,5 @@ describe('free-test v2: registration linking', () => {
     const user = await prisma.user.findUniqueOrThrow({ where: { email }, include: { student: true } });
     const exam = await prisma.examAttempt.findUniqueOrThrow({ where: { id: lead.examAttempt!.id } });
     expect(exam.studentId).toBe(user.student!.id); // the free attempt now belongs to the real account
-
-    // Registering does not grant a second free claim for the same identity.
-    await http(app).post('/free-test/claim').send({ email, phone }).expect(409);
   });
 });

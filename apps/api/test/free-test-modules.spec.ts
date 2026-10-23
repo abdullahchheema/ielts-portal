@@ -29,7 +29,6 @@ afterAll(async () => {
 
 const post = (path: string, body: object = {}) => as(admin)(http(app).post(path)).send(body);
 const get = (path: string) => as(admin)(http(app).get(path));
-const randomPhone = () => `03${Math.floor(100_000_000 + Math.random() * 899_999_999)}`;
 
 /** A minimal MP3 header. Enough for the server's content sniffing. */
 const MP3 = Buffer.concat([Buffer.from([0xff, 0xfb, 0x90, 0x00]), Buffer.alloc(400, 1)]);
@@ -90,7 +89,7 @@ describe('free-test content lives only in the question bank', () => {
     let wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
     let leadId = '';
     for (let i = 0; i < 5 && !wrapped.wrapperAssessmentId; i++) {
-      leadId = (await http(app).post('/free-test/claim').send({ email: `lead-${uniq()}@test.local`, phone: randomPhone() }).expect(201)).body.leadId;
+      leadId = (await http(app).post('/free-test/claim').expect(201)).body.leadId;
       wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
     }
     expect(wrapped.wrapperAssessmentId).not.toBeNull();
@@ -116,7 +115,7 @@ describe('free-test content lives only in the question bank', () => {
 
     // However many further claims land on this set, its wrapper never gets rebuilt — still exactly
     // one Assessment with this title, matching the one already found above.
-    for (let i = 0; i < 3; i++) await http(app).post('/free-test/claim').send({ email: `lead-${uniq()}@test.local`, phone: randomPhone() }).expect(201);
+    for (let i = 0; i < 3; i++) await http(app).post('/free-test/claim').expect(201);
     const wrapperCount = await prisma.assessment.count({ where: { title, type: 'DIAGNOSTIC' } });
     expect(wrapperCount).toBe(1);
   });
@@ -152,7 +151,7 @@ describe('free-test content lives only in the question bank', () => {
 
     let wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
     for (let i = 0; i < 5 && !wrapped.wrapperAssessmentId; i++) {
-      await http(app).post('/free-test/claim').send({ email: `lead-${uniq()}@test.local`, phone: randomPhone() }).expect(201);
+      await http(app).post('/free-test/claim').expect(201);
       wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
     }
     expect(wrapped.wrapperAssessmentId).not.toBeNull();
@@ -215,7 +214,7 @@ describe('free-test content lives only in the question bank', () => {
 
     let wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
     for (let i = 0; i < 5 && !wrapped.wrapperAssessmentId; i++) {
-      await http(app).post('/free-test/claim').send({ email: `lead-${uniq()}@test.local`, phone: randomPhone() }).expect(201);
+      await http(app).post('/free-test/claim').expect(201);
       wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
     }
     expect(wrapped.wrapperAssessmentId).not.toBeNull();
@@ -260,7 +259,7 @@ describe('free-test content lives only in the question bank', () => {
     let wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
     let leadId = '';
     for (let i = 0; i < 5 && !wrapped.wrapperAssessmentId; i++) {
-      leadId = (await http(app).post('/free-test/claim').send({ email: `lead-${uniq()}@test.local`, phone: randomPhone() }).expect(201)).body.leadId;
+      leadId = (await http(app).post('/free-test/claim').expect(201)).body.leadId;
       wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
     }
     expect(wrapped.wrapperAssessmentId).not.toBeNull();
@@ -293,7 +292,7 @@ describe('free-test content lives only in the question bank', () => {
     let wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
     let leadId = '';
     for (let i = 0; i < 5 && !wrapped.wrapperAssessmentId; i++) {
-      leadId = (await http(app).post('/free-test/claim').send({ email: `lead-${uniq()}@test.local`, phone: randomPhone() }).expect(201)).body.leadId;
+      leadId = (await http(app).post('/free-test/claim').expect(201)).body.leadId;
       wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
     }
     expect(wrapped.wrapperAssessmentId).not.toBeNull();
@@ -309,7 +308,7 @@ describe('free-test content lives only in the question bank', () => {
 
     let wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
     for (let i = 0; i < 5 && !wrapped.wrapperAssessmentId; i++) {
-      await http(app).post('/free-test/claim').send({ email: `lead-${uniq()}@test.local`, phone: randomPhone() }).expect(201);
+      await http(app).post('/free-test/claim').expect(201);
       wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
     }
     const firstWrapperId = wrapped.wrapperAssessmentId;
@@ -326,7 +325,7 @@ describe('free-test content lives only in the question bank', () => {
     let rewrapped = afterEdit;
     let leadId = '';
     for (let i = 0; i < 8 && !rewrapped.wrapperAssessmentId; i++) {
-      leadId = (await http(app).post('/free-test/claim').send({ email: `lead-${uniq()}@test.local`, phone: randomPhone() }).expect(201)).body.leadId;
+      leadId = (await http(app).post('/free-test/claim').expect(201)).body.leadId;
       rewrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
     }
     expect(rewrapped.wrapperAssessmentId).not.toBeNull();
@@ -343,7 +342,7 @@ describe('free-test content lives only in the question bank', () => {
     let wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
     let leadId = '';
     for (let i = 0; i < 5 && !wrapped.wrapperAssessmentId; i++) {
-      leadId = (await http(app).post('/free-test/claim').send({ email: `lead-${uniq()}@test.local`, phone: randomPhone() }).expect(201)).body.leadId;
+      leadId = (await http(app).post('/free-test/claim').expect(201)).body.leadId;
       wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
     }
     expect(wrapped.wrapperAssessmentId).not.toBeNull();
