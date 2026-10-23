@@ -77,6 +77,33 @@ describe('students', () => {
     const res = await as(admin)(http(app).patch(`/admin/students/${f.id}/status`)).send({ status: 'BLOCKED' }).expect(403);
     expect(res.body.error.code).toBe('FORBIDDEN');
   });
+
+  it('excludes free-test ghost accounts from the list, search, and dashboard count — they are never a student category', async () => {
+    // claim() needs a published Listening and Reading set to pick from — build the minimum.
+    for (const skill of ['LISTENING', 'READING'] as const) {
+      const set = (await as(admin)(http(app).post('/admin/question-sets')).send({ title: `Ghost test ${skill} ${uniq()}`, skill, difficulty: 3, studentFacing: false }).expect(201)).body;
+      await as(admin)(http(app).post(`/admin/question-sets/${set.id}/questions`)).send({ ieltsType: 'TFNG', prompt: { text: `Q ${uniq()}` }, marks: 1, answerKey: { value: 'TRUE' } }).expect(201);
+      await as(admin)(http(app).post(`/admin/question-sets/${set.id}/status`)).send({ status: 'APPROVED' }).expect(200);
+      await as(admin)(http(app).post(`/admin/question-sets/${set.id}/status`)).send({ status: 'PUBLISHED', studentFacing: true }).expect(200);
+    }
+
+    const before = (await as(admin)(http(app).get('/admin/dashboard')).expect(200)).body.students;
+    const claim = (await http(app).post('/free-test/claim').send({
+      email: `ghost-${uniq()}@test.local`, phone: `03${Math.floor(100_000_000 + Math.random() * 899_999_999)}`,
+    }).expect(201)).body;
+    const lead = await prisma.freeAssessmentLead.findUniqueOrThrow({ where: { id: claim.leadId } });
+    const ghost = await prisma.studentProfile.findUniqueOrThrow({ where: { id: lead.ghostStudentId! }, include: { user: true } });
+    expect(ghost.isGhost).toBe(true);
+
+    // Not findable by searching its own synthetic email.
+    const found = (await as(admin)(http(app).get(`/admin/students?search=${encodeURIComponent(ghost.user.email)}`)).expect(200)).body;
+    expect(found.total).toBe(0);
+    expect(found.items.some((s: { id: string }) => s.id === lead.ghostStudentId)).toBe(false);
+
+    // Dashboard's student count doesn't move when a ghost is created.
+    const after = (await as(admin)(http(app).get('/admin/dashboard')).expect(200)).body.students;
+    expect(after).toBe(before);
+  });
 });
 
 describe('staff & roles', () => {

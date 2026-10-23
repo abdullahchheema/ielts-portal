@@ -23,7 +23,7 @@ export class AdminSearchController {
     const [students, batches] = await Promise.all([
       perms.has('student.view')
         ? this.prisma.studentProfile.findMany({
-          where: { OR: [{ firstName: contains }, { lastName: contains }, { user: { email: contains } }] },
+          where: { isGhost: false, OR: [{ firstName: contains }, { lastName: contains }, { user: { email: contains } }] },
           take: q.take, select: { id: true, firstName: true, lastName: true, user: { select: { email: true } } },
         })
         : Promise.resolve(null),

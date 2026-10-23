@@ -34,7 +34,7 @@ export class AdminService {
       has('enrollment.view') || has('payment.view') ? this.prisma.enrollment.count({ where: { ...live, status: 'PENDING_PAYMENT' } }) : null,
       has('payment.view') ? this.prisma.paymentProof.count({ where: { status: 'SUBMITTED' } }) : null,
       has('enrollment.view') ? this.prisma.enrollment.count({ where: { ...live, status: { in: ['ACTIVE', 'PAUSED', 'COMPLETED'] } } }) : null,
-      has('student.view') ? this.prisma.studentProfile.count() : null,
+      has('student.view') ? this.prisma.studentProfile.count({ where: { isGhost: false } }) : null,
       has('batch.view') ? this.prisma.batch.count({ where: { ...live, status: { in: ['OPEN', 'IN_PROGRESS'] } } }) : null,
       has('batch.view') ? this.prisma.batch.count({ where: { ...live, startAt: { gt: new Date() }, status: { in: ['DRAFT', 'OPEN'] } } }) : null,
       has('mentor.assign') ? this.prisma.mentorProfile.count({ where: { status: 'ACTIVE' } }) : null,
@@ -46,7 +46,7 @@ export class AdminService {
   async listStudents(q: { search?: string; status?: AccountStatus; skip: number; take: number }) {
     const where: Prisma.UserWhereInput = {
       deletedAt: null,
-      student: { isNot: null },
+      student: { is: { isGhost: false } },
       ...(q.status ? { status: q.status } : {}),
       ...(q.search
         ? { OR: [

@@ -263,7 +263,7 @@ export class FreeTestService {
     const user = await this.prisma.user.create({
       data: {
         email: `freelead-${randomUUID()}@${GHOST_EMAIL_DOMAIN}`, phone, passwordHash,
-        student: { create: { firstName: 'Free', lastName: 'Trial' } },
+        student: { create: { firstName: 'Free', lastName: 'Trial', isGhost: true } },
         roles: { create: { roleId: studentRole.id } },
       },
       include: { student: { select: { id: true } } },

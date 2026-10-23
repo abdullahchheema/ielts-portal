@@ -34,6 +34,7 @@ export class SearchService {
     if (teacherOrStaffStudents) {
       sections.push(this.prisma.studentProfile.findMany({
         where: {
+          isGhost: false,
           OR: [{ firstName: like }, { lastName: like }, { user: { email: like } }, { user: { phone: like } }],
           ...(mentorBatches !== null ? { enrollments: { some: { batchId: { in: mentorBatches }, deletedAt: null } } } : {}),
         },
