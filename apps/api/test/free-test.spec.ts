@@ -218,6 +218,24 @@ describe('free-test v2: conflict handling', () => {
   });
 });
 
+describe('free-test v2: speaking transcription carve-out', () => {
+  it('a free-test ghost (on the FREE plan) still gets a transcript, but not the full AI evaluation', async () => {
+    await buildBankModule('LISTENING'); await buildBankModule('READING');
+    const claim = (await http(app).post('/free-test/claim').send({ email: `lead-${uniq()}@test.local`, phone: randomPhone() }).expect(201)).body;
+    const exam = await finishFreeTest(claim.leadId);
+    expect(exam.status).toBe('COMPLETED');
+
+    const lead = await prisma.freeAssessmentLead.findUniqueOrThrow({ where: { id: claim.leadId } });
+    const response = await prisma.speakingResponse.findFirstOrThrow({ where: { studentId: lead.ghostStudentId! }, orderBy: { createdAt: 'desc' } });
+    expect(response.transcriptStatus).toBe('DONE');
+    expect(response.transcript).toBeTruthy();
+
+    // The full AI evaluation stays plan-gated: a FREE-plan ghost gets transcription only.
+    const evalCount = await prisma.speakingEvaluation.count({ where: { responseId: response.id } });
+    expect(evalCount).toBe(0);
+  });
+});
+
 describe('free-test v2: registration linking', () => {
   it('registering with the same email links the lead without granting a new free attempt', async () => {
     await buildBankModule('LISTENING'); await buildBankModule('READING');

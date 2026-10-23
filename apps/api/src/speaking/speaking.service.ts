@@ -118,7 +118,9 @@ export class SpeakingService implements OnModuleInit {
       data: { storageKey: key, mime: sniffed.mime, sizeBytes: BigInt(file.size), sha256: sha256Hex(file.buffer), status: 'UPLOADED' },
     });
     // AI transcription/evaluation is an Advanced/Premium feature; the recording itself is always kept.
-    if (await this.entitlements.can(studentId, 'ai.evaluation')) await this.queueTranscription(id);
+    // Free-test ghosts also get a transcript (but not the full AI evaluation below) so the free test
+    // can demonstrate the real feature without needing a paid plan.
+    if (await this.canTranscribe(studentId)) await this.queueTranscription(id);
     return { status: 'UPLOADED' };
   }
 
@@ -139,7 +141,9 @@ export class SpeakingService implements OnModuleInit {
       data: { mime: sniffed.mime, sizeBytes: BigInt(meta.size), durationSec: durationSec === undefined ? null : new Prisma.Decimal(durationSec), status: 'UPLOADED' },
     });
     // AI transcription/evaluation is an Advanced/Premium feature; the recording itself is always kept.
-    if (await this.entitlements.can(studentId, 'ai.evaluation')) await this.queueTranscription(id);
+    // Free-test ghosts also get a transcript (but not the full AI evaluation below) so the free test
+    // can demonstrate the real feature without needing a paid plan.
+    if (await this.canTranscribe(studentId)) await this.queueTranscription(id);
     const answered = await this.prisma.speakingResponse.findUnique({ where: { id }, select: { questionId: true } });
     if (answered?.questionId) this.events.emit(STUDY_EVIDENCE, { studentId, refType: 'SPEAKING_PART', refId: answered.questionId } satisfies StudyEvidence);
     return { status: 'UPLOADED' };
@@ -174,8 +178,13 @@ export class SpeakingService implements OnModuleInit {
           metrics: { words: wordCount(result.text), durationSec: result.durationSec } as Prisma.InputJsonValue,
         },
       });
-      const jobId = await this.jobs.enqueue('speaking.evaluate', `speaking-eval:${id}`, { responseId: id });
-      if (jobId) await this.jobs.runById(jobId).catch(() => false);
+      // The transcript itself is produced for anyone transcribe() runs for (including a free-test
+      // ghost, via the carve-out in uploadLocal/complete), but the full AI band estimate stays a
+      // paid-plan feature — transcribing must not silently also evaluate.
+      if (await this.entitlements.can(r.studentId, 'ai.evaluation')) {
+        const jobId = await this.jobs.enqueue('speaking.evaluate', `speaking-eval:${id}`, { responseId: id });
+        if (jobId) await this.jobs.runById(jobId).catch(() => false);
+      }
     } catch (e) {
       await this.prisma.speakingResponse.update({ where: { id }, data: { status: 'PROCESSING_FAILED', transcriptStatus: 'FAILED', lastError: (e as Error).message.slice(0, 300) } });
       throw e;
@@ -253,6 +262,14 @@ export class SpeakingService implements OnModuleInit {
       select: { transcript: true, durationSec: true },
     });
     return profileOf(rows.map((r) => fluencyOf(r.transcript ?? '', r.durationSec === null ? null : Number(r.durationSec))));
+  }
+
+  /** Transcription-only access: a paid plan's ai.evaluation entitlement, or a free-test ghost student
+   *  (who gets a transcript but not the full evaluation below — that stays plan-gated). */
+  private async canTranscribe(studentId: string): Promise<boolean> {
+    if (await this.entitlements.can(studentId, 'ai.evaluation')) return true;
+    const student = await this.prisma.studentProfile.findUnique({ where: { id: studentId }, select: { isGhost: true } });
+    return student?.isGhost ?? false;
   }
 
   private async ownedResponse(studentId: string, id: string) {
