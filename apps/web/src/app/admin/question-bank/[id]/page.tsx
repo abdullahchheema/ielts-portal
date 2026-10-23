@@ -92,12 +92,11 @@ export default function QuestionSetPage() {
         breadcrumbs={[{ href: '/admin/question-bank', label: 'Question bank' }, { label: data.title }]}
         actions={<div className="flex flex-wrap gap-2">
           <Badge status={data.status} />
-          {data.studentFacing && <Badge status="PUBLISHED" tone="green" text="Student-facing" />}
           <Link href={`/admin/question-bank/${id}/preview`}><Button variant="secondary">Preview</Button></Link>
           {(data.status === 'DRAFT' || data.status === 'APPROVED') && <Button onClick={publish} busy={actionBusy === 'PUBLISHED'} disabled={!!actionBusy}>Publish</Button>}
           {data.status === 'PUBLISHED' && <Button variant="secondary" onClick={unpublish} busy={actionBusy === 'ARCHIVED'} disabled={!!actionBusy}>Unpublish</Button>}
           <Button variant="secondary" onClick={duplicate} busy={actionBusy === 'clone'} disabled={!!actionBusy}>Duplicate</Button>
-          {(data.status === 'DRAFT' || data.status === 'ARCHIVED') && <Button variant="danger" onClick={remove} busy={actionBusy === 'delete'} disabled={!!actionBusy}>Delete</Button>}
+          <Button variant="danger" onClick={remove} busy={actionBusy === 'delete'} disabled={!!actionBusy}>Delete</Button>
         </div>}
       />
       {error && <Alert>{error}</Alert>}

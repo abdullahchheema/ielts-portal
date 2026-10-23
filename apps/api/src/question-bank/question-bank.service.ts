@@ -279,11 +279,12 @@ export class QuestionBankService {
     });
   }
 
-  /** Permanently removes a set and everything in it. Allowed for a DRAFT (never published) or an
-   *  ARCHIVED set (already taken out of circulation, so nothing still depends on it existing — a
-   *  free-test wrapper or a mock only ever holds its own independent copy of the questions, never a
-   *  live reference). APPROVED/PUBLISHED sets must be archived first: that's the deliberate step that
-   *  confirms it's really done being used before it can be deleted. */
+  /** Permanently removes a set and everything in it, at any status including PUBLISHED — a
+   *  free-test wrapper or a mock exam only ever holds its own independent copy of the questions
+   *  (QuestionBankService.copyIntoSection(), used by both), never a live reference to the bank
+   *  rows being deleted here, so this is safe even for a set actively in rotation. The one real
+   *  constraint is MockExam.listeningSetId/readingSetId, a direct (not copied) FK — guarded below
+   *  instead of left to surface as a raw foreign-key violation. */
   async deleteSet(id: string, actor: Actor) {
     await this.prisma.$transaction((tx) => this.deleteSetTx(tx, id, actor));
     return { ok: true };
@@ -294,7 +295,12 @@ export class QuestionBankService {
   private async deleteSetTx(tx: Tx, id: string, actor: Actor) {
     const set = await tx.questionSet.findUnique({ where: { id }, include: { questions: { select: { id: true } } } });
     if (!set) throw notFound('Question set');
-    if (set.status !== 'DRAFT' && set.status !== 'ARCHIVED') throw conflict('CONFLICT', 'Archive this set first, then delete it.');
+    // A set currently picked into a mock exam is referenced by MockExam.listeningSetId/
+    // readingSetId (a required FK, ON DELETE RESTRICT) — without this check the delete would hit
+    // a raw foreign-key violation instead of a clear error. Composing a new mock exam picks a
+    // different module instead (least-used), so this only ever blocks the exact set in use.
+    const usedByMockExam = await tx.mockExam.findFirst({ where: { OR: [{ listeningSetId: id }, { readingSetId: id }] }, select: { id: true } });
+    if (usedByMockExam) throw conflict('CONFLICT', 'This set is used by a mock exam and cannot be deleted.');
     const questionIds = set.questions.map((q) => q.id);
     const versionIds = (await tx.questionVersion.findMany({ where: { questionId: { in: questionIds } }, select: { id: true } })).map((v) => v.id);
     await tx.questionImage.deleteMany({ where: { OR: [{ questionSetId: id }, { questionVersionId: { in: versionIds } }] } });

@@ -83,16 +83,30 @@ describe('question-bank bulk delete', () => {
     expect(rows).toHaveLength(0);
   });
 
-  it('is all-or-nothing: a published set in the batch aborts the whole delete, nothing partially applied', async () => {
-    const deletable = await buildDraftSet();
+  it('deletes a published set too — status is no longer a restriction', async () => {
     const published = await buildDraftSet();
     await post(`/admin/question-sets/${published}/status`, { status: 'APPROVED', studentFacing: false }).expect(200);
     await post(`/admin/question-sets/${published}/status`, { status: 'PUBLISHED', studentFacing: true }).expect(200);
 
-    const res = await post('/admin/question-sets/bulk/delete', { ids: [deletable, published] });
+    await post('/admin/question-sets/bulk/delete', { ids: [published] }).expect(200);
+    const row = await prisma.questionSet.findUnique({ where: { id: published } });
+    expect(row).toBeNull();
+  });
+
+  it('is all-or-nothing: a set still referenced by a mock exam aborts the whole delete, nothing partially applied', async () => {
+    const deletable = await buildDraftSet();
+    const listening = await buildDraftSet();
+    await prisma.questionSet.update({ where: { id: listening }, data: { skill: 'LISTENING', status: 'PUBLISHED', studentFacing: true } });
+    const reading = await buildDraftSet();
+    await prisma.questionSet.update({ where: { id: reading }, data: { status: 'PUBLISHED', studentFacing: true } });
+    // compose() rotates across every published module, not just these two, so read back the exact
+    // set id it actually used rather than assuming it picked one of ours.
+    const mockExam = (await post('/admin/mock-exams/compose', { title: `Bulk delete guard ${uniq()}` }).expect(201)).body;
+
+    const res = await post('/admin/question-sets/bulk/delete', { ids: [deletable, mockExam.listeningSetId] });
     expect(res.status).toBe(409);
 
-    // The otherwise-deletable draft set must still exist — the batch rolled back entirely.
+    // The otherwise-deletable set must still exist — the batch rolled back entirely.
     const kept = await get(`/admin/question-sets/${deletable}`);
     expect(kept.status).toBe(200);
   });

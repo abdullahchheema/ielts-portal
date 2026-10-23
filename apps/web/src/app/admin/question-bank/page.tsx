@@ -30,18 +30,8 @@ export default function QuestionBankPage() {
   const [f, setF] = useState({ title: '', skill: 'READING', topic: '', difficulty: '3', module: 'ACADEMIC', source: '' });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState<'publish' | 'unpublish' | 'delete' | null>(null);
-
-  async function removeSet(id: string) {
-    if (!(await confirm({ message: 'Permanently delete this set and all of its questions? This cannot be undone.', confirmLabel: 'Delete set' }))) return;
-    setDeletingId(id); setError(null);
-    try {
-      await api(`/admin/question-sets/${id}`, { method: 'DELETE' });
-      await qc.invalidateQueries({ queryKey: ['question-sets'] });
-    } catch (e) { setError(errorMessage(e)); } finally { setDeletingId(null); }
-  }
 
   const rows = data?.items ?? [];
   const selectedRows = rows.filter((s) => selected.has(s.id));
@@ -81,9 +71,9 @@ export default function QuestionBankPage() {
   }
 
   async function bulkRemove() {
-    const ids = selectedRows.filter((s) => s.status === 'DRAFT' || s.status === 'ARCHIVED').map((s) => s.id);
+    const ids = selectedRows.map((s) => s.id);
     if (ids.length === 0) return;
-    if (!(await confirm({ message: `Permanently delete ${ids.length} set(s) and all of their questions? This cannot be undone.`, confirmLabel: 'Delete sets', tone: 'danger' }))) return;
+    if (!(await confirm({ message: `Permanently delete ${ids.length} set(s) and all of their questions? This cannot be undone, even for published sets.`, confirmLabel: 'Delete sets', tone: 'danger' }))) return;
     setBulkBusy('delete'); setError(null);
     try {
       await api('/admin/question-sets/bulk/delete', { method: 'POST', body: { ids } });
@@ -132,11 +122,11 @@ export default function QuestionBankPage() {
               <span className="text-sm font-medium text-fg-muted">{selected.size} selected</span>
               <Button variant="secondary" size="sm" onClick={bulkPublish} busy={bulkBusy === 'publish'} disabled={!!bulkBusy || !selectedRows.some((s) => s.status === 'DRAFT' || s.status === 'APPROVED')}>Publish</Button>
               <Button variant="secondary" size="sm" onClick={bulkUnpublish} busy={bulkBusy === 'unpublish'} disabled={!!bulkBusy || !selectedRows.some((s) => s.status === 'PUBLISHED')}>Unpublish</Button>
-              <Button variant="ghost" tone="danger" size="sm" onClick={bulkRemove} busy={bulkBusy === 'delete'} disabled={!!bulkBusy || !selectedRows.some((s) => s.status === 'DRAFT' || s.status === 'ARCHIVED')}>Delete</Button>
+              <Button variant="ghost" tone="danger" size="sm" onClick={bulkRemove} busy={bulkBusy === 'delete'} disabled={!!bulkBusy}>Delete</Button>
               <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())} disabled={!!bulkBusy}>Clear</Button>
             </TableToolbar>
           )}
-          <Table head={['', 'Title', 'Skill', 'Topic', 'Difficulty', 'Questions', 'Status', '']} sticky>
+          <Table head={['', 'Title', 'Skill', 'Topic', 'Difficulty', 'Questions', 'Status']} sticky>
             {data.items.map((s) => (
               <ClickableRow key={s.id} onClick={() => router.push(`/admin/question-bank/${s.id}`)}>
                 <Td>
@@ -151,8 +141,7 @@ export default function QuestionBankPage() {
                 <Td>{s.topic ?? '—'}</Td>
                 <Td>{s.difficulty}/5</Td>
                 <Td>{s.questionCount}</Td>
-                <Td><Badge status={s.status} />{s.studentFacing && <span className="ml-2 text-xs text-success">Student-facing</span>}</Td>
-                <Td>{(s.status === 'DRAFT' || s.status === 'ARCHIVED') && <Button variant="ghost" tone="danger" size="xs" onClick={(e) => { e.stopPropagation(); removeSet(s.id); }} busy={deletingId === s.id} disabled={!!deletingId}>Delete</Button>}</Td>
+                <Td><Badge status={s.status} /></Td>
               </ClickableRow>
             ))}
           </Table>
