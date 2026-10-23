@@ -40,6 +40,9 @@ export class FreeTestController {
   @Public() @HttpCode(200) @Post(':leadId/section/submit')
   submitSection(@Param('leadId', uuid) leadId: string) { return this.freeTest.submitSection(leadId); }
 
+  @Public() @HttpCode(200) @Put(':leadId/section/audio-played')
+  markAudioPlayed(@Param('leadId', uuid) leadId: string) { return this.freeTest.markAudioPlayed(leadId); }
+
   @Public() @HttpCode(200) @Post(':leadId/advance')
   advance(@Param('leadId', uuid) leadId: string, @Body(new ZodPipe(simulatorAdvanceSchema)) body: { expectedRevision: number }) {
     return this.freeTest.advance(leadId, body.expectedRevision);

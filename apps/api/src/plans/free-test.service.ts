@@ -304,6 +304,11 @@ export class FreeTestService {
     return this.attempts.saveAnswers({ studentId: lead.ghostStudentId }, this.activeSectionAttemptId(lead), input);
   }
 
+  async markAudioPlayed(leadId: string) {
+    const lead = await this.loadLead(leadId);
+    return this.attempts.markAudioPlayed({ studentId: lead.ghostStudentId }, this.activeSectionAttemptId(lead));
+  }
+
   async submitSection(leadId: string) {
     const lead = await this.loadLead(leadId);
     return this.attempts.submit({ studentId: lead.ghostStudentId }, this.activeSectionAttemptId(lead));

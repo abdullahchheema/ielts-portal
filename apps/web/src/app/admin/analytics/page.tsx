@@ -73,7 +73,7 @@ export default function AdminAnalyticsPage() {
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <StatCard label="Students on course" value={kpis.data.students.total} />
               <StatCard label="At risk" value={kpis.data.risk.red} attention={kpis.data.risk.red > 0} hint={`${kpis.data.risk.yellow} need attention`} />
-              <StatCard label="Average attendance" value={kpis.data.attendance.averagePercent === null ? 'Not enough data' : `${kpis.data.attendance.averagePercent}%`} hint={kpis.data.suppressed ? 'Hidden below 3 students to protect privacy' : `${kpis.data.attendance.measured} students measured`} />
+              <StatCard label="Average attendance" value={kpis.data.attendance.averagePercent === null ? 'Not enough data' : `${kpis.data.attendance.averagePercent}%`} hint={kpis.data.attendance.averagePercent === null ? 'Hidden below 3 students to protect privacy' : `${kpis.data.attendance.measured} students measured`} />
               <StatCard label="Average estimated band" value={kpis.data.bands.averageOverall === null ? 'Not enough data' : fmt(kpis.data.bands.averageOverall)} hint={`${kpis.data.bands.withFullData} students with all four skills`} />
             </div>
           </>

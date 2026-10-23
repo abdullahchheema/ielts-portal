@@ -189,6 +189,35 @@ describe('free-test v2: full 4-skill flow', () => {
   });
 });
 
+describe('free-test v2: conflict handling', () => {
+  it('rejects a stale expectedRevision on advance with 409 CONFLICT, after a fresh one already succeeded', async () => {
+    await buildBankModule('LISTENING'); await buildBankModule('READING');
+    const claim = (await http(app).post('/free-test/claim').send({ email: `lead-${uniq()}@test.local`, phone: randomPhone() }).expect(201)).body;
+    const exam = (await http(app).get(`/free-test/${claim.leadId}`).expect(200)).body;
+    await answerAndSubmitSection(claim.leadId);
+
+    const advanced = (await http(app).post(`/free-test/${claim.leadId}/advance`).send({ expectedRevision: exam.stageRevision }).expect(200)).body;
+    expect(advanced.stage).toBe('READING');
+
+    // Retrying with the same (now stale) revision — e.g. a client that hadn't refetched — is refused,
+    // not silently applied twice or left to produce an unclear error.
+    const stale = await http(app).post(`/free-test/${claim.leadId}/advance`).send({ expectedRevision: exam.stageRevision });
+    expect(stale.status).toBe(409);
+    expect(stale.body.error.code).toBe('CONFLICT');
+  });
+
+  it('submitting the same section twice is idempotent, not an error — covers a retried request after a dropped response', async () => {
+    await buildBankModule('LISTENING'); await buildBankModule('READING');
+    const claim = (await http(app).post('/free-test/claim').send({ email: `lead-${uniq()}@test.local`, phone: randomPhone() }).expect(201)).body;
+    const section = (await http(app).get(`/free-test/${claim.leadId}/section`).expect(200)).body;
+    const q = section.paper[0].questions[0] as PaperQ;
+    await http(app).put(`/free-test/${claim.leadId}/answers`).send({ revision: section.attempt.revision, answers: [{ questionVersionId: q.id, answer: { value: 'TRUE' } }] }).expect(200);
+
+    await http(app).post(`/free-test/${claim.leadId}/section/submit`).expect(200);
+    await http(app).post(`/free-test/${claim.leadId}/section/submit`).expect(200); // not 409/500
+  });
+});
+
 describe('free-test v2: registration linking', () => {
   it('registering with the same email links the lead without granting a new free attempt', async () => {
     await buildBankModule('LISTENING'); await buildBankModule('READING');

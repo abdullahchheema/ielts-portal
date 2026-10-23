@@ -31,6 +31,9 @@ const MESSAGES: Record<string, string> = {
   FREE_TEST_USED: 'You have already taken the free test. Register for a paid plan to unlock full results and more tests.',
   FREE_TEST_INVALID: 'This free test link is no longer valid. Please start again.',
   PLAN_UPGRADE_REQUIRED: 'This feature needs a higher plan. Upgrade to unlock it.',
+  // Shown only if an automatic retry-with-fresh-revision (see the free-test page's advance()) also
+  // fails — a genuinely unusual double-collision, not the normal staleness case that retry absorbs.
+  CONFLICT: 'This test has moved on and could not be reconciled automatically. Please reload the page.',
 };
 
 export function errorMessage(e: unknown): string {

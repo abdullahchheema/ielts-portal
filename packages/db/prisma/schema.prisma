@@ -1230,6 +1230,9 @@ model AssessmentAttempt {
   revision            Int           @default(0)
   expiresAt           DateTime?     @map("expires_at")
   percent             Decimal?      @db.Decimal(5, 2)
+  // First time this attempt's Listening audio (if any) started playing — once set, the student has
+  // used their one play; seeking/rewind is blocked client-side and this flag survives a refresh.
+  audioPlayedAt       DateTime?     @map("audio_played_at")
 
   assessment   Assessment        @relation(fields: [assessmentId], references: [id])
   version      AssessmentVersion @relation(fields: [assessmentVersionId], references: [id])

@@ -47,7 +47,7 @@ interface Section {
 }
 type Answers = Record<string, unknown>;
 interface SectionPaper {
-  attempt: { id: string; revision: number; remainingSeconds: number | null };
+  attempt: { id: string; revision: number; remainingSeconds: number | null; audioPlayed: boolean };
   // Once the attempt is no longer IN_PROGRESS (e.g. the timer already auto-submitted it server-side,
   // and this query refetched before the stage had advanced), the API returns a result shape instead —
   // no paper/assessment/answers. Both optional here so that case renders a loading state, not a crash.
@@ -63,7 +63,7 @@ export default function FreeTestPage() {
   const router = useRouter();
   const confirm = useConfirm();
   const qc = useQueryClient();
-  const { data: exam, isLoading, isError } = useQuery({
+  const { data: exam, isLoading, isError, refetch: refetchExam } = useQuery({
     queryKey: ['free-test-exam', leadId],
     queryFn: () => api<Exam>(`/free-test/${leadId}`),
     refetchInterval: 15_000,
@@ -80,11 +80,26 @@ export default function FreeTestPage() {
     if (ok) router.push('/free-test');
   }
 
+  // The exam query only refetches every 15s, so its cached stageRevision can be stale by the time the
+  // student actually advances (a scheduled server-side sweep, or a second tab, can bump it first).
+  // Get a fresh revision right before the call, and if the server still rejects it as stale, refetch
+  // once more and retry exactly once rather than leaving the student stuck on a dead-end error.
   async function advance() {
     if (!exam) return;
     setBusy(true); setError(null);
-    try { await api(`/free-test/${leadId}/advance`, { method: 'POST', body: { expectedRevision: exam.stageRevision } }); await refresh(); }
-    catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
+    const attempt = async (revision: number) => api(`/free-test/${leadId}/advance`, { method: 'POST', body: { expectedRevision: revision } });
+    try {
+      const fresh = (await refetchExam()).data;
+      try {
+        await attempt(fresh?.stageRevision ?? exam.stageRevision);
+      } catch (e) {
+        if (e instanceof ApiError && e.code === 'CONFLICT') {
+          const retried = (await refetchExam()).data;
+          await attempt(retried?.stageRevision ?? exam.stageRevision);
+        } else throw e;
+      }
+      await refresh();
+    } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
   }
 
   if (isLoading) return <Loading />;
@@ -148,6 +163,7 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [activePassage, setActivePassage] = useState(0);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [audioPlayed, setAudioPlayed] = useState(false);
   const revision = useRef(0);
   const dirty = useRef(new Set<string>());
   const answersRef = useRef<Answers>({});
@@ -158,10 +174,18 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
   useEffect(() => {
     if (data?.paper && !hydrated.current) {
       hydrated.current = true; revision.current = data.attempt.revision;
-      setAnswers(data.answers ?? {}); setRemaining(data.attempt.remainingSeconds ?? null);
+      setAnswers(data.answers ?? {}); setRemaining(data.attempt.remainingSeconds ?? null); setAudioPlayed(data.attempt.audioPlayed);
     }
   }, [data]);
   useEffect(() => { answersRef.current = answers; }, [answers]);
+
+  // One-play enforcement: fires once, the first time the Listening audio actually starts (not on
+  // click-to-expand or metadata load) — optimistic locally, with the server call as the real guard
+  // against a refresh re-enabling playback.
+  const handleFirstPlay = useCallback(() => {
+    setAudioPlayed(true);
+    api(`/free-test/${leadId}/section/audio-played`, { method: 'PUT' }).catch(() => { /* best-effort; server state is the real source of truth on next load */ });
+  }, [leadId]);
 
   const flush = useCallback(async () => {
     if (inFlight.current || dirty.current.size === 0) return;
@@ -372,7 +396,7 @@ function SectionStage({ leadId, stage, onAdvance, busy: parentBusy }: { leadId: 
             )}
             {s.content.audioUrl && (
               <Card className="!p-4">
-                <AudioPlayer src={s.content.audioUrl} label="🎧 Listen to the recording — it plays once, just like the real test." />
+                <AudioPlayer src={s.content.audioUrl} label="🎧 Listen to the recording" playable={!audioPlayed} onFirstPlay={handleFirstPlay} />
               </Card>
             )}
             {s.content.contentBlocks ? (

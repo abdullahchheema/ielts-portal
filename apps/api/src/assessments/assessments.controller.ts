@@ -90,6 +90,9 @@ export class StudentAssessmentsController {
   @Put('attempts/:id/answers')
   save(@Param('id', uuid) id: string, @Body(new ZodPipe(saveAnswersSchema)) body: SaveAnswersInput, @CurrentUser() u: AuthUser) { return this.attempts.saveAnswers(student(u), id, body); }
 
+  @HttpCode(200) @Put('attempts/:id/audio-played')
+  markAudioPlayed(@Param('id', uuid) id: string, @CurrentUser() u: AuthUser) { return this.attempts.markAudioPlayed(student(u), id); }
+
   @HttpCode(200) @Post('attempts/:id/submit')
   submit(@Param('id', uuid) id: string, @CurrentUser() u: AuthUser) { return this.attempts.submit(student(u), id); }
 

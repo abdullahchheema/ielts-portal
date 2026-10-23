@@ -205,11 +205,26 @@ export class AttemptsService implements OnModuleInit {
     };
   }
 
-  private summary(a: { id: string; status: string; revision: number; attemptNumber: number; startedAt: Date | null; expiresAt: Date | null; submittedAt: Date | null }) {
+  private summary(a: { id: string; status: string; revision: number; attemptNumber: number; startedAt: Date | null; expiresAt: Date | null; submittedAt: Date | null; audioPlayedAt?: Date | null }) {
     return {
       id: a.id, status: a.status, revision: a.revision, attemptNumber: a.attemptNumber, startedAt: a.startedAt, submittedAt: a.submittedAt, expiresAt: a.expiresAt,
       remainingSeconds: a.expiresAt && a.status === 'IN_PROGRESS' ? Math.max(0, Math.floor((a.expiresAt.getTime() - Date.now()) / 1000)) : null,
+      audioPlayed: !!a.audioPlayedAt,
     };
+  }
+
+  /** Marks this attempt's Listening audio as having started — one-play enforcement. Idempotent: a
+   *  second call (e.g. a retried request) is a harmless no-op, never an error. */
+  async markAudioPlayed(user: { studentId: string }, attemptId: string) {
+    const res = await this.prisma.assessmentAttempt.updateMany({
+      where: { id: attemptId, studentId: user.studentId, audioPlayedAt: null },
+      data: { audioPlayedAt: new Date() },
+    });
+    if (res.count === 0) {
+      const exists = await this.prisma.assessmentAttempt.findFirst({ where: { id: attemptId, studentId: user.studentId }, select: { id: true } });
+      if (!exists) throw notFound('Attempt');
+    }
+    return { ok: true };
   }
 
   // ───────── autosave ─────────

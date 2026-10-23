@@ -21,7 +21,7 @@ interface Section {
   questions: Question[];
 }
 type Answers = Record<string, unknown>;
-interface Paper { attempt: { id: string; revision: number; remainingSeconds: number | null; attemptNumber: number }; assessment: { title: string; type: string; timeLimitMin: number | null }; paper: Section[]; answers: Answers }
+interface Paper { attempt: { id: string; revision: number; remainingSeconds: number | null; attemptNumber: number; audioPlayed: boolean }; assessment: { title: string; type: string; timeLimitMin: number | null }; paper: Section[]; answers: Answers }
 interface ReviewQ extends Question { yourAnswer: Record<string, unknown> | null; correct: boolean; correctAnswer: { optionIds?: string[]; value?: string; accepted?: string[] } | null }
 interface Result {
   attemptNumber: number; assessment: { title: string; type: string; skill: string | null; passPercent: number };
@@ -82,11 +82,17 @@ export default function AttemptPage() {
   const [result, setResult] = useState<Result | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [audioPlayed, setAudioPlayed] = useState(false);
   const revision = useRef(0);
   const dirty = useRef(new Set<string>());
   const inFlight = useRef(false);
   const submitted = useRef(false);
   const storageKey = `attempt:${id}`;
+
+  const handleFirstPlay = useCallback(() => {
+    setAudioPlayed(true);
+    api(`/attempts/${id}/audio-played`, { method: 'PUT' }).catch(() => { /* best-effort; server state is the real source of truth on next load */ });
+  }, [id]);
 
   // Initialise from the server, then overlay any newer local copy (e.g. after a dropped connection or a refresh).
   useEffect(() => {
@@ -94,6 +100,7 @@ export default function AttemptPage() {
     if (data.result) { setResult(data.result); return; }
     revision.current = data.attempt!.revision;
     setRemaining(data.attempt!.remainingSeconds ?? null);
+    setAudioPlayed(data.attempt!.audioPlayed);
     let local: Answers = {};
     try { local = JSON.parse(localStorage.getItem(storageKey) ?? '{}'); } catch { /* ignore */ }
     const merged: Answers = { ...data.answers };
@@ -190,7 +197,7 @@ export default function AttemptPage() {
           <section key={s.id} aria-labelledby={`s-${s.id}`}>
             <h2 id={`s-${s.id}`} className="mb-2 text-lg font-semibold">{s.title}</h2>
             {s.content.instructions && <p className="mb-3 text-base text-fg-muted">{s.content.instructions}</p>}
-            {s.content.audioUrl && <div className="mb-4"><AudioPlayer src={s.content.audioUrl} /></div>}
+            {s.content.audioUrl && <div className="mb-4"><AudioPlayer src={s.content.audioUrl} playable={!audioPlayed} onFirstPlay={handleFirstPlay} /></div>}
             {s.content.contentBlocks ? (
               <RichContent
                 blocks={s.content.contentBlocks}

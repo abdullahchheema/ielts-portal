@@ -1,92 +1,82 @@
 'use client';
 
-import { Pause, Play, RotateCcw, RotateCw } from 'lucide-react';
+import { Play, Volume2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { cx } from '@/lib/cx';
 
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
 /**
- * A custom-controlled player wrapping the native <audio> element. Built after student feedback that
- * the bare native controls felt unresponsive on mobile ("doesn't go forward, backward, or stop") —
- * explicit, larger play/pause and ±10s skip buttons plus a seek bar give more reliable control than
- * relying on the browser's own (small, platform-inconsistent) scrubber.
+ * A one-play listening player, matching the real IELTS rule: once started, the recording just plays
+ * straight through — no pause, rewind, fast-forward, seek, or replay, in-app or after a refresh.
+ * `playable=false` (the attempt's `audioPlayedAt` is already set server-side) renders a locked state
+ * with no play control at all, covering the "refresh to replay" hole a client-only flag couldn't.
  */
-export function AudioPlayer({ src, label }: { src: string; label?: string }) {
+export function AudioPlayer({ src, label, playable, onFirstPlay }: { src: string; label?: string; playable: boolean; onFirstPlay?: () => void }) {
   const ref = useRef<HTMLAudioElement>(null);
-  const [playing, setPlaying] = useState(false);
+  const [started, setStarted] = useState(false);
+  const [ended, setEnded] = useState(false);
   const [current, setCurrent] = useState(0);
   const [duration, setDuration] = useState(0);
+  const firedRef = useRef(false);
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const onPlay = () => setPlaying(true);
-    const onPause = () => setPlaying(false);
     const onTime = () => setCurrent(el.currentTime);
     const onMeta = () => setDuration(el.duration || 0);
-    el.addEventListener('play', onPlay);
-    el.addEventListener('pause', onPause);
-    el.addEventListener('ended', onPause);
+    const onEnd = () => setEnded(true);
     el.addEventListener('timeupdate', onTime);
     el.addEventListener('loadedmetadata', onMeta);
     el.addEventListener('durationchange', onMeta);
+    el.addEventListener('ended', onEnd);
     return () => {
-      el.removeEventListener('play', onPlay);
-      el.removeEventListener('pause', onPause);
-      el.removeEventListener('ended', onPause);
       el.removeEventListener('timeupdate', onTime);
       el.removeEventListener('loadedmetadata', onMeta);
       el.removeEventListener('durationchange', onMeta);
+      el.removeEventListener('ended', onEnd);
     };
   }, []);
 
-  const skip = (delta: number) => {
+  function start() {
     const el = ref.current;
-    if (!el) return;
-    el.currentTime = Math.min(Math.max(0, el.currentTime + delta), duration || el.currentTime + delta);
-  };
-  const seek = (t: number) => {
-    const el = ref.current;
-    if (!el) return;
-    el.currentTime = t;
-    setCurrent(t);
-  };
+    if (!el || started || !playable) return;
+    setStarted(true);
+    if (!firedRef.current) { firedRef.current = true; onFirstPlay?.(); }
+    void el.play();
+  }
+
+  const locked = !playable || ended;
 
   return (
     <div className="space-y-2">
       {label && <p className="text-xs font-medium text-fg-muted">{label}</p>}
       <audio ref={ref} src={src} preload="metadata" className="hidden" />
       <div className="flex items-center gap-3">
-        <button
-          type="button" onClick={() => skip(-10)} aria-label="Back 10 seconds"
-          className="grid size-9 shrink-0 place-items-center rounded-full ring-1 ring-inset ring-border-strong text-fg-muted hover:bg-surface-muted"
-        >
-          <RotateCcw className="size-4" />
-        </button>
-        <button
-          type="button"
-          onClick={() => { const el = ref.current; if (!el) return; if (playing) el.pause(); else void el.play(); }}
-          aria-label={playing ? 'Pause' : 'Play'}
-          className="grid size-11 shrink-0 place-items-center rounded-full bg-primary text-primary-fg hover:bg-primary-hover"
-        >
-          {playing ? <Pause className="size-5" /> : <Play className="size-5 translate-x-0.5" />}
-        </button>
-        <button
-          type="button" onClick={() => skip(10)} aria-label="Forward 10 seconds"
-          className="grid size-9 shrink-0 place-items-center rounded-full ring-1 ring-inset ring-border-strong text-fg-muted hover:bg-surface-muted"
-        >
-          <RotateCw className="size-4" />
-        </button>
+        {!started ? (
+          <button
+            type="button" onClick={start} disabled={locked}
+            aria-label="Play — it plays once, start to finish, with no pause or rewind"
+            className="grid size-11 shrink-0 place-items-center rounded-full bg-primary text-primary-fg hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-fg-subtle"
+          >
+            <Play className="size-5 translate-x-0.5" />
+          </button>
+        ) : (
+          <span className="grid size-11 shrink-0 place-items-center rounded-full bg-primary-soft text-primary" aria-hidden>
+            <Volume2 className="size-5" />
+          </span>
+        )}
         <span className="w-10 shrink-0 text-right text-xs tabular-nums text-fg-muted">{fmt(current)}</span>
-        <input
-          type="range" min={0} max={duration || 0} step={0.1} value={Math.min(current, duration || 0)}
-          onChange={(e) => seek(Number(e.target.value))}
-          aria-label="Seek"
-          className={cx('h-1.5 flex-1 cursor-pointer appearance-none rounded-full bg-surface-muted accent-primary')}
-        />
+        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-muted">
+          <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: duration ? `${Math.min(100, (current / duration) * 100)}%` : '0%' }} />
+        </div>
         <span className="w-10 shrink-0 text-xs tabular-nums text-fg-muted">{duration ? fmt(duration) : '--:--'}</span>
       </div>
+      <p className="text-xs text-fg-subtle">
+        {locked && !started ? 'Already played — it only plays once, just like the real test.'
+          : started && !ended ? 'Playing — no pause, rewind or skip, just like the real test.'
+          : ended ? 'Finished playing.'
+          : 'Plays once, start to finish — no pause, rewind or skip once started.'}
+      </p>
     </div>
   );
 }

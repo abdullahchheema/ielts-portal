@@ -337,4 +337,25 @@ describe('free-test content lives only in the question bank', () => {
     expect(prompts).toHaveLength(2);
     expect(prompts).toContain((await get(`/admin/question-sets/${setId}`).expect(200)).body.questions.find((q: { id: string }) => q.id === added.id).versions[0].prompt.text);
   });
+
+  it('marks the Listening audio as played once, persists it server-side, and lets a repeat call stay idempotent', async () => {
+    const { setId } = await buildListeningSet();
+    let wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
+    let leadId = '';
+    for (let i = 0; i < 5 && !wrapped.wrapperAssessmentId; i++) {
+      leadId = (await http(app).post('/free-test/claim').send({ email: `lead-${uniq()}@test.local`, phone: randomPhone() }).expect(201)).body.leadId;
+      wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
+    }
+    expect(wrapped.wrapperAssessmentId).not.toBeNull();
+
+    const before = (await http(app).get(`/free-test/${leadId}/section`).expect(200)).body;
+    expect(before.attempt.audioPlayed).toBe(false);
+
+    await http(app).put(`/free-test/${leadId}/section/audio-played`).expect(200);
+    // Idempotent — a second call (e.g. a retried request) is a harmless no-op, not an error.
+    await http(app).put(`/free-test/${leadId}/section/audio-played`).expect(200);
+
+    const after = (await http(app).get(`/free-test/${leadId}/section`).expect(200)).body;
+    expect(after.attempt.audioPlayed).toBe(true);
+  });
 });
