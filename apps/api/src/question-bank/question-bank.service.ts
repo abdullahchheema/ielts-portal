@@ -285,20 +285,33 @@ export class QuestionBankService {
    *  live reference). APPROVED/PUBLISHED sets must be archived first: that's the deliberate step that
    *  confirms it's really done being used before it can be deleted. */
   async deleteSet(id: string, actor: Actor) {
-    const set = await this.prisma.questionSet.findUnique({ where: { id }, include: { questions: { select: { id: true } } } });
+    await this.prisma.$transaction((tx) => this.deleteSetTx(tx, id, actor));
+    return { ok: true };
+  }
+
+  /** Same guard and audit entry as deleteSet(), reused inside a shared transaction by bulkDelete()
+   *  so every item in a batch either all deletes or all rolls back together. */
+  private async deleteSetTx(tx: Tx, id: string, actor: Actor) {
+    const set = await tx.questionSet.findUnique({ where: { id }, include: { questions: { select: { id: true } } } });
     if (!set) throw notFound('Question set');
     if (set.status !== 'DRAFT' && set.status !== 'ARCHIVED') throw conflict('CONFLICT', 'Archive this set first, then delete it.');
     const questionIds = set.questions.map((q) => q.id);
-    await this.prisma.$transaction(async (tx) => {
-      const versionIds = (await tx.questionVersion.findMany({ where: { questionId: { in: questionIds } }, select: { id: true } })).map((v) => v.id);
-      await tx.questionImage.deleteMany({ where: { OR: [{ questionSetId: id }, { questionVersionId: { in: versionIds } }] } });
-      await tx.questionOption.deleteMany({ where: { questionVersionId: { in: versionIds } } });
-      await tx.questionVersion.deleteMany({ where: { id: { in: versionIds } } });
-      await tx.question.deleteMany({ where: { id: { in: questionIds } } });
-      await tx.questionSet.delete({ where: { id } });
-      await this.audit.record({ ...actor, action: 'ADMIN_DELETED_QUESTION_SET', entityType: 'QuestionSet', entityId: id, before: { title: set.title, questionCount: questionIds.length } }, tx);
+    const versionIds = (await tx.questionVersion.findMany({ where: { questionId: { in: questionIds } }, select: { id: true } })).map((v) => v.id);
+    await tx.questionImage.deleteMany({ where: { OR: [{ questionSetId: id }, { questionVersionId: { in: versionIds } }] } });
+    await tx.questionOption.deleteMany({ where: { questionVersionId: { in: versionIds } } });
+    await tx.questionVersion.deleteMany({ where: { id: { in: versionIds } } });
+    await tx.question.deleteMany({ where: { id: { in: questionIds } } });
+    await tx.questionSet.delete({ where: { id } });
+    await this.audit.record({ ...actor, action: 'ADMIN_DELETED_QUESTION_SET', entityType: 'QuestionSet', entityId: id, before: { title: set.title, questionCount: questionIds.length } }, tx);
+  }
+
+  /** Deletes several DRAFT/ARCHIVED sets in one all-or-nothing transaction: one invalid id (not
+   *  found, or not yet archived) aborts the whole batch rather than leaving a partial result. */
+  async bulkDelete(ids: string[], actor: Actor) {
+    return this.prisma.$transaction(async (tx) => {
+      for (const id of ids) await this.deleteSetTx(tx, id, actor);
+      return { ok: true, count: ids.length };
     });
-    return { ok: true };
   }
 
   async updateSet(id: string, input: QuestionSetUpdateInput, actor: Actor) {
@@ -317,38 +330,52 @@ export class QuestionBankService {
 
   /** Moves a set through DRAFT → APPROVED → PUBLISHED → ARCHIVED. Publishing checks the content first. */
   async setStatus(id: string, input: QuestionSetStatusInput, actor: Actor) {
-    return this.prisma.$transaction(async (tx) => {
-      const set = await tx.questionSet.findUnique({ where: { id }, include: { questions: { where: { deletedAt: null }, select: { id: true, questionType: true, ieltsType: true, versions: { select: { answerKey: true, options: { select: { isCorrect: true } } }, orderBy: { version: 'desc' }, take: 1 } } } } });
-      if (!set) throw notFound('Question set');
-      const from = set.status as QuestionSetStatus;
-      if (from === input.status) throw conflict('CONFLICT', 'The set already has that status.');
-      if (!QUESTION_SET_TRANSITIONS[from].includes(input.status)) {
-        throw conflict('CONFLICT', `A ${from.toLowerCase()} set cannot become ${input.status.toLowerCase()}.`);
-      }
-      if (input.status === 'PUBLISHED') {
-        if (set.questions.length === 0) throw new AppError('VALIDATION_ERROR', 422, 'Add at least one question before publishing.');
-        const incomplete = set.questions.filter((q) => {
-          const v = q.versions[0];
-          if (!v) return true;
-          const grader = q.ieltsType ? graderType(q.ieltsType as IeltsItemType) : q.questionType;
-          if (grader === 'NONE') return false;
-          // Mapping-based MATCHING already carries its answer key; options are optional in that mode.
-          if (grader === 'MATCHING' && v.answerKey) return false;
-          if (usesKey(grader) || grader === 'ORDERING') return !v.answerKey;
-          return v.options.length < 2 || !v.options.some((o) => o.isCorrect);
-        });
-        if (incomplete.length > 0) throw new AppError('VALIDATION_ERROR', 422, `${incomplete.length} question(s) are missing an answer key or correct option.`);
-      }
-      const studentFacing = input.status === 'PUBLISHED' ? (input.studentFacing ?? set.studentFacing) : false;
-      const after = await tx.questionSet.update({
-        where: { id },
-        data: { status: input.status, studentFacing, publishedAt: input.status === 'PUBLISHED' ? new Date() : set.publishedAt },
+    return this.prisma.$transaction((tx) => this.setStatusTx(tx, id, input, actor));
+  }
+
+  /** Same guards and audit entry as setStatus(), but reused inside a shared transaction by bulk
+   *  status changes so every item in a batch either all applies or all rolls back together. */
+  private async setStatusTx(tx: Tx, id: string, input: QuestionSetStatusInput, actor: Actor) {
+    const set = await tx.questionSet.findUnique({ where: { id }, include: { questions: { where: { deletedAt: null }, select: { id: true, questionType: true, ieltsType: true, versions: { select: { answerKey: true, options: { select: { isCorrect: true } } }, orderBy: { version: 'desc' }, take: 1 } } } } });
+    if (!set) throw notFound('Question set');
+    const from = set.status as QuestionSetStatus;
+    if (from === input.status) throw conflict('CONFLICT', 'The set already has that status.');
+    if (!QUESTION_SET_TRANSITIONS[from].includes(input.status)) {
+      throw conflict('CONFLICT', `A ${from.toLowerCase()} set cannot become ${input.status.toLowerCase()}.`);
+    }
+    if (input.status === 'PUBLISHED') {
+      if (set.questions.length === 0) throw new AppError('VALIDATION_ERROR', 422, 'Add at least one question before publishing.');
+      const incomplete = set.questions.filter((q) => {
+        const v = q.versions[0];
+        if (!v) return true;
+        const grader = q.ieltsType ? graderType(q.ieltsType as IeltsItemType) : q.questionType;
+        if (grader === 'NONE') return false;
+        // Mapping-based MATCHING already carries its answer key; options are optional in that mode.
+        if (grader === 'MATCHING' && v.answerKey) return false;
+        if (usesKey(grader) || grader === 'ORDERING') return !v.answerKey;
+        return v.options.length < 2 || !v.options.some((o) => o.isCorrect);
       });
-      await this.audit.record({
-        ...actor, action: 'ADMIN_CHANGED_QUESTION_SET_STATUS', entityType: 'QuestionSet', entityId: id,
-        before: { status: from, studentFacing: set.studentFacing }, after: { status: input.status, studentFacing, note: input.note ?? null },
-      }, tx);
-      return after;
+      if (incomplete.length > 0) throw new AppError('VALIDATION_ERROR', 422, `${incomplete.length} question(s) are missing an answer key or correct option.`);
+    }
+    const studentFacing = input.status === 'PUBLISHED' ? (input.studentFacing ?? set.studentFacing) : false;
+    const after = await tx.questionSet.update({
+      where: { id },
+      data: { status: input.status, studentFacing, publishedAt: input.status === 'PUBLISHED' ? new Date() : set.publishedAt },
+    });
+    await this.audit.record({
+      ...actor, action: 'ADMIN_CHANGED_QUESTION_SET_STATUS', entityType: 'QuestionSet', entityId: id,
+      before: { status: from, studentFacing: set.studentFacing }, after: { status: input.status, studentFacing, note: input.note ?? null },
+    }, tx);
+    return after;
+  }
+
+  /** Applies the same status change to several sets in one all-or-nothing transaction: one bad id
+   *  aborts the whole batch (with that id's own error) rather than leaving a partial result. */
+  async bulkSetStatus(ids: string[], input: QuestionSetStatusInput, actor: Actor) {
+    return this.prisma.$transaction(async (tx) => {
+      const results = [];
+      for (const id of ids) results.push(await this.setStatusTx(tx, id, input, actor));
+      return { ok: true, count: results.length };
     });
   }
 

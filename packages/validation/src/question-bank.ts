@@ -75,6 +75,10 @@ export const questionSetStatusSchema = z.object({
   note: z.string().trim().max(500).optional(),
 });
 
+const bulkSetIds = z.array(z.string().uuid()).min(1).max(100);
+export const bulkQuestionSetStatusSchema = questionSetStatusSchema.extend({ ids: bulkSetIds });
+export const bulkQuestionSetDeleteSchema = z.object({ ids: bulkSetIds });
+
 // `id` is optional and caller-supplied: ORDERING's answerKey.correctOrder must name an option id
 // before the server would otherwise generate one, so the author may pick it up front.
 const option = z.object({ id: z.string().uuid().optional(), label: z.string().trim().min(1).max(500), isCorrect: z.boolean().default(false) });
@@ -156,6 +160,8 @@ export const practiceSessionSchema = z.object({
 export type QuestionSetCreateInput = z.infer<typeof questionSetCreateSchema>;
 export type QuestionSetUpdateInput = z.infer<typeof questionSetUpdateSchema>;
 export type QuestionSetStatusInput = z.infer<typeof questionSetStatusSchema>;
+export type BulkQuestionSetStatusInput = z.infer<typeof bulkQuestionSetStatusSchema>;
+export type BulkQuestionSetDeleteInput = z.infer<typeof bulkQuestionSetDeleteSchema>;
 export type BankQuestionInput = z.infer<typeof bankQuestionSchema>;
 export type BankPickInput = z.infer<typeof bankPickSchema>;
 export type CopyToSectionInput = z.infer<typeof copyToSectionSchema>;

@@ -4,8 +4,8 @@ import type { Request } from 'express';
 import { memoryStorage } from 'multer';
 import { z } from 'zod';
 import {
-  BankPickInput, BankQuestionInput, BulkImportInput, CopyToSectionInput, PracticeSessionInput, QuestionSetCreateInput, QuestionSetStatusInput, QuestionSetUpdateInput,
-  bankPickSchema, bankQuestionSchema, bankQuestionUpdateSchema, bulkImportSchema, copyToSectionSchema, practiceSessionSchema, questionSetCreateSchema, questionSetStatusSchema, questionSetUpdateSchema,
+  BankPickInput, BankQuestionInput, BulkImportInput, BulkQuestionSetDeleteInput, BulkQuestionSetStatusInput, CopyToSectionInput, PracticeSessionInput, QuestionSetCreateInput, QuestionSetStatusInput, QuestionSetUpdateInput,
+  bankPickSchema, bankQuestionSchema, bankQuestionUpdateSchema, bulkImportSchema, bulkQuestionSetDeleteSchema, bulkQuestionSetStatusSchema, copyToSectionSchema, practiceSessionSchema, questionSetCreateSchema, questionSetStatusSchema, questionSetUpdateSchema,
 } from '@ielts/validation';
 import { AuthUser, CurrentUser, RequirePermission, clientMeta } from '../common/decorators';
 import { forbidden } from '../common/app-error';
@@ -51,6 +51,19 @@ export class AdminQuestionSetsController {
   @RequirePermission('question.manage') @HttpCode(201) @Post('import/commit')
   importCommit(@Body(new ZodPipe(bulkImportSchema)) body: BulkImportInput, @CurrentUser() u: AuthUser, @Req() req: Request) {
     return this.importer.commit(body, actor(u, req));
+  }
+
+  /** Changes status on several sets in one all-or-nothing transaction. Declared before the ':id'
+   *  routes below so 'bulk' is never matched as a set id. */
+  @RequirePermission('question.manage') @HttpCode(200) @Post('bulk/status')
+  bulkStatus(@Body(new ZodPipe(bulkQuestionSetStatusSchema)) body: BulkQuestionSetStatusInput, @CurrentUser() u: AuthUser, @Req() req: Request) {
+    const { ids, ...status } = body;
+    return this.bank.bulkSetStatus(ids, status, actor(u, req));
+  }
+
+  @RequirePermission('question.manage') @HttpCode(200) @Post('bulk/delete')
+  bulkDelete(@Body(new ZodPipe(bulkQuestionSetDeleteSchema)) body: BulkQuestionSetDeleteInput, @CurrentUser() u: AuthUser, @Req() req: Request) {
+    return this.bank.bulkDelete(body.ids, actor(u, req));
   }
 
   @RequirePermission('question.manage') @Get(':id')

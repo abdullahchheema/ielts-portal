@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Alert, Badge, Button, ClickableRow, Dialog, Empty, Field, FilterBar, Input, Loading, PageHeader, Pagination, SearchInput, Select, Table, Td, useConfirm } from '@/components/ui';
+import { Alert, Badge, Button, ClickableRow, Dialog, Empty, Field, FilterBar, Input, Loading, PageHeader, Pagination, SearchInput, Select, Table, TableToolbar, Td, useConfirm } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 
@@ -31,6 +31,8 @@ export default function QuestionBankPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState<'publish' | 'unpublish' | 'delete' | null>(null);
 
   async function removeSet(id: string) {
     if (!(await confirm({ message: 'Permanently delete this set and all of its questions? This cannot be undone.', confirmLabel: 'Delete set' }))) return;
@@ -39,6 +41,54 @@ export default function QuestionBankPage() {
       await api(`/admin/question-sets/${id}`, { method: 'DELETE' });
       await qc.invalidateQueries({ queryKey: ['question-sets'] });
     } catch (e) { setError(errorMessage(e)); } finally { setDeletingId(null); }
+  }
+
+  const rows = data?.items ?? [];
+  const selectedRows = rows.filter((s) => selected.has(s.id));
+  function toggleOne(id: string) {
+    setSelected((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  }
+  function toggleAll() {
+    setSelected((prev) => (prev.size === rows.length ? new Set() : new Set(rows.map((s) => s.id))));
+  }
+  async function bulkAfter() {
+    setSelected(new Set());
+    await qc.invalidateQueries({ queryKey: ['question-sets'] });
+  }
+
+  async function bulkPublish() {
+    const draftIds = selectedRows.filter((s) => s.status === 'DRAFT').map((s) => s.id);
+    const publishIds = selectedRows.filter((s) => s.status === 'DRAFT' || s.status === 'APPROVED').map((s) => s.id);
+    if (publishIds.length === 0) return;
+    if (!(await confirm({ message: `Publish ${publishIds.length} set(s) so students see them in practice and free tests?`, confirmLabel: 'Publish' }))) return;
+    setBulkBusy('publish'); setError(null);
+    try {
+      if (draftIds.length > 0) await api('/admin/question-sets/bulk/status', { method: 'POST', body: { ids: draftIds, status: 'APPROVED', studentFacing: false } });
+      await api('/admin/question-sets/bulk/status', { method: 'POST', body: { ids: publishIds, status: 'PUBLISHED', studentFacing: true } });
+      await bulkAfter();
+    } catch (e) { setError(errorMessage(e)); } finally { setBulkBusy(null); }
+  }
+
+  async function bulkUnpublish() {
+    const ids = selectedRows.filter((s) => s.status === 'PUBLISHED').map((s) => s.id);
+    if (ids.length === 0) return;
+    if (!(await confirm({ message: `Take ${ids.length} set(s) down? Students will stop seeing them in practice and free tests.`, confirmLabel: 'Unpublish', tone: 'danger' }))) return;
+    setBulkBusy('unpublish'); setError(null);
+    try {
+      await api('/admin/question-sets/bulk/status', { method: 'POST', body: { ids, status: 'ARCHIVED', studentFacing: false } });
+      await bulkAfter();
+    } catch (e) { setError(errorMessage(e)); } finally { setBulkBusy(null); }
+  }
+
+  async function bulkRemove() {
+    const ids = selectedRows.filter((s) => s.status === 'DRAFT' || s.status === 'ARCHIVED').map((s) => s.id);
+    if (ids.length === 0) return;
+    if (!(await confirm({ message: `Permanently delete ${ids.length} set(s) and all of their questions? This cannot be undone.`, confirmLabel: 'Delete sets', tone: 'danger' }))) return;
+    setBulkBusy('delete'); setError(null);
+    try {
+      await api('/admin/question-sets/bulk/delete', { method: 'POST', body: { ids } });
+      await bulkAfter();
+    } catch (e) { setError(errorMessage(e)); } finally { setBulkBusy(null); }
   }
 
   async function create() {
@@ -77,9 +127,25 @@ export default function QuestionBankPage() {
       {isError && <Alert>Could not load the question bank.</Alert>}
       {data && (data.items.length === 0 ? <Empty title="No sets yet">Create a set to start building the bank.</Empty> : (
         <>
-          <Table head={['Title', 'Skill', 'Topic', 'Difficulty', 'Questions', 'Status', '']} sticky>
+          {selected.size > 0 && (
+            <TableToolbar>
+              <span className="text-sm font-medium text-fg-muted">{selected.size} selected</span>
+              <Button variant="secondary" size="sm" onClick={bulkPublish} busy={bulkBusy === 'publish'} disabled={!!bulkBusy || !selectedRows.some((s) => s.status === 'DRAFT' || s.status === 'APPROVED')}>Publish</Button>
+              <Button variant="secondary" size="sm" onClick={bulkUnpublish} busy={bulkBusy === 'unpublish'} disabled={!!bulkBusy || !selectedRows.some((s) => s.status === 'PUBLISHED')}>Unpublish</Button>
+              <Button variant="ghost" tone="danger" size="sm" onClick={bulkRemove} busy={bulkBusy === 'delete'} disabled={!!bulkBusy || !selectedRows.some((s) => s.status === 'DRAFT' || s.status === 'ARCHIVED')}>Delete</Button>
+              <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())} disabled={!!bulkBusy}>Clear</Button>
+            </TableToolbar>
+          )}
+          <Table head={['', 'Title', 'Skill', 'Topic', 'Difficulty', 'Questions', 'Status', '']} sticky>
             {data.items.map((s) => (
               <ClickableRow key={s.id} onClick={() => router.push(`/admin/question-bank/${s.id}`)}>
+                <Td>
+                  <input
+                    type="checkbox" aria-label={`Select ${s.title}`} checked={selected.has(s.id)}
+                    onClick={(e) => e.stopPropagation()} onChange={() => toggleOne(s.id)}
+                    className="size-4 rounded border-border accent-primary"
+                  />
+                </Td>
                 <Td><Link href={`/admin/question-bank/${s.id}`} className="font-medium text-primary hover:underline" onClick={(e) => e.stopPropagation()}>{s.title}</Link></Td>
                 <Td>{s.skill}</Td>
                 <Td>{s.topic ?? '—'}</Td>
@@ -90,7 +156,13 @@ export default function QuestionBankPage() {
               </ClickableRow>
             ))}
           </Table>
-          <Pagination skip={skip} take={TAKE} total={data.total} onSkip={setSkip} />
+          <div className="flex items-center justify-between">
+            <label className="flex items-center gap-2 text-sm text-fg-muted">
+              <input type="checkbox" className="size-4 rounded border-border accent-primary" checked={rows.length > 0 && selected.size === rows.length} onChange={toggleAll} />
+              Select all on this page
+            </label>
+            <Pagination skip={skip} take={TAKE} total={data.total} onSkip={setSkip} />
+          </div>
         </>
       ))}
 
