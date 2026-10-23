@@ -1089,6 +1089,8 @@ model Assessment {
   mockAccessRequests MockAccessRequest[]
   mockActivations    MockActivation[]
   wrapperForSet      QuestionSet?         @relation("QuestionSetWrapperAssessment")
+  mockExamsAsListening MockExam[] @relation("MockExamListeningAssessment")
+  mockExamsAsReading   MockExam[] @relation("MockExamReadingAssessment")
 
   @@map("assessments")
 }
@@ -1253,10 +1255,17 @@ model AssessmentAttempt {
  * One student's request for access to one mock test (spec: mock-test access control). Distinct
  * from MockActivation, which opens a mock for an entire batch at once without per-student requests.
  * Enforcement lives in AttemptsService.resolveAccess() — library_visible alone never granted access.
+ *
+ * Exactly one of assessmentId/mockExamId is set. assessmentId is the original, single-skill shape
+ * (still read for pre-Phase-6 rows); mockExamId is the new whole-module-bundle shape every mock
+ * composed from here on uses (MocksService.requestMockExam/activateMockExam below) — a MockExam
+ * bundles Listening+Reading as one unit, so one request/activation covers both skills at once
+ * instead of needing a matching pair of assessment-keyed rows.
  */
 model MockAccessRequest {
   id             String    @id @default(uuid()) @db.Uuid
-  assessmentId   String    @map("assessment_id") @db.Uuid
+  assessmentId   String?   @map("assessment_id") @db.Uuid
+  mockExamId     String?   @map("mock_exam_id") @db.Uuid
   studentId      String    @map("student_id") @db.Uuid
   batchId        String?   @map("batch_id") @db.Uuid
   status         String    @default("PENDING")
@@ -1268,7 +1277,8 @@ model MockAccessRequest {
   availableUntil DateTime? @map("available_until")
   createdAt      DateTime  @default(now()) @map("created_at")
 
-  assessment Assessment     @relation(fields: [assessmentId], references: [id])
+  assessment Assessment?    @relation(fields: [assessmentId], references: [id])
+  mockExam   MockExam?      @relation(fields: [mockExamId], references: [id])
   student    StudentProfile @relation(fields: [studentId], references: [id])
   batch      Batch?         @relation(fields: [batchId], references: [id])
   reviewedBy User?          @relation("MockRequestReviewer", fields: [reviewedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -1278,10 +1288,12 @@ model MockAccessRequest {
   @@map("mock_access_requests")
 }
 
-/** Opens one mock test for every student in a batch at once, without each of them requesting it individually. */
+/** Opens one mock test for every student in a batch at once, without each of them requesting it
+ *  individually. See MockAccessRequest above for the assessmentId/mockExamId split. */
 model MockActivation {
   id             String    @id @default(uuid()) @db.Uuid
-  assessmentId   String    @map("assessment_id") @db.Uuid
+  assessmentId   String?   @map("assessment_id") @db.Uuid
+  mockExamId     String?   @map("mock_exam_id") @db.Uuid
   batchId        String    @map("batch_id") @db.Uuid
   status         String    @default("ACTIVE")
   availableFrom  DateTime  @map("available_from")
@@ -1290,13 +1302,46 @@ model MockActivation {
   activatedById  String?   @map("activated_by") @db.Uuid
   createdAt      DateTime  @default(now()) @map("created_at")
 
-  assessment  Assessment @relation(fields: [assessmentId], references: [id])
-  batch       Batch      @relation(fields: [batchId], references: [id])
-  activatedBy User?      @relation("MockActivationActivator", fields: [activatedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  assessment  Assessment? @relation(fields: [assessmentId], references: [id])
+  mockExam    MockExam?   @relation(fields: [mockExamId], references: [id])
+  batch       Batch       @relation(fields: [batchId], references: [id])
+  activatedBy User?       @relation("MockActivationActivator", fields: [activatedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@unique([batchId, assessmentId])
+  @@unique([batchId, mockExamId])
   @@index([batchId])
   @@map("mock_activations")
+}
+
+/**
+ * A whole-module mock test bundling Listening+Reading as one unit, composed in one admin click by
+ * picking the least-used published module per skill (QuestionBankRotationService) — replacing the
+ * old manual count/difficulty/topic form. Writing/Speaking are not pre-picked here: they stay on
+ * SimulatorService's existing per-attempt random pick from the bank, exactly as today, since
+ * neither skill has a "module" concept to rotate (a Writing/Speaking bank set is many independent
+ * prompts, not one wrapped passage) — inventing one would be new architecture without the plan's
+ * pre-existing wrapper-assessment pattern Listening/Reading already have.
+ */
+model MockExam {
+  id                    String   @id @default(uuid()) @db.Uuid
+  title                 String
+  listeningSetId        String   @map("listening_set_id") @db.Uuid
+  readingSetId          String   @map("reading_set_id") @db.Uuid
+  listeningAssessmentId String   @map("listening_assessment_id") @db.Uuid
+  readingAssessmentId   String   @map("reading_assessment_id") @db.Uuid
+  status                String   @default("PUBLISHED")
+  libraryVisible        Boolean  @default(true) @map("library_visible")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  listeningSet        QuestionSet @relation("MockExamListeningSet", fields: [listeningSetId], references: [id])
+  readingSet           QuestionSet @relation("MockExamReadingSet", fields: [readingSetId], references: [id])
+  listeningAssessment Assessment  @relation("MockExamListeningAssessment", fields: [listeningAssessmentId], references: [id])
+  readingAssessment   Assessment  @relation("MockExamReadingAssessment", fields: [readingAssessmentId], references: [id])
+
+  accessRequests MockAccessRequest[]
+  activations    MockActivation[]
+
+  @@map("mock_exams")
 }
 
 /**
@@ -1758,6 +1803,8 @@ model QuestionSet {
   wrapperAssessment  Assessment?    @relation("QuestionSetWrapperAssessment", fields: [wrapperAssessmentId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   questions Question[]
   images    QuestionImage[]
+  mockExamsAsListening MockExam[] @relation("MockExamListeningSet")
+  mockExamsAsReading   MockExam[] @relation("MockExamReadingSet")
 
   @@index([skill, status, studentFacing, difficulty], map: "question_sets_pick_idx")
   @@index([topic], map: "question_sets_topic_idx")

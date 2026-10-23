@@ -28,14 +28,19 @@ async function mentor(batchId: string | null) {
   return { id: m.id as string, session: await login(app, email) };
 }
 
-/** A published, library-visible MOCK assessment (one MCQ question). No course item needed — mocks are library papers. */
+/** A published, library-visible MOCK assessment (one MCQ question). No course item needed — mocks
+ *  are library papers. This single-skill shape predates Phase 6's whole-module MockExam bundle
+ *  (see mock-exams.spec.ts for that) and still exercises the exact same MockAccessRequest/
+ *  MockActivation mechanics this file is actually testing, so it's kept as the fixture here.
+ *  Nothing in the admin UI composes this shape any more (zero such rows exist in production), so
+ *  its library flag is set directly rather than through a since-removed admin endpoint. */
 async function buildMockAssessment() {
   const a = (await post('/admin/assessments', { title: `Mock ${uniq()}`, type: 'MOCK' }).expect(201)).body;
   const versionId = (await as(admin)(http(app).get(`/admin/assessments/${a.id}`)).expect(200)).body.versions[0].id as string;
   const sectionId = (await post(`/admin/assessment-versions/${versionId}/sections`, { title: 'Part 1', content: { instructions: 'Answer.' } }).expect(201)).body.id as string;
   await post(`/admin/assessment-sections/${sectionId}/questions`, { type: 'MCQ_SINGLE', prompt: { text: 'Pick B' }, options: [{ label: 'A' }, { label: 'B', isCorrect: true }] }).expect(201);
   await post(`/admin/assessment-versions/${versionId}/publish`).expect(200);
-  await post(`/admin/mock-exams/${a.id}/library`, { visible: true }).expect(200);
+  await prisma.assessment.update({ where: { id: a.id }, data: { libraryVisible: true } });
   const batchId = await createOpenBatch(app, admin);
   return { assessmentId: a.id as string, batchId };
 }

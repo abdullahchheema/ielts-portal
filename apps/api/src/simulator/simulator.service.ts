@@ -2,7 +2,9 @@ import { Body, Controller, Get, HttpCode, Injectable, Module, OnModuleInit, Para
 import { Prisma } from '@ielts/db';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SIMULATOR_COMPLETED, SimulatorCompleted } from './events';
-import { simulatorAdvanceSchema, simulatorStartSchema, SimulatorStartInput } from '@ielts/validation';
+import {
+  simulatorAdvanceSchema, simulatorStartSchema, simulatorStartFromMockExamSchema, SimulatorStartInput, SimulatorStartFromMockExamInput,
+} from '@ielts/validation';
 import { AttemptsService } from '../assessments/attempts.service';
 import { AppError, conflict, forbidden, notFound } from '../common/app-error';
 import { AuthUser, CurrentUser } from '../common/decorators';
@@ -57,7 +59,11 @@ export class SimulatorService implements OnModuleInit {
     this.scheduler.register('simulator.advance', ADVANCE_EVERY_MS * 5, () => this.advanceDue());
   }
 
-  /** Library mocks a student may take in the simulator, each with the student's own access status. */
+  /** Library mocks a student may take in the simulator, each with the student's own access status.
+   *  `mockExams` is the new whole-module bundle shape (Phase 6) — a single pre-paired Listening+
+   *  Reading unit, requested/started as one thing instead of mixing and matching from two separate
+   *  lists. `listening`/`reading` stay for any pre-Phase-6 single-skill mocks still in the library,
+   *  so in-flight access requests/activations on them keep working unchanged. */
   async available(studentId: string) {
     const rows = await this.prisma.assessment.findMany({
       where: { type: 'MOCK', origin: 'BANK', libraryVisible: true, skill: { in: ['LISTENING', 'READING'] }, versions: { some: { publishedAt: { not: null } } } },
@@ -65,9 +71,15 @@ export class SimulatorService implements OnModuleInit {
       select: { id: true, title: true, skill: true, timeLimitMin: true },
     });
     const withAccess = await Promise.all(rows.map(async (r) => ({ ...r, access: await this.mocks.statusFor(studentId, r.id) })));
+    const mockExamRows = await this.prisma.mockExam.findMany({
+      where: { libraryVisible: true }, orderBy: { createdAt: 'desc' }, take: 200,
+      select: { id: true, title: true, createdAt: true },
+    });
+    const mockExams = await Promise.all(mockExamRows.map(async (m) => ({ ...m, access: await this.mocks.statusForMockExam(studentId, m.id) })));
     return {
       listening: withAccess.filter((r) => r.skill === 'LISTENING'),
       reading: withAccess.filter((r) => r.skill === 'READING'),
+      mockExams,
     };
   }
 
@@ -83,14 +95,27 @@ export class SimulatorService implements OnModuleInit {
     // the row exists would leave a permanently "in progress" exam the student could never replace.
     await this.mocks.assertAttemptAllowed(studentId, input.listeningAssessmentId);
     await this.mocks.assertAttemptAllowed(studentId, input.readingAssessmentId);
+    return this.createExamAttempt(studentId, input.listeningAssessmentId, input.readingAssessmentId, input.includeSpeaking);
+  }
+
+  /** start()'s twin for the new whole-module MockExam shape (Phase 6) — one access check against
+   *  the bundle instead of two against its underlying Listening/Reading assessments. */
+  async startFromMockExam(studentId: string, mockExamId: string, includeSpeaking: boolean) {
+    const m = await this.prisma.mockExam.findUnique({ where: { id: mockExamId }, select: { libraryVisible: true, listeningAssessmentId: true, readingAssessmentId: true } });
+    if (!m || !m.libraryVisible) throw notFound('Mock exam');
+    await this.mocks.assertMockExamAttemptAllowed(studentId, mockExamId);
+    return this.createExamAttempt(studentId, m.listeningAssessmentId, m.readingAssessmentId, includeSpeaking);
+  }
+
+  private async createExamAttempt(studentId: string, listeningAssessmentId: string, readingAssessmentId: string, includeSpeaking: boolean) {
     const exam = await this.prisma.examAttempt.create({
-      data: { studentId, includeSpeaking: input.includeSpeaking, listeningAssessmentId: input.listeningAssessmentId, readingAssessmentId: input.readingAssessmentId, stage: 'LISTENING' },
+      data: { studentId, includeSpeaking, listeningAssessmentId, readingAssessmentId, stage: 'LISTENING' },
       select: { id: true },
     }).catch((e) => {
       if ((e as { code?: string }).code === 'P2002') throw conflict('CONFLICT', 'You already have a simulator in progress. Finish or resume it first.');
       throw e;
     });
-    const started = await this.startSection(studentId, input.listeningAssessmentId);
+    const started = await this.startSection(studentId, listeningAssessmentId);
     await this.prisma.examAttempt.update({ where: { id: exam.id }, data: { listeningAttemptId: started.id, stageDeadlineAt: started.expiresAt } });
     return this.get(studentId, exam.id);
   }
@@ -289,6 +314,13 @@ export class SimulatorController {
 
   @HttpCode(201) @Post('exams')
   start(@Body(new ZodPipe(simulatorStartSchema)) body: SimulatorStartInput, @CurrentUser() u: AuthUser) { return this.sim.start(sid(u), body); }
+
+  /** start()'s twin for the new whole-module MockExam shape (Phase 6). Declared before 'exams/:id'
+   *  below so 'from-mock-exam' is never matched as an exam id. */
+  @HttpCode(201) @Post('exams/from-mock-exam')
+  startFromMockExam(@Body(new ZodPipe(simulatorStartFromMockExamSchema)) body: SimulatorStartFromMockExamInput, @CurrentUser() u: AuthUser) {
+    return this.sim.startFromMockExam(sid(u), body.mockExamId, body.includeSpeaking);
+  }
 
   @Get('exams/:id') get(@Param('id', uuid) id: string, @CurrentUser() u: AuthUser) { return this.sim.get(sid(u), id); }
 

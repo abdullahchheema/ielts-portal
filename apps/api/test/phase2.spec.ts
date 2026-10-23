@@ -137,32 +137,27 @@ describe('mock composer and full simulator', () => {
     return set.id as string;
   }
 
-  it('composes a draft mock only from enough published content, and refuses otherwise', async () => {
-    await post(admin, '/admin/mock-exams/compose', { title: `Too big ${uniq()}`, skill: 'LISTENING', count: 60, durationMin: 30 }).expect(422);
-  });
-
+  // Phase 6: mock composition is now one-click whole-module rotation (MockExam), not a manual
+  // count/difficulty/topic form — see mock-exams.spec.ts for composition-specific coverage. This
+  // test keeps the original intent (simulator honours mock access control end to end) but drives
+  // it through the new MockExam-based start path.
   it('a student completes listening and reading; the simulator records the skills it could not assess', async () => {
     await publishedFor('LISTENING', 6);
     await publishedFor('READING', 6);
-    const title = `Mock ${uniq()}`;
-    const listening = (await post(admin, '/admin/mock-exams/compose', { title: `${title} L`, skill: 'LISTENING', count: 5, durationMin: 30, topic: undefined }).expect(201)).body;
-    const reading = (await post(admin, '/admin/mock-exams/compose', { title: `${title} R`, skill: 'READING', count: 5, durationMin: 60, topic: undefined }).expect(201)).body;
-    for (const m of [listening, reading]) {
-      await as(admin)(http(app).post(`/admin/assessment-versions/${m.draftVersionId}/publish`)).expect((r) => expect([200, 201]).toContain(r.status));
-      await post(admin, `/admin/mock-exams/${m.assessmentId}/library`, { visible: true }).expect(200);
-    }
+    const mockExam = (await post(admin, '/admin/mock-exams/compose', { title: `Mock ${uniq()}` }).expect(201)).body;
+    expect(mockExam.status).toBe('PUBLISHED');
+    expect(mockExam.libraryVisible).toBe(true);
 
     const batchId = await createOpenBatch(app, admin);
     const st = await enrollStudent(app, prisma, admin, batchId);
-    // Mock-test access control (spec): the academy opens the mocks for the whole batch.
-    for (const m of [listening, reading]) {
-      await post(admin, `/mentor/assessments/${m.assessmentId}/mock-activations`, { batchId, availableFrom: new Date(Date.now() - 1000).toISOString() }).expect(201);
-    }
-    const available = (await get(st.session, '/simulator/available').expect(200)).body;
-    expect(available.listening.map((x: { id: string }) => x.id)).toContain(listening.assessmentId);
-    expect(available.reading.map((x: { id: string }) => x.id)).toContain(reading.assessmentId);
+    // Mock-test access control (spec): the academy opens the mock for the whole batch, in one step
+    // now that it's a single bundle instead of two assessment-keyed activations.
+    await post(admin, `/mentor/mock-exams/${mockExam.id}/mock-activations`, { batchId, availableFrom: new Date(Date.now() - 1000).toISOString() }).expect(201);
 
-    const exam = (await post(st.session, '/simulator/exams', { listeningAssessmentId: listening.assessmentId, readingAssessmentId: reading.assessmentId, includeSpeaking: false }).expect(201)).body;
+    const available = (await get(st.session, '/simulator/available').expect(200)).body;
+    expect(available.mockExams.find((x: { id: string }) => x.id === mockExam.id)?.access.canAttempt).toBe(true);
+
+    const exam = (await post(st.session, '/simulator/exams/from-mock-exam', { mockExamId: mockExam.id, includeSpeaking: false }).expect(201)).body;
     expect(exam.stage).toBe('LISTENING');
     expect(exam.stageRevision).toBe(0);
     expect(exam.sections.listening.attemptId).toBeTruthy();

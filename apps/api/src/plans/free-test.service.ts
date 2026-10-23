@@ -1,22 +1,14 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import * as argon2 from 'argon2';
-import { Prisma } from '@ielts/db';
-import type { AddSpeakingResponseInput, ImportContentBlock, SaveAnswersInput, SaveWritingInput } from '@ielts/validation';
+import type { AddSpeakingResponseInput, SaveAnswersInput, SaveWritingInput } from '@ielts/validation';
 import { AppError, notFound } from '../common/app-error';
 import { PrismaService } from '../prisma/prisma.service';
-import { AssessmentsAdminService } from '../assessments/assessments-admin.service';
 import { AttemptsService } from '../assessments/attempts.service';
-import { Actor } from '../courses/courses.service';
-import { QuestionBankService } from '../question-bank/question-bank.service';
+import { RotationService } from '../question-bank/rotation.service';
 import { SimulatorService } from '../simulator/simulator.service';
 import { SpeakingService } from '../speaking/speaking.service';
 import { WritingService } from '../writing/writing.service';
-
-/** No human admin is involved in lazily building a wrapper assessment — AuditLog.userId is nullable,
- *  so this is safe; it just needs a cast past AssessmentsAdminService's stricter Actor type (same
- *  precedent as the `{ userId: undefined }` system actor already used in referrals.service.ts). */
-const SYSTEM_ACTOR = { userId: undefined } as unknown as Actor;
 
 /** Ghost accounts' email domain. Status stays PENDING_VERIFICATION forever, so the normal
  *  "verify your email before logging in" gate already makes them unreachable through /auth/login. */
@@ -50,8 +42,7 @@ export class FreeTestService {
     private readonly sim: SimulatorService,
     private readonly writing: WritingService,
     private readonly speaking: SpeakingService,
-    private readonly assessmentsAdmin: AssessmentsAdminService,
-    private readonly bank: QuestionBankService,
+    private readonly rotation: RotationService,
   ) {}
 
   /** Claims a brand-new, fully anonymous free test. No identity is collected, so there is nothing
@@ -70,137 +61,20 @@ export class FreeTestService {
     return { leadId: lead.id, resumable: false };
   }
 
-  /** The least-used published, student-facing bank set for this skill, among however many exist.
-   *  "Used" is counted from existing free-test exams only (joined through FreeAssessmentLead, via
-   *  whichever bank set each wrapper Assessment traces back to), so a real student's own simulator
-   *  run on the same wrapper Assessment never skews the free-test rotation. */
-  private async pickLeastUsedBankSet(tx: Prisma.TransactionClient, skill: 'LISTENING' | 'READING') {
-    const eligible = await tx.questionSet.findMany({ where: { skill, status: 'PUBLISHED', studentFacing: true }, select: { id: true } });
-    if (eligible.length === 0) throw new AppError('ASSESSMENT_NOT_AVAILABLE', 404, `No ${skill.toLowerCase()} module is published for the free test yet. Please check back soon.`);
-    const [used, wrapped] = await Promise.all([
-      tx.freeAssessmentLead.findMany({
-        where: { examAttemptId: { not: null } },
-        select: { examAttempt: { select: { listeningAssessmentId: true, readingAssessmentId: true } } },
-      }),
-      tx.questionSet.findMany({ where: { wrapperAssessmentId: { not: null } }, select: { id: true, wrapperAssessmentId: true } }),
-    ]);
-    const setIdByAssessmentId = new Map(wrapped.map((w) => [w.wrapperAssessmentId!, w.id]));
-    const countOf = new Map<string, number>();
-    for (const u of used) {
-      const assessmentId = skill === 'LISTENING' ? u.examAttempt?.listeningAssessmentId : u.examAttempt?.readingAssessmentId;
-      const setId = assessmentId ? setIdByAssessmentId.get(assessmentId) : undefined;
-      if (setId) countOf.set(setId, (countOf.get(setId) ?? 0) + 1);
-    }
-    return eligible.reduce((min, s) => ((countOf.get(s.id) ?? 0) < (countOf.get(min.id) ?? 0) ? s : min), eligible[0]).id;
-  }
-
-  /** The bank set's own internal Assessment — built once, on first pick, then cached on the set so
-   *  every later pick reuses it. Never shown to an admin, never created by hand: this only exists
-   *  because Listening/Reading's timed, graded attempt machinery (AttemptsService/AssessmentAttempt)
-   *  has no bank-native equivalent. Runs as its own small transactions (not nested in the caller's),
-   *  same reasoning as `attempts.start()` needing the ghost student already committed. */
-  /** Builds the wrapper on the first pick of a set — this runs inline in the student's claim request,
-   *  so every round trip here is latency the student is actually waiting on. Kept to the minimum:
-   *  one batched insert for every section (instead of one create() call per part), the two lookup
-   *  queries run together, and the independent per-section question-copy work runs in parallel
-   *  instead of one part after another. */
-  private async resolveWrapperAssessment(setId: string, skill: 'LISTENING' | 'READING') {
-    const set = await this.prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
-    if (set.wrapperAssessmentId) return set.wrapperAssessmentId;
-
-    // IELTS-standard section timing — the same values this codebase already uses for mock-exam
-    // composition (`/admin/mock-exams/compose`'s durationMin).
-    const timeLimitMin = skill === 'LISTENING' ? 30 : 60;
-    const assessment = await this.assessmentsAdmin.create({ title: set.title, type: 'DIAGNOSTIC', skill, passPercent: 0, showAnswers: true, timeLimitMin }, SYSTEM_ACTOR);
-    const versionId = assessment.versionId;
-    const stimulus = (set.stimulus ?? {}) as {
-      passage?: string; audioKey?: string;
-      sections?: { title: string; instructions?: string; passage?: string; audioKey?: string; instructionGroups?: { text: string; count: number }[]; contentBlocks?: ImportContentBlock[] }[];
-    };
-
-    const [images, allQuestions] = await Promise.all([
-      this.prisma.questionImage.findMany({
-        where: { questionSetId: setId }, orderBy: { sequence: 'asc' }, select: { sectionIndex: true, fileKey: true, altText: true },
-      }),
-      this.prisma.question.findMany({
-        where: { questionSetId: setId }, orderBy: { sequence: 'asc' }, select: { id: true, bankSectionIndex: true },
-      }),
-    ]);
-    // Shared stimulus images (e.g. a labelled map) are attached per bankSectionIndex (null = whole-set,
-    // for a single-passage set) — carry their storage keys into each part's content the same way audio is.
-    const imagesByIndex = new Map<number | null, { fileKey: string; altText: string | null }[]>();
-    for (const img of images) {
-      const key = img.sectionIndex ?? null;
-      imagesByIndex.set(key, [...(imagesByIndex.get(key) ?? []), { fileKey: img.fileKey, altText: img.altText }]);
-    }
-    const questionIdsByIndex = new Map<number | null, string[]>();
-    for (const q of allQuestions) {
-      const key = q.bankSectionIndex ?? null;
-      questionIdsByIndex.set(key, [...(questionIdsByIndex.get(key) ?? []), q.id]);
-    }
-
-    // A multi-passage set (sections[]) gets one AssessmentSection per passage, each copying only its
-    // own questions — this is what makes the existing section-by-section renderer (AttemptsService's
-    // paper(), the free-test SectionStage) show each passage directly above its own questions instead
-    // of one giant block. A single-passage set keeps the original one-section shape.
-    //
-    // Audio: a real Listening test is normally one continuous recording for every part, not a
-    // separate file per part — that whole-module file (stimulus.audioKey, attached without a section
-    // index) plays once, attached to the first part only, so the student gets a single player instead
-    // of the same recording repeated behind every part. A part with its own audioKey (a genuinely
-    // separate file for that part) always takes priority over the whole-module one.
-    const parts = stimulus.sections?.length
-      ? stimulus.sections.map((s, i) => ({
-          title: s.title, instructions: s.instructions, passage: s.passage, instructionGroups: s.instructionGroups, contentBlocks: s.contentBlocks,
-          audioKey: s.audioKey ?? (i === 0 ? stimulus.audioKey : undefined),
-          bankSectionIndex: i as number | null,
-        }))
-      : [{ title: set.title, instructions: undefined, passage: stimulus.passage, instructionGroups: undefined, contentBlocks: undefined as ImportContentBlock[] | undefined, audioKey: stimulus.audioKey, bankSectionIndex: null as number | null }];
-
-    // One batched insert for every section, content fully baked in up front — no per-section
-    // create-then-update round trip. Sequence is just the part's position: this version is brand new,
-    // so there's no existing-section count to race against (unlike AssessmentsAdminService.createSection).
-    const sectionIds = parts.map(() => randomUUID());
-    await this.prisma.assessmentSection.createMany({
-      data: parts.map((part, i) => {
-        const imageKeys = imagesByIndex.get(part.bankSectionIndex)?.map((img) => ({ key: img.fileKey, alt: img.altText ?? undefined }));
-        const content = part.passage || part.instructions || part.instructionGroups || part.contentBlocks || part.audioKey || imageKeys?.length
-          ? { passage: part.passage, instructions: part.instructions, instructionGroups: part.instructionGroups, contentBlocks: part.contentBlocks, audioKey: part.audioKey, imageKeys }
-          : undefined;
-        return { id: sectionIds[i], assessmentVersionId: versionId, title: part.title, sequence: i, content: content as Prisma.InputJsonValue | undefined };
-      }),
-    });
-
-    // Each part writes to its own section, so these are independent — safe to run concurrently
-    // instead of waiting on one part's question-copy before starting the next.
-    await Promise.all(parts.map((part, i) => this.bank.copyIntoSection(sectionIds[i], questionIdsByIndex.get(part.bankSectionIndex) ?? [], SYSTEM_ACTOR)));
-
-    await this.assessmentsAdmin.publishVersion(versionId, SYSTEM_ACTOR);
-
-    // Only the first builder's id sticks; a concurrent duplicate build (rare — only possible the very
-    // first time a set is ever picked) becomes a harmless, never-reused orphan Assessment, the same
-    // tolerance already accepted for claim()'s own P2002 concurrent-claim recovery below.
-    const claimed = await this.prisma.questionSet.updateMany({ where: { id: setId, wrapperAssessmentId: null }, data: { wrapperAssessmentId: assessment.id } });
-    if (claimed.count === 0) {
-      const latest = await this.prisma.questionSet.findUniqueOrThrow({ where: { id: setId }, select: { wrapperAssessmentId: true } });
-      return latest.wrapperAssessmentId!;
-    }
-    return assessment.id;
-  }
-
   /** Picks Listening/Reading bank sets (advisory-locked so concurrent claims balance fairly), then —
    *  outside that lock, since resolving a wrapper may itself build one through several small
    *  transactions — resolves each pick's wrapper Assessment and creates the bare ExamAttempt row, the
    *  same shape `SimulatorService.start()` creates, but without that method's enrollment/mocks-
-   *  approval gate: DIAGNOSTIC assessments need neither, exactly as the free test already relied on. */
+   *  approval gate: DIAGNOSTIC assessments need neither, exactly as the free test already relied on.
+   *  Picking/wrapper-building itself is shared with mock-exam composition via RotationService. */
   private async createExamRow(ghostStudentId: string) {
     const [listeningSetId, readingSetId] = await this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('free_test_assign'))`;
-      return Promise.all([this.pickLeastUsedBankSet(tx, 'LISTENING'), this.pickLeastUsedBankSet(tx, 'READING')]);
+      return Promise.all([this.rotation.pickLeastUsedBankSet(tx, 'LISTENING'), this.rotation.pickLeastUsedBankSet(tx, 'READING')]);
     });
     const [listeningAssessmentId, readingAssessmentId] = await Promise.all([
-      this.resolveWrapperAssessment(listeningSetId, 'LISTENING'),
-      this.resolveWrapperAssessment(readingSetId, 'READING'),
+      this.rotation.resolveWrapperAssessment(listeningSetId, 'LISTENING'),
+      this.rotation.resolveWrapperAssessment(readingSetId, 'READING'),
     ]);
     const exam = await this.prisma.examAttempt.create({
       data: { studentId: ghostStudentId, includeSpeaking: true, listeningAssessmentId, readingAssessmentId, stage: 'LISTENING' },

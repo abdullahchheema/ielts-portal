@@ -46,20 +46,23 @@ export const simulatorStartSchema = z.object({
   includeSpeaking: z.boolean().default(true),
 });
 
+/** The new whole-module MockExam shape (Phase 6): one bundle id instead of picking Listening and
+ *  Reading independently. */
+export const simulatorStartFromMockExamSchema = z.object({
+  mockExamId: z.string().uuid(),
+  includeSpeaking: z.boolean().default(true),
+});
+
 export const simulatorAdvanceSchema = z.object({
   /** The stage the client believes is current. A stale request is refused rather than applied twice. */
   expectedRevision: z.number().int().min(0),
 });
 
+// Composition is now automatic rotation (RotationService picks the least-used published module per
+// skill) — the admin supplies only a title, not count/difficulty/topic/duration.
 export const composeMockSchema = z.object({
   title: z.string().trim().min(3).max(160),
-  skill: z.enum(['LISTENING', 'READING']),
-  difficultyMin: z.number().int().min(1).max(5).default(1),
-  difficultyMax: z.number().int().min(1).max(5).default(5),
-  topic: z.string().trim().max(80).optional(),
-  count: z.number().int().min(5).max(60),
-  durationMin: z.number().int().min(5).max(180),
-}).refine((v) => v.difficultyMin <= v.difficultyMax, 'The minimum difficulty must not exceed the maximum.');
+});
 
 export const libraryVisibilitySchema = z.object({
   visible: z.boolean(),
@@ -71,4 +74,5 @@ export type CreateSpeakingAttemptInput = z.infer<typeof createSpeakingAttemptSch
 export type AddSpeakingResponseInput = z.infer<typeof addSpeakingResponseSchema>;
 export type PresignSpeakingInput = z.infer<typeof presignSpeakingSchema>;
 export type SimulatorStartInput = z.infer<typeof simulatorStartSchema>;
+export type SimulatorStartFromMockExamInput = z.infer<typeof simulatorStartFromMockExamSchema>;
 export type ComposeMockInput = z.infer<typeof composeMockSchema>;

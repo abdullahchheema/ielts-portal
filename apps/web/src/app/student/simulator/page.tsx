@@ -12,6 +12,7 @@ import { date } from '@/lib/format';
 type AccessStatus = 'ACTIVATED' | 'APPROVED' | 'EXPIRED' | 'PENDING' | 'DECLINED' | 'NONE';
 interface Access { canAttempt: boolean; status: AccessStatus; availableFrom: string | null; availableUntil: string | null; instructions: string | null; requestId: string | null; decisionNote: string | null }
 interface Mock { id: string; title: string; timeLimitMin: number | null; access: Access }
+interface MockExam { id: string; title: string; access: Access }
 interface Exam { id: string; status: string; stage: string; overallEstimate: string | null; missingSkills: string[]; createdAt: string; completedAt: string | null }
 
 const STATUS_TONE: Record<AccessStatus, 'green' | 'amber' | 'red' | 'slate'> = {
@@ -22,7 +23,7 @@ const STATUS_LABEL: Record<AccessStatus, string> = {
   PENDING: 'Request pending', DECLINED: 'Request declined', NONE: 'Not requested',
 };
 
-function RequestRow({ m }: { m: Mock }) {
+function RequestRow({ m, requestUrl }: { m: { id: string; title: string; timeLimitMin?: number | null; access: Access }; requestUrl: string }) {
   const qc = useQueryClient();
   const [reason, setReason] = useState('');
   const [open, setOpen] = useState(false);
@@ -32,7 +33,7 @@ function RequestRow({ m }: { m: Mock }) {
   async function request() {
     setBusy(true); setError(null);
     try {
-      await api(`/assessments/${m.id}/mock-access-requests`, { method: 'POST', body: { reason: reason.trim() || undefined } });
+      await api(requestUrl, { method: 'POST', body: { reason: reason.trim() || undefined } });
       await qc.invalidateQueries({ queryKey: ['sim-available'] });
     } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
   }
@@ -63,13 +64,16 @@ function RequestRow({ m }: { m: Mock }) {
 export default function SimulatorPage() {
   const router = useRouter();
   const qc = useQueryClient();
-  const available = useQuery({ queryKey: ['sim-available'], queryFn: () => api<{ listening: Mock[]; reading: Mock[] }>('/simulator/available') });
+  const available = useQuery({ queryKey: ['sim-available'], queryFn: () => api<{ listening: Mock[]; reading: Mock[]; mockExams: MockExam[] }>('/simulator/available') });
   const exams = useQuery({ queryKey: ['sim-exams'], queryFn: () => api<Exam[]>('/simulator/exams') });
   const [listening, setListening] = useState('');
   const [reading, setReading] = useState('');
   const [includeSpeaking, setIncludeSpeaking] = useState(true);
+  const [mockExamId, setMockExamId] = useState('');
+  const [includeSpeakingBundle, setIncludeSpeakingBundle] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [bundleBusy, setBundleBusy] = useState(false);
 
   async function start() {
     setBusy(true); setError(null);
@@ -80,7 +84,18 @@ export default function SimulatorPage() {
     } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
   }
 
-  const noMocks = available.data && available.data.listening.length === 0 && available.data.reading.length === 0;
+  async function startBundle() {
+    setBundleBusy(true); setError(null);
+    try {
+      const e = await api<{ id: string }>('/simulator/exams/from-mock-exam', { method: 'POST', body: { mockExamId, includeSpeaking: includeSpeakingBundle } });
+      await qc.invalidateQueries({ queryKey: ['sim-exams'] });
+      router.push(`/student/simulator/${e.id}`);
+    } catch (e) { setError(errorMessage(e)); } finally { setBundleBusy(false); }
+  }
+
+  const mockExams = available.data?.mockExams ?? [];
+  const mockExamsReady = mockExams.filter((m) => m.access.canAttempt);
+  const noMocks = available.data && available.data.listening.length === 0 && available.data.reading.length === 0 && mockExams.length === 0;
   const listeningReady = available.data?.listening.filter((m) => m.access.canAttempt) ?? [];
   const readingReady = available.data?.reading.filter((m) => m.access.canAttempt) ?? [];
 
@@ -92,18 +107,43 @@ export default function SimulatorPage() {
       {available.isError && <Alert>Could not load mock tests.</Alert>}
       {noMocks && <Empty title="No mock tests are open yet">Your academy will open a listening and a reading mock here when they are ready.</Empty>}
 
-      {available.data && !noMocks && (
-        <div className="mb-8 grid gap-4 md:grid-cols-2">
-          <Section title="Listening mocks">
-            <div className="space-y-2">{available.data.listening.map((m) => <RequestRow key={m.id} m={m} />)}</div>
-          </Section>
-          <Section title="Reading mocks">
-            <div className="space-y-2">{available.data.reading.map((m) => <RequestRow key={m.id} m={m} />)}</div>
-          </Section>
-        </div>
+      {available.data && mockExams.length > 0 && (
+        <Section title="Mock exams" className="mb-8">
+          <div className="grid gap-2 sm:grid-cols-2">{mockExams.map((m) => <RequestRow key={m.id} m={m} requestUrl={`/mock-exams/${m.id}/access-requests`} />)}</div>
+        </Section>
       )}
 
-      {available.data && !noMocks && (listeningReady.length === 0 || readingReady.length === 0) && (
+      {available.data && mockExamsReady.length > 0 && (
+        <Card className="mb-8 max-w-lg space-y-4">
+          <h2 className="font-semibold text-fg">Start a mock exam</h2>
+          <Field label="Mock exam">
+            {(p) => (
+              <Select {...p} value={mockExamId} onChange={(e) => setMockExamId(e.target.value)}>
+                <option value="">Choose a mock exam</option>
+                {mockExamsReady.map((m) => <option key={m.id} value={m.id}>{m.title}</option>)}
+              </Select>
+            )}
+          </Field>
+          <Checkbox label="Include the speaking section" checked={includeSpeakingBundle} onChange={(e) => setIncludeSpeakingBundle(e.target.checked)} />
+          <div className="flex justify-end">
+            <Button onClick={startBundle} busy={bundleBusy} disabled={!mockExamId}>Start mock exam</Button>
+          </div>
+          <p className="text-xs text-fg-subtle">You can only have one simulator in progress. Finish or resume it before starting another.</p>
+        </Card>
+      )}
+
+      {(available.data?.listening.length ?? 0) > 0 || (available.data?.reading.length ?? 0) > 0 ? (
+        <div className="mb-8 grid gap-4 md:grid-cols-2">
+          <Section title="Listening mocks">
+            <div className="space-y-2">{available.data!.listening.map((m) => <RequestRow key={m.id} m={m} requestUrl={`/assessments/${m.id}/mock-access-requests`} />)}</div>
+          </Section>
+          <Section title="Reading mocks">
+            <div className="space-y-2">{available.data!.reading.map((m) => <RequestRow key={m.id} m={m} requestUrl={`/assessments/${m.id}/mock-access-requests`} />)}</div>
+          </Section>
+        </div>
+      ) : null}
+
+      {available.data && !noMocks && (available.data.listening.length > 0 || available.data.reading.length > 0) && (listeningReady.length === 0 || readingReady.length === 0) && (
         <Alert kind="info">You need access to at least one listening mock and one reading mock before you can start the simulator.</Alert>
       )}
 

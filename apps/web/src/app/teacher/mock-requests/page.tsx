@@ -9,7 +9,9 @@ import { date } from '@/lib/format';
 
 interface Req {
   id: string; status: string; reason: string | null; batchId: string | null; decisionNote: string | null; createdAt: string;
-  assessmentId: string; assessment: { title: string; timeLimitMin: number | null }; student: { firstName: string; lastName: string };
+  assessmentId: string | null; mockExamId: string | null;
+  assessment: { title: string; timeLimitMin: number | null } | null; mockExam: { title: string } | null;
+  student: { firstName: string; lastName: string };
 }
 
 function DeclineBox({ onDecline, busy }: { onDecline: (note: string) => void; busy: boolean }) {
@@ -40,9 +42,11 @@ export default function MockRequestsPage() {
   const approve = (id: string) => run(id, () => api(`/mentor/mock-access-requests/${id}/approve`, { method: 'POST', body: {} }));
   const decline = (id: string, note: string) => run(id, () => api(`/mentor/mock-access-requests/${id}/decline`, { method: 'POST', body: { decisionNote: note || undefined } }));
   const openForBatch = (r: Req) => run(r.id, async () => {
-    await api(`/mentor/assessments/${r.assessmentId}/mock-activations`, { method: 'POST', body: { batchId: r.batchId, availableFrom: new Date().toISOString() } });
+    const url = r.mockExamId ? `/mentor/mock-exams/${r.mockExamId}/mock-activations` : `/mentor/assessments/${r.assessmentId}/mock-activations`;
+    await api(url, { method: 'POST', body: { batchId: r.batchId, availableFrom: new Date().toISOString() } });
     await api(`/mentor/mock-access-requests/${r.id}/approve`, { method: 'POST', body: {} });
   });
+  const titleOf = (r: Req) => r.assessment?.title ?? r.mockExam?.title ?? '—';
 
   return (
     <>
@@ -59,7 +63,7 @@ export default function MockRequestsPage() {
                 {pending.map((r) => (
                   <tr key={r.id}>
                     <Td className="font-medium">{r.student.firstName} {r.student.lastName}</Td>
-                    <Td>{r.assessment.title}</Td>
+                    <Td>{titleOf(r)}</Td>
                     <Td className="max-w-[16rem] truncate">{r.reason ?? '—'}</Td>
                     <Td>{date(r.createdAt, true)}</Td>
                     <Td>
@@ -84,7 +88,7 @@ export default function MockRequestsPage() {
                 {decided.slice(0, 20).map((r) => (
                   <tr key={r.id}>
                     <Td className="font-medium">{r.student.firstName} {r.student.lastName}</Td>
-                    <Td>{r.assessment.title}</Td>
+                    <Td>{titleOf(r)}</Td>
                     <Td><Badge status={r.status} /></Td>
                     <Td className="max-w-[20rem] truncate">{r.decisionNote ?? '—'}</Td>
                   </tr>
