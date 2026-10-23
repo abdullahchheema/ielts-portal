@@ -48,10 +48,12 @@ export class AssessmentsAdminService {
   }
 
   /** Returns the created Assessment plus its first version's id — callers that need to add sections
-   *  right away (e.g. the free-test wrapper builder) can skip a separate `get()` round trip for it. */
-  async create(input: CreateAssessmentInput, actor: Actor) {
+   *  right away (e.g. the free-test wrapper builder) can skip a separate `get()` round trip for it.
+   *  `createdByMentorId` is set only by TeacherAssessmentsService — every admin-created assessment
+   *  leaves it null. */
+  async create(input: CreateAssessmentInput, actor: Actor, createdByMentorId?: string) {
     return this.prisma.$transaction(async (tx) => {
-      const a = await tx.assessment.create({ data: { ...input } });
+      const a = await tx.assessment.create({ data: { ...input, createdByMentorId } });
       const v = await tx.assessmentVersion.create({ data: { assessmentId: a.id, version: 1 } });
       await this.audit.record({ ...actor, action: 'ASSESSMENT_CREATED', entityType: 'Assessment', entityId: a.id, after: a }, tx);
       return { ...a, versionId: v.id };

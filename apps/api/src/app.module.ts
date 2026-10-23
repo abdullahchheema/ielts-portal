@@ -33,6 +33,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { JwtModule } from '@nestjs/jwt';
 import { AdminModule } from './admin/admin.module';
 import { AssessmentsModule } from './assessments/assessments.module';
+import { TeacherAssessmentsModule } from './assessments/teacher-assessments.controller';
 import { GradingModule } from './grading/grading.module';
 import { LiveModule } from './live/live.service';
 import { ReportsModule } from './reports/reports.service';
@@ -76,7 +77,7 @@ class HealthController {
   imports: [
     AnalyticsModule, AiModule, JobsModule, QuestionBankModule, WritingModule, SpeakingModule, MockExamsModule, SimulatorModule, InsightsModule, StudyPlanModule, VocabularyModule, GrammarModule, EngagementModule, RecordingsModule, LeaderboardModule, TeacherWorkspaceModule, NotesModule, SearchModule, CommandCenterModule, SupportAssistantModule, TutorModule, PaymentRiskModule, ReconciliationModule, StudentLifecycleModule, FeedbackModule, EnrollmentSurveyModule, ScopeModule, DailyActivityModule, MocksModule,
     ConfigModule, PrismaModule, IntegrationsModule, AuditModule, EventEmitterModule.forRoot(), JwtModule.register({}),
-    AuthModule, RolesModule, SettingsModule, NotificationsModule, CoursesModule, BatchesModule, CommerceModule, LearningModule, AssessmentsModule, GradingModule, LiveModule, SupportModule, ReportsModule, LifecycleModule, CertificatesModule, AdminModule, TeachersModule,
+    AuthModule, RolesModule, SettingsModule, NotificationsModule, CoursesModule, BatchesModule, CommerceModule, LearningModule, AssessmentsModule, TeacherAssessmentsModule, GradingModule, LiveModule, SupportModule, ReportsModule, LifecycleModule, CertificatesModule, AdminModule, TeachersModule,
     CurriculumModule, TeacherCurriculumModule, EntitlementModule, PlansModule,
   ],
   controllers: [HealthController],

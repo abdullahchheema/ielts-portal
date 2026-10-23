@@ -418,6 +418,7 @@ model MentorProfile {
   batches     BatchMentor[]
   sessions    LiveSession[]
   gradingDrafts GradingDraft[]
+  authoredAssessments Assessment[] @relation("AssessmentAuthor")
 
   @@map("mentor_profiles")
 }
@@ -1078,10 +1079,16 @@ model Assessment {
   origin                String         @default("MANUAL")
   generatedForStudentId String?        @map("generated_for_student_id") @db.Uuid
   libraryVisible        Boolean        @default(false) @map("library_visible")
+  // Null = admin-owned (every pre-Phase-7 row, and every admin-authored row from here on) — this
+  // preserves every existing row's meaning. Set only for teacher-authored Listening/Reading
+  // assessments created through TeacherAssessmentsController, which scopes all reads/writes to
+  // `createdByMentorId = reviewer.mentorId` so one mentor never sees another's drafts.
+  createdByMentorId String?        @map("created_by_mentor_id") @db.Uuid
   createdAt       DateTime       @default(now()) @map("created_at")
 
   generatedFor  StudentProfile?     @relation("PersonalAssessment", fields: [generatedForStudentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   courseVersion CourseVersion?        @relation(fields: [courseVersionId], references: [id])
+  createdByMentor MentorProfile? @relation("AssessmentAuthor", fields: [createdByMentorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   versions      AssessmentVersion[]
   attempts      AssessmentAttempt[]
   simListeningExams ExamAttempt[] @relation("SimListening")

@@ -1,6 +1,6 @@
 'use client';
 
-import { BarChart3, Crown, Database, FileCheck2, Gift, GraduationCap, Layers, Lock, Library, LayoutDashboard, ListChecks, MessagesSquare, Receipt, RotateCcw, ScrollText, Settings, Scale, Sparkles, Star, Tag, UserRound, Wallet, ClipboardList, UsersRound } from 'lucide-react';
+import { BarChart3, Crown, Database, FileCheck2, Gift, GraduationCap, Layers, Lock, Library, LayoutDashboard, MessagesSquare, Receipt, RotateCcw, ScrollText, Settings, Scale, Sparkles, Star, Tag, UserRound, Wallet, ClipboardList, UsersRound } from 'lucide-react';
 import { ReactNode, useCallback, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Shell } from '@/components/Shell';
@@ -42,7 +42,6 @@ function AdminShell({ children }: { children: ReactNode }) {
         ] },
         { title: 'Academics', items: [
           { href: '/admin/course', label: 'Course', icon: Library, show: c('course.view') },
-          { href: '/admin/assessments', label: 'Assessments', icon: ListChecks, show: c('assessment.manage') },
           { href: '/admin/question-bank', label: 'Question bank', icon: Database, show: c('question.manage') },
           { href: '/admin/bands', label: 'Band conversion', icon: Scale, show: c('assessment.manage') },
           { href: '/admin/mock-exams', label: 'Mock tests', icon: ClipboardList, show: c('assessment.manage') },

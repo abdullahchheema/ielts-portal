@@ -1,6 +1,6 @@
 'use client';
 
-import { ClipboardCheck, FileCheck, Layers, LayoutDashboard } from 'lucide-react';
+import { ClipboardCheck, FileCheck, Layers, LayoutDashboard, NotebookPen } from 'lucide-react';
 import { ReactNode } from 'react';
 import { Shell } from '@/components/Shell';
 import { RequireAuth, useMe } from '@/lib/auth';
@@ -16,6 +16,7 @@ function TeacherShell({ children }: { children: ReactNode }) {
         { href: '/teacher', label: 'Dashboard', icon: LayoutDashboard },
         { href: '/teacher/batches', label: 'My Batches', icon: Layers },
         { href: '/teacher/grading', label: 'Grading Queue', icon: ClipboardCheck },
+        { href: '/teacher/assessments', label: 'My Assessments', icon: NotebookPen },
         { href: '/teacher/mock-requests', label: 'Mock Test Access', icon: FileCheck },
       ] }]}
     >

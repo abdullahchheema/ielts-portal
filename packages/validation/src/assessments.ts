@@ -22,6 +22,13 @@ export const updateAssessmentSchema = createAssessmentSchema.partial().extend({
   timeLimitMin: z.number().int().min(1).max(300).nullable().optional(),
 });
 
+/** Phase 7: teacher-authored assessments are Listening/Reading only — no MOCK (that's whole-module
+ *  rotation, admin-only) and no DIAGNOSTIC (the free-test wrapper's own internal mechanism). */
+export const teacherCreateAssessmentSchema = createAssessmentSchema.extend({
+  type: z.enum(ASSESSMENT_TYPES).refine((t) => t !== 'MOCK' && t !== 'DIAGNOSTIC', 'Teachers cannot author mock or diagnostic assessments.'),
+  skill: z.enum(['LISTENING', 'READING']),
+});
+
 export const assessmentSectionSchema = z.object({
   title: z.string().trim().min(1).max(160),
   content: z.object({
@@ -82,6 +89,7 @@ export const bandTableSchema = z.object({
 });
 
 export type CreateAssessmentInput = z.infer<typeof createAssessmentSchema>;
+export type TeacherCreateAssessmentInput = z.infer<typeof teacherCreateAssessmentSchema>;
 export type UpdateAssessmentInput = z.infer<typeof updateAssessmentSchema>;
 export type AssessmentSectionInput = z.infer<typeof assessmentSectionSchema>;
 export type UpdateAssessmentSectionInput = z.infer<typeof updateAssessmentSectionSchema>;

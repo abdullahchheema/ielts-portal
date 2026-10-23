@@ -18,7 +18,7 @@ const PERMISSIONS = [
   'admin.manage',
   'attendance.correct', 'knowledge.manage', 'ai.support.use', 'payment.reconcile',
   'referral.manage', 'feedback.view', 'lifecycle.manage', 'engagement.followup',
-  'question.manage', 'class.manage', 'certificate.revoke',
+  'question.manage', 'class.manage', 'certificate.revoke', 'assessment.author',
   'mock.review', 'curriculum.assign', 'curriculum.manage',
   'recording.manage', 'recording.review', 'batch.analytics.view',
   'plan.manage', 'premium.service.manage',
@@ -54,7 +54,7 @@ const ROLES: Record<string, { description: string; permissions: readonly string[
   },
   MENTOR: {
     description: 'Assigned batches, grading and feedback',
-    permissions: ['teaching.view', 'submission.view', 'submission.grade', 'class.manage', 'mock.review', 'curriculum.assign', 'recording.manage'],
+    permissions: ['teaching.view', 'submission.view', 'submission.grade', 'class.manage', 'mock.review', 'curriculum.assign', 'recording.manage', 'assessment.author'],
   },
   STUDENT: { description: 'Learner', permissions: [] },
 };
