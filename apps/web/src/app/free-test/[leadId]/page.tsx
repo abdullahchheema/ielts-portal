@@ -544,12 +544,21 @@ function SpeakingStage({ leadId, onAdvance, busy: parentBusy }: { leadId: string
   const [answered, setAnswered] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Which question ids this part has already asked in this session — picking at pure random with no
+  // exclusion let a small pool (sometimes just 1-2 questions per part) repeat the exact same prompt,
+  // including the very first one, on "Next question".
+  const [askedIds, setAskedIds] = useState<Set<string>>(new Set());
   const questions = useQuery({ queryKey: ['free-test-speaking-questions', part], queryFn: () => api<SpeakingQuestion[]>(`/free-test/speaking-questions?part=${part}`) });
   const rec = useRecorder({ maxSeconds: MAX_SECONDS[part] });
 
   async function nextQuestion() {
     const pool = questions.data ?? [];
-    const q = pool.length ? pool[Math.floor(Math.random() * pool.length)] : { id: '', part, prompt: 'Describe something you do to relax.' };
+    const unused = pool.filter((p) => !askedIds.has(p.id));
+    // Every question in the pool has been asked already — start a fresh cycle through the same pool
+    // rather than getting stuck with nothing left to pick from.
+    const candidates = unused.length ? unused : pool;
+    const q = candidates.length ? candidates[Math.floor(Math.random() * candidates.length)] : { id: '', part, prompt: 'Describe something you do to relax.' };
+    if (q.id) setAskedIds((prev) => (unused.length ? new Set(prev).add(q.id) : new Set([q.id])));
     setQuestion(q);
     setResponse(null);
     rec.reset();
