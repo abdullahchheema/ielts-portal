@@ -167,6 +167,10 @@ export default function AttemptPage() {
 
   const total = useMemo(() => data?.paper?.reduce((n, s) => n + s.questions.length, 0) ?? 0, [data]);
   const answered = Object.keys(answers).filter((k) => answers[k] !== null && answers[k] !== undefined).length;
+  const isReading = data?.assessment?.type === 'READING';
+  const [activePassage, setActivePassage] = useState(0);
+  const passages = data?.paper ?? [];
+  const visibleSections = isReading && passages.length > 1 ? [passages[activePassage]].filter(Boolean) : passages;
 
   if (isLoading) return <Loading />;
   if (isError || !data) return <Alert>{errorMessage(error)}</Alert>;
@@ -192,8 +196,18 @@ export default function AttemptPage() {
         <div className="mb-4"><Alert kind="warning">These answers were changed in another tab or device. <button className="font-medium underline" onClick={() => { try { localStorage.removeItem(storageKey); } catch { /* ignore */ } qc.removeQueries({ queryKey: ['attempt', id] }); window.location.reload(); }}>Reload the latest saved answers</button></Alert></div>
       )}
 
+      {isReading && passages.length > 1 && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {passages.map((s, i) => (
+            <button key={s.id} onClick={() => setActivePassage(i)}
+              className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${i === activePassage ? 'bg-primary text-white' : 'bg-surface-muted text-fg hover:bg-primary-soft hover:text-primary'}`}>
+              Passage {i + 1}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="space-y-8">
-        {data.paper!.map((s) => (
+        {visibleSections.map((s) => (
           <section key={s.id} aria-labelledby={`s-${s.id}`}>
             <h2 id={`s-${s.id}`} className="mb-2 text-lg font-semibold">{s.title}</h2>
             {s.content.instructions && <p className="mb-3 text-base text-fg-muted">{s.content.instructions}</p>}
@@ -224,6 +238,13 @@ export default function AttemptPage() {
             )}
           </section>
         ))}
+        {isReading && passages.length > 1 && activePassage < passages.length - 1 && (
+          <div className="flex justify-end">
+            <Button onClick={() => { setActivePassage((p) => p + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+              Next passage →
+            </Button>
+          </div>
+        )}
       </div>
     </>
   );

@@ -72,16 +72,32 @@ export class SimulatorService implements OnModuleInit {
       orderBy: { title: 'asc' }, take: 200,
       select: { id: true, title: true, skill: true, timeLimitMin: true },
     });
-    const withAccess = await Promise.all(rows.map(async (r) => ({ ...r, access: await this.mocks.statusFor(studentId, r.id) })));
     const mockExamRows = await this.prisma.mockExam.findMany({
-      where: { libraryVisible: true }, orderBy: { createdAt: 'desc' }, take: 200,
-      select: { id: true, title: true, createdAt: true },
+      where: { libraryVisible: true, status: { not: 'ARCHIVED' } }, orderBy: { createdAt: 'desc' }, take: 200,
+      select: {
+        id: true, title: true, createdAt: true,
+        listeningSet: { select: { title: true } },
+        readingSet: { select: { title: true } },
+        listeningAssessmentId: true, readingAssessmentId: true,
+      },
     });
-    const mockExams = await Promise.all(mockExamRows.map(async (m) => ({ ...m, access: await this.mocks.statusForMockExam(studentId, m.id) })));
+    const mockExamsWithAttempts = await Promise.all(mockExamRows.map(async (m) => {
+      const attempts = await this.prisma.examAttempt.findMany({
+        where: { studentId, listeningAssessmentId: m.listeningAssessmentId, readingAssessmentId: m.readingAssessmentId },
+        orderBy: { createdAt: 'desc' }, take: 10,
+        select: { id: true, status: true, overallEstimate: true, completedAt: true },
+      });
+      return {
+        id: m.id, title: m.title, createdAt: m.createdAt,
+        listeningModuleTitle: m.listeningSet.title, readingModuleTitle: m.readingSet.title,
+        attempts: attempts.map((a) => ({ id: a.id, status: a.status, overallEstimate: a.overallEstimate, completedAt: a.completedAt })),
+        inProgressAttemptId: attempts.find((a) => a.status === 'IN_PROGRESS')?.id ?? null,
+      };
+    }));
     return {
-      listening: withAccess.filter((r) => r.skill === 'LISTENING'),
-      reading: withAccess.filter((r) => r.skill === 'READING'),
-      mockExams,
+      listening: rows.filter((r) => r.skill === 'LISTENING'),
+      reading: rows.filter((r) => r.skill === 'READING'),
+      mockExams: mockExamsWithAttempts,
     };
   }
 
@@ -93,19 +109,14 @@ export class SimulatorService implements OnModuleInit {
     if (!l || l.skill !== 'LISTENING' || !l.libraryVisible || !r || r.skill !== 'READING' || !r.libraryVisible) {
       throw notFound('Mock exam');
     }
-    // Checked here, before the exam row is created, not only inside AttemptsService.start(): failing after
-    // the row exists would leave a permanently "in progress" exam the student could never replace.
-    await this.mocks.assertAttemptAllowed(studentId, input.listeningAssessmentId);
-    await this.mocks.assertAttemptAllowed(studentId, input.readingAssessmentId);
     return this.createExamAttempt(studentId, input.listeningAssessmentId, input.readingAssessmentId, input.includeSpeaking);
   }
 
   /** start()'s twin for the new whole-module MockExam shape (Phase 6) — one access check against
    *  the bundle instead of two against its underlying Listening/Reading assessments. */
   async startFromMockExam(studentId: string, mockExamId: string, includeSpeaking: boolean) {
-    const m = await this.prisma.mockExam.findUnique({ where: { id: mockExamId }, select: { libraryVisible: true, listeningAssessmentId: true, readingAssessmentId: true } });
-    if (!m || !m.libraryVisible) throw notFound('Mock exam');
-    await this.mocks.assertMockExamAttemptAllowed(studentId, mockExamId);
+    const m = await this.prisma.mockExam.findUnique({ where: { id: mockExamId }, select: { libraryVisible: true, status: true, listeningAssessmentId: true, readingAssessmentId: true } });
+    if (!m || !m.libraryVisible || m.status === 'ARCHIVED') throw notFound('Mock exam');
     return this.createExamAttempt(studentId, m.listeningAssessmentId, m.readingAssessmentId, includeSpeaking);
   }
 
@@ -128,6 +139,7 @@ export class SimulatorService implements OnModuleInit {
       include: {
         listeningAttempt: { select: { id: true, status: true, bandScore: true } },
         readingAttempt: { select: { id: true, status: true, bandScore: true } },
+        writingTask1Response: { select: { id: true, status: true, wordCount: true } },
         writingResponse: { select: { id: true, status: true, wordCount: true } },
         speakingAttempt: { select: { id: true, status: true, responses: { select: { id: true } } } },
       },
@@ -145,7 +157,10 @@ export class SimulatorService implements OnModuleInit {
       sections: {
         listening: e.listeningAttempt ? { attemptId: e.listeningAttempt.id, status: e.listeningAttempt.status, band: e.listeningAttempt.bandScore } : null,
         reading: e.readingAttempt ? { attemptId: e.readingAttempt.id, status: e.readingAttempt.status, band: e.readingAttempt.bandScore } : null,
-        writing: e.writingResponse ? { responseId: e.writingResponse.id, status: e.writingResponse.status, wordCount: e.writingResponse.wordCount } : null,
+        writing: {
+          task1: e.writingTask1Response ? { responseId: e.writingTask1Response.id, status: e.writingTask1Response.status, wordCount: e.writingTask1Response.wordCount } : null,
+          task2: e.writingResponse ? { responseId: e.writingResponse.id, status: e.writingResponse.status, wordCount: e.writingResponse.wordCount } : null,
+        },
         speaking: e.speakingAttempt ? { attemptId: e.speakingAttempt.id, status: e.speakingAttempt.status, answers: e.speakingAttempt.responses.length } : null,
       },
       overallEstimate: e.overallEstimate,
@@ -218,10 +233,14 @@ export class SimulatorService implements OnModuleInit {
         return this.afterReading(e, studentId, claim);
       }
       case 'WRITING': {
-        const w = e.writingResponseId ? await this.prisma.writingResponse.findUnique({ where: { id: e.writingResponseId }, select: { status: true, id: true } }) : null;
-        if (w && w.status === 'DRAFT') {
-          if (!expired && !forced) throw new AppError('CONFLICT', 409, 'Submit your essay first.');
-          await this.writing.submit(studentId, w.id);
+        const [w1, w2] = await Promise.all([
+          e.writingTask1ResponseId ? this.prisma.writingResponse.findUnique({ where: { id: e.writingTask1ResponseId }, select: { status: true, id: true } }) : null,
+          e.writingResponseId ? this.prisma.writingResponse.findUnique({ where: { id: e.writingResponseId }, select: { status: true, id: true } }) : null,
+        ]);
+        const drafts = [w1, w2].filter((w): w is NonNullable<typeof w> => !!w && w.status === 'DRAFT');
+        if (drafts.length > 0) {
+          if (!expired && !forced) throw new AppError('CONFLICT', 409, 'Submit your writing tasks first.');
+          await Promise.all(drafts.map((w) => this.writing.submit(studentId, w.id)));
         }
         if (e.includeSpeaking) {
           const speaking = await this.prisma.speakingAttempt.create({ data: { studentId, mode: 'FULL' }, select: { id: true } });
@@ -246,15 +265,28 @@ export class SimulatorService implements OnModuleInit {
    *  a real, authenticated student keeps the existing random pick across every published set unchanged. */
   private async afterReading(e: { id: string; includeSpeaking: boolean; stageRevision: number }, studentId: string, claim: (d: Prisma.ExamAttemptUncheckedUpdateInput) => Promise<void>) {
     const student = await this.prisma.studentProfile.findUnique({ where: { id: studentId }, select: { isGhost: true } });
-    const pick = student?.isGhost
-      ? await this.rotation.pickLeastUsedBankQuestion('WRITING', ['WRITING_TASK2'])
-      : selectCandidates(await this.bank.candidates({ skill: 'WRITING', ieltsTypes: ['WRITING_TASK2'] }, true), { count: 1, seed: `sim|${e.id}` })[0];
-    if (!pick) {
-      // No Task 2 prompt is published. The skill is recorded as missing rather than estimated from nothing.
+    const [task1Pick, task2Pick] = await (student?.isGhost
+      ? Promise.all([
+          this.rotation.pickLeastUsedBankQuestion('WRITING', ['WRITING_TASK1']),
+          this.rotation.pickLeastUsedBankQuestion('WRITING', ['WRITING_TASK2']),
+        ])
+      : Promise.all([
+          selectCandidates(await this.bank.candidates({ skill: 'WRITING', ieltsTypes: ['WRITING_TASK1'] }, true), { count: 1, seed: `sim1|${e.id}` }),
+          selectCandidates(await this.bank.candidates({ skill: 'WRITING', ieltsTypes: ['WRITING_TASK2'] }, true), { count: 1, seed: `sim2|${e.id}` }),
+        ]).then(([a, b]) => [a[0], b[0]] as [string | undefined, string | undefined]));
+    if (!task1Pick && !task2Pick) {
       return this.afterWritingSkipped(e, studentId, claim);
     }
-    const w = await this.writing.create(studentId, { taskType: 'TASK2', questionId: pick });
-    await claim({ stage: 'WRITING', writingResponseId: w.id, stageDeadlineAt: new Date(Date.now() + WRITING_MINUTES * 60_000) });
+    const [task1, task2] = await Promise.all([
+      task1Pick ? this.writing.create(studentId, { taskType: 'TASK1', questionId: task1Pick }) : null,
+      task2Pick ? this.writing.create(studentId, { taskType: 'TASK2', questionId: task2Pick }) : null,
+    ]);
+    await claim({
+      stage: 'WRITING',
+      writingTask1ResponseId: task1?.id ?? null,
+      writingResponseId: task2?.id ?? null,
+      stageDeadlineAt: new Date(Date.now() + WRITING_MINUTES * 60_000),
+    });
     return this.get(studentId, e.id);
   }
 
@@ -270,14 +302,17 @@ export class SimulatorService implements OnModuleInit {
   }
 
   /** Works out the overall estimate from the stored section results, then closes the simulator. */
-  private async finish(e: { id: string; listeningAttemptId: string | null; readingAttemptId: string | null; writingResponseId: string | null; speakingAttemptId: string | null; missingSkills: string[]; stageRevision: number }, claim: (d: Prisma.ExamAttemptUncheckedUpdateInput) => Promise<void>, studentId: string) {
+  private async finish(e: { id: string; listeningAttemptId: string | null; readingAttemptId: string | null; writingTask1ResponseId: string | null; writingResponseId: string | null; speakingAttemptId: string | null; missingSkills: string[]; stageRevision: number }, claim: (d: Prisma.ExamAttemptUncheckedUpdateInput) => Promise<void>, studentId: string) {
     const [listening, reading] = await Promise.all([
       e.listeningAttemptId ? this.prisma.assessmentAttempt.findUnique({ where: { id: e.listeningAttemptId }, select: { bandScore: true } }) : null,
       e.readingAttemptId ? this.prisma.assessmentAttempt.findUnique({ where: { id: e.readingAttemptId }, select: { bandScore: true } }) : null,
     ]);
-    const writingEval = e.writingResponseId
-      ? await this.prisma.writingEvaluation.findFirst({ where: { responseId: e.writingResponseId }, orderBy: { createdAt: 'desc' }, select: { estimatedBand: true } })
-      : null;
+    const [writingEval1, writingEval2] = await Promise.all([
+      e.writingTask1ResponseId ? this.prisma.writingEvaluation.findFirst({ where: { responseId: e.writingTask1ResponseId }, orderBy: { createdAt: 'desc' }, select: { estimatedBand: true } }) : null,
+      e.writingResponseId ? this.prisma.writingEvaluation.findFirst({ where: { responseId: e.writingResponseId }, orderBy: { createdAt: 'desc' }, select: { estimatedBand: true } }) : null,
+    ]);
+    const writingBands = [writingEval1, writingEval2].flatMap((ev) => ev?.estimatedBand !== null && ev?.estimatedBand !== undefined ? [Number(ev.estimatedBand)] : []);
+    const writingEval = writingBands.length ? { estimatedBand: writingBands.reduce((a, b) => a + b, 0) / writingBands.length } : null;
     const speakingEvals = e.speakingAttemptId
       ? await this.prisma.speakingEvaluation.findMany({ where: { response: { attemptId: e.speakingAttemptId } }, orderBy: { createdAt: 'desc' }, select: { responseId: true, estimatedBand: true } })
       : [];
@@ -298,6 +333,70 @@ export class SimulatorService implements OnModuleInit {
     });
     this.events.emit(SIMULATOR_COMPLETED, { studentId, examAttemptId: e.id } satisfies SimulatorCompleted);
     return this.get(studentId, e.id);
+  }
+
+  /** Full results after the simulator completes — one object per skill with per-question review,
+   *  writing evaluation, and speaking transcripts, plus overall band. */
+  async results(studentId: string, id: string) {
+    const e = await this.prisma.examAttempt.findFirst({
+      where: { id, studentId },
+      select: { status: true, overallEstimate: true, missingSkills: true, listeningAttemptId: true, readingAttemptId: true, writingResponseId: true, speakingAttemptId: true },
+    });
+    if (!e) throw notFound('Simulator');
+
+    const user = { studentId };
+    const [listeningResult, readingResult] = await Promise.all([
+      e.listeningAttemptId ? this.attempts.result(user, e.listeningAttemptId).catch(() => null) : null,
+      e.readingAttemptId ? this.attempts.result(user, e.readingAttemptId).catch(() => null) : null,
+    ]);
+
+    const writing = e.writingResponseId
+      ? await this.prisma.writingResponse.findUnique({
+          where: { id: e.writingResponseId },
+          select: {
+            id: true, status: true, taskType: true, body: true, wordCount: true, promptText: true,
+            evaluations: { orderBy: { createdAt: 'desc' }, take: 1, select: { estimatedBand: true, criteria: true, feedback: true } },
+          },
+        })
+      : null;
+
+    const speaking = e.speakingAttemptId
+      ? await this.prisma.speakingAttempt.findUnique({
+          where: { id: e.speakingAttemptId },
+          select: {
+            id: true, status: true,
+            responses: {
+              orderBy: { createdAt: 'asc' },
+              select: {
+                id: true, part: true, promptText: true, transcript: true, durationSec: true,
+                evaluations: { orderBy: { createdAt: 'desc' }, take: 1, select: { estimatedBand: true, criteria: true, feedback: true } },
+              },
+            },
+          },
+        })
+      : null;
+
+    const speakingBands = speaking?.responses?.flatMap((r) => r.evaluations.map((ev) => Number(ev.estimatedBand ?? 0))) ?? [];
+    const speakingBand = speakingBands.length ? roundHalfBand(speakingBands.reduce((a, b) => a + b, 0) / speakingBands.length) : null;
+
+    return {
+      overall: e.overallEstimate === null ? null : Number(e.overallEstimate),
+      missingSkills: e.missingSkills,
+      listening: listeningResult,
+      reading: readingResult,
+      writing: writing ? {
+        taskType: writing.taskType, status: writing.status, wordCount: writing.wordCount,
+        prompt: writing.promptText, body: writing.body,
+        evaluation: writing.evaluations[0] ?? null,
+      } : null,
+      speaking: speaking ? {
+        status: speaking.status, band: speakingBand,
+        responses: speaking.responses.map((r) => ({
+          id: r.id, part: r.part, prompt: r.promptText, transcript: r.transcript, durationSec: r.durationSec,
+          evaluation: r.evaluations[0] ?? null,
+        })),
+      } : null,
+    };
   }
 
   /** Starts a library mock as a normal attempt, so the existing timing, autosave and grading all apply. */
@@ -330,6 +429,9 @@ export class SimulatorController {
   }
 
   @Get('exams/:id') get(@Param('id', uuid) id: string, @CurrentUser() u: AuthUser) { return this.sim.get(sid(u), id); }
+
+  /** Declared after ':id' (not a collision risk) since 'results' is a sub-path, not an id match. */
+  @Get('exams/:id/results') getResults(@Param('id', uuid) id: string, @CurrentUser() u: AuthUser) { return this.sim.results(sid(u), id); }
 
   @HttpCode(200) @Post('exams/:id/advance')
   advance(@Param('id', uuid) id: string, @Body(new ZodPipe(simulatorAdvanceSchema)) body: { expectedRevision: number }, @CurrentUser() u: AuthUser) {

@@ -58,11 +58,14 @@ export const simulatorAdvanceSchema = z.object({
   expectedRevision: z.number().int().min(0),
 });
 
-// Composition is now automatic rotation (RotationService picks the least-used published module per
-// skill) — the admin supplies only a title, not count/difficulty/topic/duration.
+// Composition defaults to automatic rotation (RotationService picks the least-used published module
+// per skill) — the admin supplies only a title. Either set id, if given, pins that module instead of
+// rotating; both must be given together or neither (a mock always needs exactly one of each skill).
 export const composeMockSchema = z.object({
   title: z.string().trim().min(3).max(160),
-});
+  listeningSetId: z.string().uuid().optional(),
+  readingSetId: z.string().uuid().optional(),
+}).refine((v) => !!v.listeningSetId === !!v.readingSetId, 'Choose both modules manually, or leave both on auto-pick.');
 
 export const libraryVisibilitySchema = z.object({
   visible: z.boolean(),

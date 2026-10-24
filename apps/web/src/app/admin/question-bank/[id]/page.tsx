@@ -36,7 +36,21 @@ export default function QuestionSetPage() {
   const [adding, setAdding] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState('');
+  const [titleBusy, setTitleBusy] = useState(false);
   const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: ['question-set', id] }), qc.invalidateQueries({ queryKey: ['question-sets'] })]);
+
+  async function saveTitle() {
+    const next = titleDraft.trim();
+    if (next.length < 3) { setError('Title must be at least 3 characters.'); return; }
+    setTitleBusy(true); setError(null);
+    try {
+      await api(`/admin/question-sets/${id}`, { method: 'PATCH', body: { title: next } });
+      await refresh();
+      setEditingTitle(false);
+    } catch (e) { setError(errorMessage(e)); } finally { setTitleBusy(false); }
+  }
 
   async function publish() {
     setError(null);
@@ -95,6 +109,7 @@ export default function QuestionSetPage() {
         breadcrumbs={[{ href: '/admin/question-bank', label: 'Question bank' }, { label: data.title }]}
         actions={<div className="flex flex-wrap gap-2">
           <Badge status={live ? 'PUBLISHED' : data.status === 'ARCHIVED' ? 'ARCHIVED' : 'PENDING'} tone={live ? 'green' : data.status === 'ARCHIVED' ? 'slate' : 'amber'} text={live ? 'Published' : data.status === 'ARCHIVED' ? 'Archived' : 'Published (hidden)'} />
+          {editable && <Button variant="secondary" onClick={() => { setTitleDraft(data.title); setEditingTitle(true); }}>Edit title</Button>}
           <Link href={`/admin/question-bank/${id}/preview`}><Button variant="secondary">Preview</Button></Link>
           {!live && <Button onClick={publish} busy={actionBusy === 'PUBLISHED'} disabled={!!actionBusy}>{data.status === 'ARCHIVED' ? 'Republish' : 'Publish'}</Button>}
           {live && <Button variant="secondary" onClick={unpublish} busy={actionBusy === 'ARCHIVED'} disabled={!!actionBusy}>Archive</Button>}
@@ -103,6 +118,16 @@ export default function QuestionSetPage() {
         </div>}
       />
       {error && <Alert>{error}</Alert>}
+
+      <Dialog open={editingTitle} onClose={() => setEditingTitle(false)} title="Edit module title">
+        <div className="space-y-4">
+          <Field label="Title">{(p) => <Input {...p} value={titleDraft} onChange={(e) => setTitleDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') saveTitle(); }} autoFocus />}</Field>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setEditingTitle(false)}>Cancel</Button>
+            <Button onClick={saveTitle} busy={titleBusy}>Save</Button>
+          </div>
+        </div>
+      </Dialog>
 
       {data.stimulus?.sections?.length && data.skill === 'LISTENING' && (
         <Section className="mb-4" title="Audio for the whole module">

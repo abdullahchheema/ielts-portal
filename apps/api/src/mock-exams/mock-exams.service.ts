@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Injectable, Module, Param, ParseUUIDPipe, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Injectable, Module, Param, ParseUUIDPipe, Post, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { z } from 'zod';
 import { ComposeMockInput, composeMockSchema, libraryVisibilitySchema } from '@ielts/validation';
@@ -31,10 +31,12 @@ export class MockExamsService {
   constructor(private readonly prisma: PrismaService, private readonly rotation: RotationService, private readonly audit: AuditService) {}
 
   async compose(input: ComposeMockInput, actor: Actor) {
-    const [listeningSetId, readingSetId] = await this.prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('mock_exam_assign'))`;
-      return Promise.all([this.rotation.pickLeastUsedBankSet(tx, 'LISTENING'), this.rotation.pickLeastUsedBankSet(tx, 'READING')]);
-    });
+    const [listeningSetId, readingSetId] = input.listeningSetId && input.readingSetId
+      ? await this.assertManualSets(input.listeningSetId, input.readingSetId)
+      : await this.prisma.$transaction(async (tx) => {
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('mock_exam_assign'))`;
+          return Promise.all([this.rotation.pickLeastUsedBankSet(tx, 'LISTENING'), this.rotation.pickLeastUsedBankSet(tx, 'READING')]);
+        });
     const [listeningAssessmentId, readingAssessmentId] = await Promise.all([
       this.rotation.resolveWrapperAssessment(listeningSetId, 'LISTENING'),
       this.rotation.resolveWrapperAssessment(readingSetId, 'READING'),
@@ -46,15 +48,41 @@ export class MockExamsService {
     return mockExam;
   }
 
+  /** Validates a manually-chosen pair before composing with them: both must be published,
+   *  student-facing bank sets of the expected skill. */
+  private async assertManualSets(listeningSetId: string, readingSetId: string): Promise<[string, string]> {
+    const [listening, reading] = await Promise.all([
+      this.prisma.questionSet.findUnique({ where: { id: listeningSetId }, select: { skill: true, status: true, studentFacing: true } }),
+      this.prisma.questionSet.findUnique({ where: { id: readingSetId }, select: { skill: true, status: true, studentFacing: true } }),
+    ]);
+    const ok = (s: typeof listening, skill: 'LISTENING' | 'READING') => !!s && s.skill === skill && s.status === 'PUBLISHED' && s.studentFacing;
+    if (!ok(listening, 'LISTENING')) throw notFound('Listening module');
+    if (!ok(reading, 'READING')) throw notFound('Reading module');
+    return [listeningSetId, readingSetId];
+  }
+
+  /** The admin-facing list, enriched with each mock's module titles and how many simulator attempts
+   *  it has produced, so admins can see real usage before deciding what to hide or delete. */
   async list(q: { skip: number; take: number }) {
     const [items, total] = await Promise.all([
       this.prisma.mockExam.findMany({
         orderBy: { createdAt: 'desc' }, skip: q.skip, take: q.take,
-        select: { id: true, title: true, status: true, libraryVisible: true, createdAt: true },
+        select: {
+          id: true, title: true, status: true, libraryVisible: true, createdAt: true,
+          listeningSet: { select: { title: true } }, readingSet: { select: { title: true } },
+          listeningAssessmentId: true, readingAssessmentId: true,
+        },
       }),
       this.prisma.mockExam.count(),
     ]);
-    return { items, total };
+    const counts = await Promise.all(items.map((m) => this.prisma.examAttempt.count({ where: { listeningAssessmentId: m.listeningAssessmentId, readingAssessmentId: m.readingAssessmentId } })));
+    return {
+      items: items.map((m, i) => ({
+        id: m.id, title: m.title, status: m.status, libraryVisible: m.libraryVisible, createdAt: m.createdAt,
+        listeningModuleTitle: m.listeningSet.title, readingModuleTitle: m.readingSet.title, attemptsCount: counts[i],
+      })),
+      total,
+    };
   }
 
   /** Hiding it from the library never affects attempts already made or in-flight access requests. */
@@ -65,6 +93,25 @@ export class MockExamsService {
       const after = await tx.mockExam.update({ where: { id }, data: { libraryVisible: visible } });
       await this.audit.record({ ...actor, action: 'ADMIN_CHANGED_MOCK_LIBRARY', entityType: 'MockExam', entityId: id, before: { libraryVisible: m.libraryVisible }, after: { libraryVisible: visible } }, tx);
       return { id: after.id, libraryVisible: after.libraryVisible };
+    });
+  }
+
+  /** Deletes a mock from the library. If it already has simulator attempts against it, the
+   *  underlying assessments/attempts must stay intact for those students' history, so this only
+   *  archives and hides it; with no attempts at all, the MockExam row itself is removed. */
+  async remove(id: string, actor: Actor) {
+    return this.prisma.$transaction(async (tx) => {
+      const m = await tx.mockExam.findUnique({ where: { id } });
+      if (!m) throw notFound('Mock exam');
+      const attempts = await tx.examAttempt.count({ where: { listeningAssessmentId: m.listeningAssessmentId, readingAssessmentId: m.readingAssessmentId } });
+      if (attempts > 0) {
+        await tx.mockExam.update({ where: { id }, data: { status: 'ARCHIVED', libraryVisible: false } });
+        await this.audit.record({ ...actor, action: 'ADMIN_ARCHIVED_MOCK_EXAM', entityType: 'MockExam', entityId: id, before: { status: m.status }, after: { status: 'ARCHIVED' } }, tx);
+        return { id, archived: true };
+      }
+      await tx.mockExam.delete({ where: { id } });
+      await this.audit.record({ ...actor, action: 'ADMIN_DELETED_MOCK_EXAM', entityType: 'MockExam', entityId: id, before: { title: m.title } }, tx);
+      return { id, deleted: true };
     });
   }
 }
@@ -86,6 +133,11 @@ export class MockExamsController {
   @RequirePermission('assessment.manage') @HttpCode(200) @Post(':id/library')
   library(@Param('id', uuid) id: string, @Body(new ZodPipe(libraryVisibilitySchema)) body: { visible: boolean }, @CurrentUser() u: AuthUser, @Req() req: Request) {
     return this.mocks.setLibraryVisible(id, body.visible, actorOf(u, req));
+  }
+
+  @RequirePermission('assessment.manage') @HttpCode(200) @Delete(':id')
+  remove(@Param('id', uuid) id: string, @CurrentUser() u: AuthUser, @Req() req: Request) {
+    return this.mocks.remove(id, actorOf(u, req));
   }
 }
 

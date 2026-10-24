@@ -151,6 +151,49 @@ export class SpeakingService implements OnModuleInit {
     return { status: 'UPLOADED' };
   }
 
+  /** Full-test continuous recording upload for the simulator speaking stage.
+   *  Accepts one audio file for the entire attempt plus per-question timestamp metadata.
+   *  Creates one SpeakingResponse per answer supplied; queues transcription of the full recording. */
+  async uploadFullRecording(
+    studentId: string,
+    attemptId: string,
+    file: { buffer: Buffer; size: number },
+    answers: { part: string; questionId?: string; promptText?: string; startSec: number; endSec: number }[],
+  ) {
+    const a = await this.prisma.speakingAttempt.findFirst({ where: { id: attemptId, studentId }, select: { id: true, status: true, audioStorageKey: true } });
+    if (!a) throw notFound('Speaking attempt');
+    if (file.size > MAX_SPEAKING_BYTES) throw new AppError('FILE_TOO_LARGE', 413, 'The recording is larger than 25 MB.');
+    const sniffed = sniffFileType(file.buffer);
+    if (!sniffed || !ALLOWED.has(sniffed.mime)) throw new AppError('UNSUPPORTED_FILE_TYPE', 422, 'Upload a recording in WebM, OGG, MP4, MP3 or WAV format.');
+    const key = `speaking-full/${studentId}/${attemptId}`;
+    await this.storage.put(key, file.buffer, sniffed.mime);
+    await this.prisma.speakingAttempt.update({
+      where: { id: attemptId },
+      data: { audioStorageKey: key, audioMime: sniffed.mime, audioSizeBytes: BigInt(file.size) },
+    });
+    // Create one SpeakingResponse per answer with timestamps. Use existing addResponse logic inline.
+    for (const ans of answers) {
+      let promptText = ans.promptText ?? '';
+      let questionId: string | null = null;
+      if (ans.questionId) {
+        const q = await this.prisma.question.findFirst({
+          where: { id: ans.questionId, deletedAt: null, ieltsType: `SPEAKING_${ans.part}`, questionSet: { status: 'PUBLISHED', studentFacing: true } },
+          include: { versions: { orderBy: { version: 'desc' }, take: 1 } },
+        });
+        if (q) { promptText = (q.versions[0]?.prompt as { text: string }).text; questionId = q.id; }
+      }
+      await this.prisma.speakingResponse.create({
+        data: {
+          attemptId, studentId, part: ans.part, promptText, questionId,
+          startSec: new Prisma.Decimal(ans.startSec), endSec: new Prisma.Decimal(ans.endSec),
+          status: 'UPLOADED',
+        },
+      });
+    }
+    await this.prisma.speakingAttempt.update({ where: { id: attemptId }, data: { status: 'COMPLETED' } });
+    return { status: 'UPLOADED', responses: answers.length };
+  }
+
   // ───────── background processing ─────────
   private async queueTranscription(id: string) {
     const jobId = await this.jobs.enqueue('speaking.transcribe', `speaking-transcribe:${id}`, { responseId: id });

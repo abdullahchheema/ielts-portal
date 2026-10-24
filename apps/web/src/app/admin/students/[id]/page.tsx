@@ -9,7 +9,6 @@ import { IeltsSummary, IeltsSummaryLike } from '@/components/IeltsSummary';
 import { InsightsPanels, Readiness, TargetPlan, Weakness } from '@/components/InsightsPanels';
 import { ActivitySummaryList, DailyActivityRow } from '@/components/ActivitySummaryList';
 import { RiskBadge, type RiskLevelValue } from '@/components/RiskBadge';
-import { LifecyclePanel } from '@/components/LifecyclePanel';
 import { SurveyDoc, SurveySummary } from '@/components/survey/SurveySummary';
 import { api } from '@/lib/api';
 import { useUrlState } from '@/lib/url-state';
@@ -36,9 +35,8 @@ interface Analytics {
 }
 interface AttendanceRow { date: string; topic: string; batch: string; status: string; note: string | null; markedAt: string | null }
 interface AssessmentRow { title: string; skill: string | null; type: string; attemptNumber: number; status: string; submittedAt: string | null; score: string | null; percent: number | null; band: number | null }
-interface AssignmentRow { title: string; skill: string; dueAt: string | null; status: string; submittedAt: string | null; late: boolean; band: number | null; gradedAt: string | null }
 
-const TABS = [['overview', 'Overview'], ['performance', 'Performance'], ['insights', 'Insights'], ['attendance', 'Attendance'], ['assessments', 'Assessments'], ['assignments', 'Assignments'], ['activity', 'Activity'], ['account', 'Account']] as const;
+const TABS = [['overview', 'Overview'], ['performance', 'Performance'], ['insights', 'Insights'], ['attendance', 'Attendance'], ['assessments', 'Assessments'], ['activity', 'Activity'], ['account', 'Account']] as const;
 const SKILLS: SkillKey[] = ['LISTENING', 'READING', 'WRITING', 'SPEAKING'];
 const ATTENDANCE_TONE: Record<string, 'green' | 'amber' | 'red' | 'blue' | 'slate'> = { PRESENT: 'green', LATE: 'amber', ABSENT: 'red', EXCUSED: 'blue' };
 
@@ -55,7 +53,6 @@ export default function StudentDetailPage() {
   const attendance = useQuery({ queryKey: ['admin-student-attendance', id], queryFn: () => api<AttendanceRow[]>(`/admin/students/${id}/analytics/attendance`), enabled: tab === 'attendance' });
   const activitySummary = useQuery({ queryKey: ['admin-student-activity-summary', id], queryFn: () => api<DailyActivityRow[]>(`/admin/students/${id}/analytics/activity-summary`), enabled: tab === 'activity' });
   const assessments = useQuery({ queryKey: ['admin-student-assessments', id], queryFn: () => api<AssessmentRow[]>(`/admin/students/${id}/analytics/assessments`), enabled: tab === 'assessments' });
-  const assignments = useQuery({ queryKey: ['admin-student-assignments', id], queryFn: () => api<AssignmentRow[]>(`/admin/students/${id}/analytics/assignments`), enabled: tab === 'assignments' });
   const survey = useQuery({ queryKey: ['admin-student-enrollment-survey', id], queryFn: () => api<SurveyDoc>(`/admin/students/${id}/enrollment-survey`), enabled: tab === 'account' });
 
   if (student.isLoading) return <SkeletonTable rows={6} cols={5} />;
@@ -74,8 +71,6 @@ export default function StudentDetailPage() {
       <div className="mb-6 overflow-x-auto">
         <Tabs aria-label="Student sections" variant="underline" value={tab} onChange={(k) => setTab({ tab: k })} items={TABS.map(([k, l]) => ({ key: k, label: l }))} />
       </div>
-      <LifecyclePanel studentId={s.id} />
-
       {tab === 'overview' && (
         analytics.isLoading ? <SkeletonCards count={2} /> : analytics.isError || !band ? <Alert>Could not load this student’s analytics.</Alert> : (
           <div className="grid gap-6 lg:grid-cols-2">
@@ -165,25 +160,6 @@ export default function StudentDetailPage() {
                 <Td>{date(r.submittedAt, true)}</Td>
                 <Td className="tabular-nums">{r.score ?? (r.percent === null ? '—' : `${r.percent}%`)}</Td>
                 <Td className="tabular-nums">{r.band ?? 'Not available'}</Td>
-              </tr>
-            ))}
-          </Table>
-        )
-      )}
-
-      {tab === 'assignments' && (
-        assignments.isLoading ? <SkeletonTable rows={6} cols={6} /> : assignments.isError || !assignments.data ? <Alert>Could not load assignments.</Alert> : assignments.data.length === 0 ? (
-          <Empty title="No assignments on this course">Writing and speaking tasks appear here once the course has them.</Empty>
-        ) : (
-          <Table head={['Task', 'Skill', 'Due', 'Status', 'Submitted', 'Band']} sticky>
-            {assignments.data.map((r, i) => (
-              <tr key={i}>
-                <Td className="font-medium">{r.title}</Td>
-                <Td>{label(r.skill)}</Td>
-                <Td>{date(r.dueAt)}</Td>
-                <Td><Badge status={r.status} tone={r.status === 'OVERDUE' ? 'red' : r.status === 'NOT_SUBMITTED' ? 'slate' : undefined} text={label(r.status)} /></Td>
-                <Td>{r.submittedAt ? `${date(r.submittedAt, true)}${r.late ? ' (late)' : ''}` : '—'}</Td>
-                <Td className="tabular-nums">{r.band ?? 'Not graded'}</Td>
               </tr>
             ))}
           </Table>

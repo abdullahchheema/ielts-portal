@@ -63,6 +63,22 @@ export class SpeakingController {
   @HttpCode(200) @Post('responses/:id/retry')
   retry(@Param('id', uuid) id: string, @CurrentUser() u: AuthUser) { return this.speaking.retry(sid(u), id); }
 
+  /** Full-test continuous recording for the simulator speaking stage. Accepts one audio file
+   *  for the whole attempt plus per-question timestamp metadata in `answers` (JSON field). */
+  @HttpCode(200) @Post('attempts/:id/full-recording')
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: MAX_SPEAKING_BYTES, files: 1 } }))
+  uploadFullRecording(
+    @Param('id', uuid) id: string,
+    @UploadedFile() file: { buffer: Buffer; size: number } | undefined,
+    @Body('answers') rawAnswers: string,
+    @CurrentUser() u: AuthUser,
+  ) {
+    if (!file) throw new AppError('UPLOAD_FAILED', 400, 'Choose a recording to upload.');
+    let answers: { part: string; questionId?: string; promptText?: string; startSec: number; endSec: number }[];
+    try { answers = JSON.parse(rawAnswers); } catch { answers = []; }
+    return this.speaking.uploadFullRecording(sid(u), id, file, answers);
+  }
+
   @Get('responses/:id')
   response(@Param('id', uuid) id: string, @CurrentUser() u: AuthUser) { return this.speaking.getResponse(sid(u), id); }
 }

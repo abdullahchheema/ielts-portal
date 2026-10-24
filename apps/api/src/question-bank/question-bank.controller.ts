@@ -66,6 +66,10 @@ export class AdminQuestionSetsController {
     return this.bank.bulkDelete(body.ids, actor(u, req));
   }
 
+  /** Published Listening/Reading sets with mock-exam usage stats — declared before ':id' to avoid route collision. */
+  @RequirePermission('question.manage') @Get('published-summary')
+  publishedSummary() { return this.bank.publishedSummary(); }
+
   @RequirePermission('question.manage') @Get(':id')
   get(@Param('id', uuid) id: string) { return this.bank.getSet(id); }
 

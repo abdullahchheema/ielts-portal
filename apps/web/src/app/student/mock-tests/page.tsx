@@ -1,86 +1,94 @@
 'use client';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import Link from 'next/link';
 import { useState } from 'react';
-import { Alert, Badge, Button, Card, Empty, Loading, PageHeader, Textarea } from '@/components/ui';
-import { AssessmentCard, AssessmentSummary } from '@/components/LessonExtras';
+import { Alert, Button, Card, Empty, Loading, PageHeader } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { date } from '@/lib/format';
 
-type AccessStatus = 'ACTIVATED' | 'APPROVED' | 'EXPIRED' | 'PENDING' | 'DECLINED' | 'NONE';
-interface Access { canAttempt: boolean; status: AccessStatus; availableFrom: string | null; availableUntil: string | null; instructions: string | null; requestId: string | null; decisionNote: string | null }
-interface MockTest extends AssessmentSummary { access: Access }
-
-const STATUS_TONE: Record<AccessStatus, 'green' | 'amber' | 'red' | 'slate'> = {
-  ACTIVATED: 'green', APPROVED: 'green', EXPIRED: 'slate', PENDING: 'amber', DECLINED: 'red', NONE: 'slate',
-};
-const STATUS_LABEL: Record<AccessStatus, string> = {
-  ACTIVATED: 'Open for your batch', APPROVED: 'Access approved', EXPIRED: 'Approval window ended',
-  PENDING: 'Request pending review', DECLINED: 'Request declined', NONE: 'Not requested yet',
-};
-
-function RequestPanel({ test }: { test: MockTest }) {
-  const qc = useQueryClient();
-  const [reason, setReason] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function request() {
-    setBusy(true); setError(null);
-    try {
-      await api(`/assessments/${test.id}/mock-access-requests`, { method: 'POST', body: { reason: reason.trim() || undefined } });
-      await qc.invalidateQueries({ queryKey: ['mock-tests'] });
-    } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
-  }
-
-  return (
-    <div className="space-y-2 border-t border-slate-100 pt-3">
-      {test.access.status === 'DECLINED' && test.access.decisionNote && (
-        <Alert kind="info">Your last request was declined: {test.access.decisionNote}</Alert>
-      )}
-      {test.access.status === 'EXPIRED' && (
-        <Alert kind="info">Your approved window {test.access.availableUntil ? `ended ${date(test.access.availableUntil, true)}` : 'has ended'}. Request again to retake it.</Alert>
-      )}
-      {test.access.status === 'PENDING' ? (
-        <p className="text-sm text-slate-500">Your request is waiting for a teacher or admin to review it.</p>
-      ) : (
-        <>
-          <Textarea rows={2} placeholder="Optional note for your reviewer (e.g. which batch/week you're on)" value={reason} onChange={(e) => setReason(e.target.value)} />
-          {error && <Alert>{error}</Alert>}
-          <Button onClick={request} busy={busy}>Request access</Button>
-        </>
-      )}
-    </div>
-  );
+interface MockAttempt { id: string; status: string; overallEstimate: string | null; completedAt: string | null }
+interface MockExamEntry {
+  id: string; title: string; createdAt: string;
+  listeningModuleTitle: string; readingModuleTitle: string;
+  attempts: MockAttempt[]; inProgressAttemptId: string | null;
 }
+interface Available { listening: unknown[]; reading: unknown[]; mockExams: MockExamEntry[] }
 
 export default function MockTestsPage() {
-  const { data, isLoading, isError } = useQuery({ queryKey: ['mock-tests'], queryFn: () => api<MockTest[]>('/me/mock-tests') });
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['mock-tests'],
+    queryFn: () => api<Available>('/simulator/available'),
+  });
+
   if (isLoading) return <Loading />;
   if (isError || !data) return <Alert>Could not load mock tests.</Alert>;
 
+  const mocks = data.mockExams;
+
   return (
     <>
-      <PageHeader title="Mock Tests" subtitle="Full timed mock tests, unlocked individually by request or opened for your whole batch." />
-      {data.length === 0 ? <Empty>No mock tests have been published yet.</Empty> : (
+      <PageHeader title="Mock Tests" subtitle="Full timed IELTS simulator — Listening, Reading, Writing, and Speaking. Retake as many times as you like." />
+      {mocks.length === 0 ? <Empty>No mock tests are available yet.</Empty> : (
         <div className="grid gap-4 md:grid-cols-2">
-          {data.map((t) => (
-            <Card key={t.id} className="space-y-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="font-semibold">{t.title}</h3>
-                <Badge status={t.access.status} text={STATUS_LABEL[t.access.status]} tone={STATUS_TONE[t.access.status]} />
-              </div>
-              {t.access.instructions && <p className="text-sm text-slate-600">{t.access.instructions}</p>}
-              {t.access.canAttempt ? (
-                <AssessmentCard a={t} />
-              ) : (
-                <RequestPanel test={t} />
-              )}
-            </Card>
-          ))}
+          {mocks.map((m) => <MockCard key={m.id} mock={m} />)}
         </div>
       )}
     </>
+  );
+}
+
+function MockCard({ mock }: { mock: MockExamEntry }) {
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const completedAttempts = mock.attempts.filter((a) => a.status === 'COMPLETED');
+
+  async function startNew() {
+    setBusy(true); setError(null);
+    try {
+      const result = await api<{ id: string }>('/simulator/exams/from-mock-exam', { method: 'POST', body: { mockExamId: mock.id, includeSpeaking: true } });
+      await qc.invalidateQueries({ queryKey: ['mock-tests'] });
+      window.location.href = `/student/simulator/${result.id}`;
+    } catch (e) { setError(errorMessage(e)); setBusy(false); }
+  }
+
+  return (
+    <Card className="space-y-3">
+      <h3 className="font-semibold text-fg">{mock.title}</h3>
+      <p className="text-sm text-fg-muted">
+        Listening: {mock.listeningModuleTitle} · Reading: {mock.readingModuleTitle}
+      </p>
+      {error && <Alert>{error}</Alert>}
+      <div className="flex flex-wrap gap-2">
+        {mock.inProgressAttemptId ? (
+          <Link href={`/student/simulator/${mock.inProgressAttemptId}`}
+            className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-white hover:bg-primary-hover">
+            Resume
+          </Link>
+        ) : null}
+        <Button variant={mock.inProgressAttemptId ? 'secondary' : 'primary'} busy={busy} onClick={startNew}>
+          {completedAttempts.length > 0 ? 'Retake' : 'Start'}
+        </Button>
+      </div>
+      {completedAttempts.length > 0 && (
+        <div className="border-t border-border pt-3">
+          <p className="mb-2 text-xs font-medium text-fg-muted uppercase tracking-wide">Past attempts</p>
+          <ul className="space-y-1">
+            {completedAttempts.slice(0, 5).map((a) => (
+              <li key={a.id} className="flex items-center justify-between text-sm">
+                <Link href={`/student/simulator/${a.id}`} className="text-primary hover:underline">
+                  {date(a.completedAt, true)}
+                </Link>
+                <span className="tabular-nums text-fg-muted">
+                  {a.overallEstimate ? `Band ${a.overallEstimate}` : 'No estimate'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </Card>
   );
 }

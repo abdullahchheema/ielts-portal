@@ -34,10 +34,16 @@ export class Student360Service {
   }
 
   /** Every assessment attempt, newest first, with the band where the test type has one. */
+  /** Teacher-assigned or teacher-conducted tests only — excludes a student's own self-initiated
+   *  practice/adaptive sessions (type PRACTICE generated just for them), which belong on a practice
+   *  history view, not here. */
   async assessments(studentId: string) {
     await this.assertStudent(studentId);
     const attempts = await this.prisma.assessmentAttempt.findMany({
-      where: { studentId, status: { notIn: ['NOT_STARTED', 'IN_PROGRESS'] } },
+      where: {
+        studentId, status: { notIn: ['NOT_STARTED', 'IN_PROGRESS'] },
+        assessment: { NOT: { type: 'PRACTICE', generatedForStudentId: studentId } },
+      },
       select: {
         attemptNumber: true, status: true, submittedAt: true, percent: true, bandScore: true, rawScore: true, maxScore: true,
         assessment: { select: { title: true, skill: true, type: true } },

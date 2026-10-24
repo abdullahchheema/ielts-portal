@@ -218,6 +218,24 @@ export class QuestionBankService {
     return { total, items: rows.map(({ questions, ...r }) => ({ ...r, questionCount: questions.length })) };
   }
 
+  /** Published, student-facing Listening and Reading sets with mock-exam usage stats.
+   *  Used by the mock-compose form so admins can see how heavily each module is already used. */
+  async publishedSummary() {
+    const sets = await this.prisma.questionSet.findMany({
+      where: { status: 'PUBLISHED', studentFacing: true, skill: { in: ['LISTENING', 'READING'] } },
+      orderBy: { title: 'asc' },
+      select: {
+        id: true, title: true, skill: true, module: true,
+        mockExamsAsListening: { where: { status: { not: 'ARCHIVED' } }, select: { id: true, title: true } },
+        mockExamsAsReading: { where: { status: { not: 'ARCHIVED' } }, select: { id: true, title: true } },
+      },
+    });
+    return sets.map((s) => {
+      const mockExams = s.skill === 'LISTENING' ? s.mockExamsAsListening : s.mockExamsAsReading;
+      return { id: s.id, title: s.title, skill: s.skill, module: s.module, usageCount: mockExams.length, usedByMocks: mockExams.map((m) => ({ id: m.id, title: m.title })) };
+    });
+  }
+
   async getSet(id: string) {
     const set = await this.prisma.questionSet.findUnique({
       where: { id },

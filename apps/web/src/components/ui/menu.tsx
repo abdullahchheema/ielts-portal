@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode, useEffect, useRef, useState } from 'react';
+import { ReactNode, cloneElement, isValidElement, useEffect, useRef, useState } from 'react';
 import { cx } from '@/lib/cx';
 
 export interface MenuItemDef { key: string; label: ReactNode; onSelect: () => void; danger?: boolean; disabled?: boolean }
@@ -19,11 +19,24 @@ export function DropdownMenu({ trigger, items, align = 'end' }: { trigger: React
     return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
   }, [open]);
 
+  // The trigger is itself a <button> in every caller; wrapping it in another <button> produced
+  // invalid nested buttons and swallowed the toggle whenever the trigger's own onClick (e.g.
+  // stopPropagation to block a parent row click) stopped the event before it reached here.
+  // Cloning the toggle directly onto the trigger's onClick avoids the wrapper entirely.
+  const triggerEl = isValidElement(trigger)
+    ? cloneElement(trigger as React.ReactElement<{ onClick?: (e: React.MouseEvent) => void }>, {
+        onClick: (e: React.MouseEvent) => {
+          (trigger as React.ReactElement<{ onClick?: (e: React.MouseEvent) => void }>).props.onClick?.(e);
+          setOpen((v) => !v);
+        },
+        'aria-haspopup': 'menu',
+        'aria-expanded': open,
+      } as Record<string, unknown>)
+    : trigger;
+
   return (
     <div ref={ref} className="relative inline-block">
-      <button type="button" onClick={() => setOpen((v) => !v)} aria-haspopup="menu" aria-expanded={open}>
-        {trigger}
-      </button>
+      {triggerEl}
       {open && (
         <div
           role="menu"

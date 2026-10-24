@@ -2038,7 +2038,8 @@ model WritingResponse {
   question    Question?            @relation(fields: [questionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   revisions   WritingRevision[]
   evaluations WritingEvaluation[]
-  examAttempts ExamAttempt[]
+  examAttemptsTask1 ExamAttempt[] @relation("SimWritingTask1")
+  examAttemptsTask2 ExamAttempt[] @relation("SimWritingTask2")
 
   @@index([studentId, createdAt], map: "writing_responses_student_created_idx")
   @@map("writing_responses")
@@ -2083,12 +2084,16 @@ model WritingEvaluation {
 
 // ───────── Speaking practice ─────────
 model SpeakingAttempt {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  studentId String   @map("student_id") @db.Uuid
-  mode      String
-  status    String   @default("IN_PROGRESS")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentId        String    @map("student_id") @db.Uuid
+  mode             String
+  status           String    @default("IN_PROGRESS")
+  audioStorageKey  String?   @unique @map("audio_storage_key")
+  audioMime        String?   @map("audio_mime")
+  audioSizeBytes   BigInt?   @map("audio_size_bytes")
+  audioDurationSec Decimal?  @map("audio_duration_sec") @db.Decimal(8, 2)
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at")
 
   student   StudentProfile      @relation(fields: [studentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   responses SpeakingResponse[]
@@ -2109,6 +2114,8 @@ model SpeakingResponse {
   mime              String?
   sizeBytes         BigInt?   @map("size_bytes")
   durationSec       Decimal?  @map("duration_sec") @db.Decimal(8, 2)
+  startSec          Decimal?  @map("start_sec") @db.Decimal(8, 2)
+  endSec            Decimal?  @map("end_sec") @db.Decimal(8, 2)
   sha256            String?
   status            String    @default("UPLOADING")
   transcriptStatus  String    @default("PENDING") @map("transcript_status")
@@ -2158,6 +2165,7 @@ model ExamAttempt {
   readingAssessmentId    String?   @map("reading_assessment_id") @db.Uuid
   listeningAttemptId     String?   @map("listening_attempt_id") @db.Uuid
   readingAttemptId       String?   @map("reading_attempt_id") @db.Uuid
+  writingTask1ResponseId String?   @map("writing_task1_response_id") @db.Uuid
   writingResponseId      String?   @map("writing_response_id") @db.Uuid
   speakingAttemptId      String?   @map("speaking_attempt_id") @db.Uuid
   stageDeadlineAt        DateTime? @map("stage_deadline_at")
@@ -2174,7 +2182,8 @@ model ExamAttempt {
   readingAssessment   Assessment?    @relation("SimReading", fields: [readingAssessmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   listeningAttempt AssessmentAttempt? @relation("SimListeningAttempt", fields: [listeningAttemptId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   readingAttempt   AssessmentAttempt? @relation("SimReadingAttempt", fields: [readingAttemptId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  writingResponse  WritingResponse? @relation(fields: [writingResponseId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  writingTask1Response WritingResponse? @relation("SimWritingTask1", fields: [writingTask1ResponseId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  writingResponse  WritingResponse? @relation("SimWritingTask2", fields: [writingResponseId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   speakingAttempt  SpeakingAttempt? @relation(fields: [speakingAttemptId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   freeLead         FreeAssessmentLead?
 
