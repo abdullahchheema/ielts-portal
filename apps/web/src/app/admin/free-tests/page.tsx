@@ -1,23 +1,24 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { Badge, Button, Loading, PageHeader, Table, Td } from '@/components/ui';
 import { api } from '@/lib/api';
 
 interface PoolStats { listening: number; reading: number; writing: number; speaking: number }
-interface LeadRow {
-  // email/phone are null for anonymous claims (no identity is collected) — only pre-anonymous-
-  // rework leads still carry one.
-  id: string; email: string | null; phone: string | null; status: string; stage: string | null; examStatus: string | null;
-  overallEstimate: number | null; missingSkills: string[]; createdAt: string; linked: boolean;
-}
-interface ModuleRow { id: string; skill: string; title: string; published: boolean; questionCount: number; createdAt: string }
+interface ModuleRow { id: string; skill: string; title: string; published: boolean; eligibleForFreeTestRotation: boolean; questionCount: number; createdAt: string }
+interface ModuleStatRow { id: string; title: string; skill: string; picks: number; completed: number }
 
 export default function FreeTestsAdminPage() {
+  const qc = useQueryClient();
   const { data: pool, isLoading } = useQuery({ queryKey: ['free-test-pool'], queryFn: () => api<PoolStats>('/admin/free-test-pool') });
   const { data: modules, isLoading: modulesLoading } = useQuery({ queryKey: ['free-test-modules'], queryFn: () => api<ModuleRow[]>('/admin/free-test-pool/modules') });
-  const { data: leads } = useQuery({ queryKey: ['free-test-leads'], queryFn: () => api<{ total: number; items: LeadRow[] }>('/admin/free-test-leads') });
+  const { data: stats, isLoading: statsLoading } = useQuery({ queryKey: ['free-test-analytics'], queryFn: () => api<ModuleStatRow[]>('/admin/free-test-pool/analytics') });
+
+  async function toggleEligibility(id: string, eligible: boolean) {
+    await api(`/admin/free-test-pool/modules/${id}/rotation-eligibility`, { method: 'PATCH', body: { eligible } });
+    await qc.invalidateQueries({ queryKey: ['free-test-modules'] });
+  }
 
   return (
     <>
@@ -39,41 +40,48 @@ export default function FreeTestsAdminPage() {
             <div key={label} className="rounded-lg border p-4">
               <div className="text-xs text-fg-muted">{label}</div>
               <div className="text-2xl font-semibold">{count}</div>
-              {count === 0 && <div className="mt-1 text-xs text-red-600">Nothing eligible yet</div>}
+              {count === 0 && <div className="mt-1"><Badge status="NOTHING_ELIGIBLE" tone="red" text="Nothing eligible yet" /></div>}
             </div>
           ))}
         </div>
       )}
 
       <h2 className="mb-2 mt-8 font-semibold">Modules</h2>
+      <p className="mb-2 text-xs text-fg-muted">The rotation checkbox lets you take a specific module out of the free-test pick without unpublishing it — admins still see it in the bank, students just stop being routed to it.</p>
       {modulesLoading ? <Loading /> : (
-        <Table head={['Title', 'Skill', 'Questions', 'Published', 'Created']}>
+        <Table head={['Title', 'Skill', 'Questions', 'Published', 'In rotation', 'Created']}>
           {(modules ?? []).map((m) => (
             <tr key={m.id}>
               <Td><Link href={`/admin/question-bank/${m.id}`} className="text-primary hover:underline">{m.title}</Link></Td>
               <Td>{m.skill.toLowerCase()}</Td>
               <Td>{m.questionCount}</Td>
-              <Td><Badge status={m.published ? 'PUBLISHED' : 'DRAFT'} tone={m.published ? 'green' : 'slate'} /></Td>
+              <Td><Badge status={m.published ? 'PUBLISHED' : 'ARCHIVED'} tone={m.published ? 'green' : 'slate'} /></Td>
+              <Td>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" className="size-4 rounded border-border accent-primary" checked={m.eligibleForFreeTestRotation} onChange={(e) => toggleEligibility(m.id, e.target.checked)} />
+                  {m.eligibleForFreeTestRotation ? 'Eligible' : 'Excluded'}
+                </label>
+              </Td>
               <Td>{new Date(m.createdAt).toLocaleDateString()}</Td>
             </tr>
           ))}
         </Table>
       )}
 
-      <h2 className="mb-2 mt-8 font-semibold">Recent leads</h2>
-      <Table head={['Email', 'Phone', 'Status', 'Stage', 'Overall estimate', 'Linked to account', 'Claimed']}>
-        {(leads?.items ?? []).map((l) => (
-          <tr key={l.id}>
-            <Td>{l.email ?? <span className="text-fg-subtle">Anonymous</span>}</Td>
-            <Td>{l.phone ?? '—'}</Td>
-            <Td><Badge status={l.status} /></Td>
-            <Td>{l.stage ?? '—'}</Td>
-            <Td>{l.overallEstimate != null ? l.overallEstimate : l.missingSkills.length ? `Partial (missing ${l.missingSkills.join(', ')})` : '—'}</Td>
-            <Td>{l.linked ? 'Yes' : 'No'}</Td>
-            <Td>{new Date(l.createdAt).toLocaleString()}</Td>
-          </tr>
-        ))}
-      </Table>
+      <h2 className="mb-2 mt-8 font-semibold">Module usage</h2>
+      <p className="mb-2 text-xs text-fg-muted">How often each module has been presented to a free-test visitor, and how many of those presentations were actually completed.</p>
+      {statsLoading ? <Loading /> : (
+        <Table head={['Title', 'Skill', 'Times presented', 'Times completed']}>
+          {(stats ?? []).map((s) => (
+            <tr key={s.id}>
+              <Td><Link href={`/admin/question-bank/${s.id}`} className="text-primary hover:underline">{s.title}</Link></Td>
+              <Td>{s.skill.toLowerCase()}</Td>
+              <Td className="tabular-nums">{s.picks}</Td>
+              <Td className="tabular-nums">{s.completed}</Td>
+            </tr>
+          ))}
+        </Table>
+      )}
     </>
   );
 }

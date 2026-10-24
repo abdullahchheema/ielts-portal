@@ -21,7 +21,7 @@ type ImageFile = { buffer: Buffer; size: number } | undefined;
 
 const listQuery = z.object({
   skill: z.enum(['LISTENING', 'READING', 'WRITING', 'SPEAKING']).optional(),
-  status: z.enum(['DRAFT', 'APPROVED', 'PUBLISHED', 'ARCHIVED']).optional(),
+  status: z.enum(['PUBLISHED', 'ARCHIVED']).optional(),
   topic: z.string().trim().max(80).optional(),
   skip: z.coerce.number().int().min(0).default(0),
   take: z.coerce.number().int().min(1).max(100).default(50),
@@ -47,7 +47,7 @@ export class AdminQuestionSetsController {
   @RequirePermission('question.manage') @HttpCode(200) @Post('import/preview')
   importPreview(@Body(new ZodPipe(bulkImportSchema)) body: BulkImportInput) { return this.importer.preview(body); }
 
-  /** Persists the import as DRAFT sets in one transaction. Refuses if any question is invalid. */
+  /** Persists every set in one transaction, published but not yet student-facing. Refuses if any question is invalid. */
   @RequirePermission('question.manage') @HttpCode(201) @Post('import/commit')
   importCommit(@Body(new ZodPipe(bulkImportSchema)) body: BulkImportInput, @CurrentUser() u: AuthUser, @Req() req: Request) {
     return this.importer.commit(body, actor(u, req));

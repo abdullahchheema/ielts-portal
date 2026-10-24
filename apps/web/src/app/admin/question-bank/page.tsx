@@ -7,10 +7,11 @@ import { useState } from 'react';
 import { Alert, Badge, Button, ClickableRow, Dialog, Empty, Field, FilterBar, Input, Loading, PageHeader, Pagination, SearchInput, Select, Table, TableToolbar, Td, useConfirm } from '@/components/ui';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
+import { date } from '@/lib/format';
 
 interface SetRow {
   id: string; title: string; skill: string; module: string; topic: string | null; difficulty: number; status: string;
-  studentFacing: boolean; questionCount: number;
+  studentFacing: boolean; questionCount: number; createdAt: string;
 }
 
 const SKILLS = ['LISTENING', 'READING', 'WRITING', 'SPEAKING'] as const;
@@ -46,23 +47,26 @@ export default function QuestionBankPage() {
     await qc.invalidateQueries({ queryKey: ['question-sets'] });
   }
 
+  // "Live" means PUBLISHED *and* studentFacing — a brand-new set lands PUBLISHED-but-hidden by
+  // default (no draft stage to build it in first), so status alone doesn't tell you whether
+  // students can actually see it.
+  const isLive = (s: SetRow) => s.status === 'PUBLISHED' && s.studentFacing;
+
   async function bulkPublish() {
-    const draftIds = selectedRows.filter((s) => s.status === 'DRAFT').map((s) => s.id);
-    const publishIds = selectedRows.filter((s) => s.status === 'DRAFT' || s.status === 'APPROVED').map((s) => s.id);
-    if (publishIds.length === 0) return;
-    if (!(await confirm({ message: `Publish ${publishIds.length} set(s) so students see them in practice and free tests?`, confirmLabel: 'Publish' }))) return;
+    const ids = selectedRows.filter((s) => !isLive(s)).map((s) => s.id);
+    if (ids.length === 0) return;
+    if (!(await confirm({ message: `Publish ${ids.length} set(s) so students see them in practice and free tests?`, confirmLabel: 'Publish' }))) return;
     setBulkBusy('publish'); setError(null);
     try {
-      if (draftIds.length > 0) await api('/admin/question-sets/bulk/status', { method: 'POST', body: { ids: draftIds, status: 'APPROVED', studentFacing: false } });
-      await api('/admin/question-sets/bulk/status', { method: 'POST', body: { ids: publishIds, status: 'PUBLISHED', studentFacing: true } });
+      await api('/admin/question-sets/bulk/status', { method: 'POST', body: { ids, status: 'PUBLISHED', studentFacing: true } });
       await bulkAfter();
     } catch (e) { setError(errorMessage(e)); } finally { setBulkBusy(null); }
   }
 
   async function bulkUnpublish() {
-    const ids = selectedRows.filter((s) => s.status === 'PUBLISHED').map((s) => s.id);
+    const ids = selectedRows.filter(isLive).map((s) => s.id);
     if (ids.length === 0) return;
-    if (!(await confirm({ message: `Take ${ids.length} set(s) down? Students will stop seeing them in practice and free tests.`, confirmLabel: 'Unpublish', tone: 'danger' }))) return;
+    if (!(await confirm({ message: `Archive ${ids.length} set(s)? Students will stop seeing them in practice and free tests.`, confirmLabel: 'Archive', tone: 'danger' }))) return;
     setBulkBusy('unpublish'); setError(null);
     try {
       await api('/admin/question-sets/bulk/status', { method: 'POST', body: { ids, status: 'ARCHIVED', studentFacing: false } });
@@ -109,7 +113,7 @@ export default function QuestionBankPage() {
         </Select>
         <Select aria-label="Status" value={status} onChange={(e) => { setStatus(e.target.value); setSkip(0); }}>
           <option value="">Any status</option>
-          {['DRAFT', 'APPROVED', 'PUBLISHED', 'ARCHIVED'].map((s) => <option key={s} value={s}>{s[0] + s.slice(1).toLowerCase()}</option>)}
+          {['PUBLISHED', 'ARCHIVED'].map((s) => <option key={s} value={s}>{s[0] + s.slice(1).toLowerCase()}</option>)}
         </Select>
       </FilterBar>
       {error && <Alert>{error}</Alert>}
@@ -120,13 +124,13 @@ export default function QuestionBankPage() {
           {selected.size > 0 && (
             <TableToolbar>
               <span className="text-sm font-medium text-fg-muted">{selected.size} selected</span>
-              <Button variant="secondary" size="sm" onClick={bulkPublish} busy={bulkBusy === 'publish'} disabled={!!bulkBusy || !selectedRows.some((s) => s.status === 'DRAFT' || s.status === 'APPROVED')}>Publish</Button>
-              <Button variant="secondary" size="sm" onClick={bulkUnpublish} busy={bulkBusy === 'unpublish'} disabled={!!bulkBusy || !selectedRows.some((s) => s.status === 'PUBLISHED')}>Unpublish</Button>
+              <Button variant="secondary" size="sm" onClick={bulkPublish} busy={bulkBusy === 'publish'} disabled={!!bulkBusy || !selectedRows.some((s) => !isLive(s))}>Publish</Button>
+              <Button variant="secondary" size="sm" onClick={bulkUnpublish} busy={bulkBusy === 'unpublish'} disabled={!!bulkBusy || !selectedRows.some(isLive)}>Archive</Button>
               <Button variant="ghost" tone="danger" size="sm" onClick={bulkRemove} busy={bulkBusy === 'delete'} disabled={!!bulkBusy}>Delete</Button>
               <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())} disabled={!!bulkBusy}>Clear</Button>
             </TableToolbar>
           )}
-          <Table head={['', 'Title', 'Skill', 'Topic', 'Difficulty', 'Questions', 'Status']} sticky>
+          <Table head={['', 'Title', 'Skill', 'Topic', 'Difficulty', 'Questions', 'Date added', 'Status']} sticky>
             {data.items.map((s) => (
               <ClickableRow key={s.id} onClick={() => router.push(`/admin/question-bank/${s.id}`)}>
                 <Td>
@@ -141,7 +145,8 @@ export default function QuestionBankPage() {
                 <Td>{s.topic ?? '—'}</Td>
                 <Td>{s.difficulty}/5</Td>
                 <Td>{s.questionCount}</Td>
-                <Td><Badge status={s.status} /></Td>
+                <Td>{date(s.createdAt)}</Td>
+                <Td><Badge status={isLive(s) ? 'PUBLISHED' : s.status === 'ARCHIVED' ? 'ARCHIVED' : 'PENDING'} tone={isLive(s) ? 'green' : s.status === 'ARCHIVED' ? 'slate' : 'amber'} text={isLive(s) ? 'Published' : s.status === 'ARCHIVED' ? 'Archived' : 'Published (hidden)'} /></Td>
               </ClickableRow>
             ))}
           </Table>

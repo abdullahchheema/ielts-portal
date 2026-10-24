@@ -21,6 +21,8 @@ const listQuery = z.object({
   take: z.coerce.number().int().min(1).max(100).default(50),
 });
 
+const rotationEligibilitySchema = z.object({ eligible: z.boolean() });
+
 /** What visitors see on the pricing page: active plans and their feature comparison. */
 @Controller('public')
 export class PublicPlansController {
@@ -83,15 +85,10 @@ export class AdminStudentPlansController {
   }
 }
 
-const leadsQuery = z.object({
-  status: z.enum(['CLAIMED', 'COMPLETED', 'EXPIRED']).optional(),
-  skip: z.coerce.number().int().min(0).default(0),
-  take: z.coerce.number().int().min(1).max(100).default(50),
-});
-
-/** Read-only: eligibility is automatic — publish a student-facing bank set for any of the 4 skills
- *  through the plain question-bank import/approve/publish flow — there is no separate "add to pool"
- *  action here. */
+/** Eligibility is otherwise automatic — publish a student-facing bank set for any of the 4 skills
+ *  through the plain question-bank import/approve/publish flow and it's in the pool, no separate
+ *  "add to pool" action here. The one write this controller exposes is the opt-out: excluding a
+ *  specific already-published set from rotation without unpublishing it. */
 @Controller('admin/free-test-pool')
 export class AdminFreeTestPoolController {
   constructor(private readonly svc: FreeTestAdminService) {}
@@ -101,12 +98,12 @@ export class AdminFreeTestPoolController {
 
   @RequirePermission('plan.manage') @Get('modules')
   listModules() { return this.svc.listModules(); }
-}
 
-@Controller('admin/free-test-leads')
-export class AdminFreeTestLeadsController {
-  constructor(private readonly svc: FreeTestAdminService) {}
+  @RequirePermission('plan.manage') @Get('analytics')
+  moduleStats() { return this.svc.moduleStats(); }
 
-  @RequirePermission('plan.manage') @Get()
-  list(@Query(new ZodPipe(leadsQuery)) q: z.infer<typeof leadsQuery>) { return this.svc.listLeads(q); }
+  @RequirePermission('plan.manage') @Patch('modules/:id/rotation-eligibility')
+  setRotationEligibility(@Param('id', uuid) id: string, @Body(new ZodPipe(rotationEligibilitySchema)) body: z.infer<typeof rotationEligibilitySchema>) {
+    return this.svc.setRotationEligibility(id, body.eligible);
+  }
 }

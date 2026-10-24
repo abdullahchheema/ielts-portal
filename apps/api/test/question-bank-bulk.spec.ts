@@ -25,24 +25,24 @@ afterAll(async () => {
 const post = (path: string, body: object = {}) => as(admin)(http(app).post(path)).send(body);
 const get = (path: string) => as(admin)(http(app).get(path));
 
-/** A DRAFT set with one valid, publishable TFNG question. */
+/** A set with one valid, publishable TFNG question. Lands PUBLISHED-but-hidden on creation (the
+ *  default now that there's no separate draft/approval stage) until explicitly made student-facing. */
 async function buildDraftSet() {
   const set = (await post('/admin/question-sets', { title: `Bulk ${uniq()}`, skill: 'READING', difficulty: 3, topic: `bulk-${uniq()}`, studentFacing: false }).expect(201)).body;
   await post(`/admin/question-sets/${set.id}/questions`, { ieltsType: 'TFNG', prompt: { text: 'Q1' }, marks: 1, answerKey: { value: 'TRUE' } }).expect(201);
   return set.id as string;
 }
 
-/** A DRAFT set with no questions — fails the "at least one question" publish guard. */
+/** A set with no questions — fails the "at least one question" publish guard. */
 async function buildEmptyDraftSet() {
   const set = (await post('/admin/question-sets', { title: `Bulk empty ${uniq()}`, skill: 'READING', difficulty: 3, topic: `bulk-${uniq()}`, studentFacing: false }).expect(201)).body;
   return set.id as string;
 }
 
 describe('question-bank bulk status', () => {
-  it('bulk-publishes several draft sets in one call each, all succeeding together', async () => {
+  it('bulk-publishes several sets student-facing in one call, all succeeding together', async () => {
     const a = await buildDraftSet();
     const b = await buildDraftSet();
-    await post('/admin/question-sets/bulk/status', { ids: [a, b], status: 'APPROVED', studentFacing: false }).expect(200);
     await post('/admin/question-sets/bulk/status', { ids: [a, b], status: 'PUBLISHED', studentFacing: true }).expect(200);
 
     const rows = await prisma.questionSet.findMany({ where: { id: { in: [a, b] } } });
@@ -52,20 +52,18 @@ describe('question-bank bulk status', () => {
   it('is all-or-nothing: one set that fails the publish guard aborts the whole batch', async () => {
     const ok = await buildDraftSet();
     const empty = await buildEmptyDraftSet();
-    await post('/admin/question-sets/bulk/status', { ids: [ok, empty], status: 'APPROVED', studentFacing: false }).expect(200);
 
     const res = await post('/admin/question-sets/bulk/status', { ids: [ok, empty], status: 'PUBLISHED', studentFacing: true });
     expect(res.status).toBe(422);
 
-    // Neither set was published, even though `ok` alone would have succeeded.
+    // Neither set became student-facing, even though `ok` alone would have succeeded.
     const rows = await prisma.questionSet.findMany({ where: { id: { in: [ok, empty] } } });
-    expect(rows.every((r) => r.status === 'APPROVED')).toBe(true);
+    expect(rows.every((r) => !r.studentFacing)).toBe(true);
   });
 
-  it('archives (unpublishes) several published sets in one call', async () => {
+  it('archives several published sets in one call', async () => {
     const a = await buildDraftSet();
     const b = await buildDraftSet();
-    await post('/admin/question-sets/bulk/status', { ids: [a, b], status: 'APPROVED', studentFacing: false }).expect(200);
     await post('/admin/question-sets/bulk/status', { ids: [a, b], status: 'PUBLISHED', studentFacing: true }).expect(200);
 
     await post('/admin/question-sets/bulk/status', { ids: [a, b], status: 'ARCHIVED', studentFacing: false }).expect(200);
@@ -75,7 +73,7 @@ describe('question-bank bulk status', () => {
 });
 
 describe('question-bank bulk delete', () => {
-  it('deletes several draft sets in one call', async () => {
+  it('deletes several sets in one call', async () => {
     const a = await buildDraftSet();
     const b = await buildDraftSet();
     await post('/admin/question-sets/bulk/delete', { ids: [a, b] }).expect(200);
@@ -85,7 +83,6 @@ describe('question-bank bulk delete', () => {
 
   it('deletes a published set too — status is no longer a restriction', async () => {
     const published = await buildDraftSet();
-    await post(`/admin/question-sets/${published}/status`, { status: 'APPROVED', studentFacing: false }).expect(200);
     await post(`/admin/question-sets/${published}/status`, { status: 'PUBLISHED', studentFacing: true }).expect(200);
 
     await post('/admin/question-sets/bulk/delete', { ids: [published] }).expect(200);
@@ -136,7 +133,6 @@ describe('question-bank bulk delete', () => {
     // Question directly via questionId (a blocking FK), unlike Listening/Reading's copies.
     const set = (await post('/admin/question-sets', { title: `Writing ${uniq()}`, skill: 'WRITING', difficulty: 3, topic: `bulk-${uniq()}`, studentFacing: false }).expect(201)).body;
     const q = (await post(`/admin/question-sets/${set.id}/questions`, { ieltsType: 'WRITING_TASK2', prompt: { text: 'Discuss technology in society.' }, marks: 1 }).expect(201)).body;
-    await post(`/admin/question-sets/${set.id}/status`, { status: 'APPROVED' }).expect(200);
     await post(`/admin/question-sets/${set.id}/status`, { status: 'PUBLISHED', studentFacing: true }).expect(200);
 
     const st = await createStudent(app, prisma);

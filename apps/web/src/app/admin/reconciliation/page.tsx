@@ -11,6 +11,7 @@ interface Exception { id: string; status: string; reasons: string[]; proof: { ba
 interface Flag { proofId: string; reference: string; orderReference: string; student: string; overall: string | null; proofStatus: string; flags: { id: string; rule: string; level: string; reason: string }[] }
 
 const METHODS = ['BANK_TRANSFER', 'JAZZCASH', 'EASYPAISA', 'OTHER'] as const;
+const RISK_LABEL: Record<string, string> = { HIGH: 'High risk', MEDIUM: 'Medium risk', LOW: 'Low risk' };
 
 /** Finance: imported statements, the matches they produced, the exceptions to decide, and payment risk flags to review. */
 export default function ReconciliationPage() {
@@ -140,7 +141,7 @@ export default function ReconciliationPage() {
         <FilterBar count={risk.data?.length}>
           <Select aria-label="Risk level" className="!w-auto" value={riskLevel} onChange={(e) => setRiskLevel(e.target.value)}>
             <option value="">All levels</option>
-            {['LOW', 'MEDIUM', 'HIGH'].map((l) => <option key={l} value={l}>{l.toLowerCase()}</option>)}
+            {['LOW', 'MEDIUM', 'HIGH'].map((l) => <option key={l} value={l}>{RISK_LABEL[l]}</option>)}
           </Select>
         </FilterBar>
         {risk.isLoading && <Loading />}
@@ -151,7 +152,7 @@ export default function ReconciliationPage() {
                 <Card className="space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="font-medium text-fg">{p.orderReference} · {p.student}</p>
-                    <Badge status={p.overall ?? 'LOW'} tone={p.overall === 'HIGH' ? 'red' : p.overall === 'MEDIUM' ? 'amber' : 'blue'} text={`${(p.overall ?? 'LOW').toLowerCase()} risk`} />
+                    <Badge status={p.overall ?? 'LOW'} tone={p.overall === 'HIGH' ? 'red' : p.overall === 'MEDIUM' ? 'amber' : 'blue'} text={RISK_LABEL[p.overall ?? 'LOW'] ?? 'Low risk'} />
                   </div>
                   <ul className="space-y-2">
                     {p.flags.map((f) => (

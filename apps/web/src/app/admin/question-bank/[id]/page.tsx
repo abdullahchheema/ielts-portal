@@ -9,6 +9,7 @@ import { Accordion, Alert, Badge, Button, Card, Dialog, Empty, Field, FileInput,
 import { AudioAttach, QuestionImageAttach, SectionImageAttach } from '@/components/question-bank-uploads';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
+import { date } from '@/lib/format';
 
 interface Option { label: string; isCorrect: boolean }
 interface QImage { id: string; url: string; altText: string | null }
@@ -19,6 +20,7 @@ interface Question {
 interface StimulusSection { title: string; instructions?: string; passage?: string; audioKey?: string; audioUrl?: string; images?: QImage[] }
 interface SetDetail {
   id: string; title: string; skill: string; module: string; topic: string | null; difficulty: number; status: string; studentFacing: boolean;
+  createdAt: string;
   stimulus: { passage?: string; audioKey?: string; audioUrl?: string; sections?: StimulusSection[] } | null; questions: Question[];
 }
 
@@ -36,21 +38,18 @@ export default function QuestionSetPage() {
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: ['question-set', id] }), qc.invalidateQueries({ queryKey: ['question-sets'] })]);
 
-  // Publish is DRAFT/APPROVED -> PUBLISHED in one click — the backend still moves through APPROVED
-  // internally (its transition rules require it), but nobody needs to think about that step separately.
   async function publish() {
     setError(null);
     const ok = await confirm({ message: 'Publish this set so students see it in practice and free tests?', confirmLabel: 'Publish' });
     if (!ok) return;
     setActionBusy('PUBLISHED');
     try {
-      if (data!.status === 'DRAFT') await api(`/admin/question-sets/${id}/status`, { method: 'POST', body: { status: 'APPROVED', studentFacing: false } });
       await api(`/admin/question-sets/${id}/status`, { method: 'POST', body: { status: 'PUBLISHED', studentFacing: true } });
       await refresh();
     } catch (e) { setError(errorMessage(e)); } finally { setActionBusy(null); }
   }
   async function unpublish() {
-    const ok = await confirm({ message: 'Take this set down? Students will stop seeing it in practice and free tests.', confirmLabel: 'Unpublish', tone: 'danger' });
+    const ok = await confirm({ message: 'Archive this set? Students will stop seeing it in practice and free tests.', confirmLabel: 'Archive', tone: 'danger' });
     if (!ok) return;
     setActionBusy('ARCHIVED');
     try {
@@ -83,18 +82,22 @@ export default function QuestionSetPage() {
   // Everything short of ARCHIVED is directly editable, including PUBLISHED — a change to a live set
   // just invalidates its already-built free-test wrapper so the next pick rebuilds from the edit.
   const editable = data.status !== 'ARCHIVED';
+  // A set is only actually visible to students once it's both PUBLISHED and studentFacing — a brand
+  // new set lands PUBLISHED-but-hidden by default (no draft stage to build it in first), so "status"
+  // alone isn't enough to decide which action to offer.
+  const live = data.status === 'PUBLISHED' && data.studentFacing;
 
   return (
     <>
       <PageHeader
         title={data.title}
-        subtitle={`${data.skill} · ${data.module.toLowerCase()} · topic ${data.topic ?? '—'} · difficulty ${data.difficulty}/5`}
+        subtitle={`${data.skill} · ${data.module.toLowerCase()} · topic ${data.topic ?? '—'} · difficulty ${data.difficulty}/5 · added ${date(data.createdAt)}`}
         breadcrumbs={[{ href: '/admin/question-bank', label: 'Question bank' }, { label: data.title }]}
         actions={<div className="flex flex-wrap gap-2">
-          <Badge status={data.status} />
+          <Badge status={live ? 'PUBLISHED' : data.status === 'ARCHIVED' ? 'ARCHIVED' : 'PENDING'} tone={live ? 'green' : data.status === 'ARCHIVED' ? 'slate' : 'amber'} text={live ? 'Published' : data.status === 'ARCHIVED' ? 'Archived' : 'Published (hidden)'} />
           <Link href={`/admin/question-bank/${id}/preview`}><Button variant="secondary">Preview</Button></Link>
-          {(data.status === 'DRAFT' || data.status === 'APPROVED') && <Button onClick={publish} busy={actionBusy === 'PUBLISHED'} disabled={!!actionBusy}>Publish</Button>}
-          {data.status === 'PUBLISHED' && <Button variant="secondary" onClick={unpublish} busy={actionBusy === 'ARCHIVED'} disabled={!!actionBusy}>Unpublish</Button>}
+          {!live && <Button onClick={publish} busy={actionBusy === 'PUBLISHED'} disabled={!!actionBusy}>{data.status === 'ARCHIVED' ? 'Republish' : 'Publish'}</Button>}
+          {live && <Button variant="secondary" onClick={unpublish} busy={actionBusy === 'ARCHIVED'} disabled={!!actionBusy}>Archive</Button>}
           <Button variant="secondary" onClick={duplicate} busy={actionBusy === 'clone'} disabled={!!actionBusy}>Duplicate</Button>
           <Button variant="danger" onClick={remove} busy={actionBusy === 'delete'} disabled={!!actionBusy}>Delete</Button>
         </div>}

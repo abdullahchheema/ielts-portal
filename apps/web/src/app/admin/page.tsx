@@ -6,6 +6,9 @@ import { Alert, Badge, Empty, PageHeader, Section, SimpleList, SimpleListItem, S
 import { api } from '@/lib/api';
 import { date } from '@/lib/format';
 
+const BATCH_STATUS_LABEL: Record<string, string> = { RED: 'At risk', YELLOW: 'Needs attention', GREEN: 'On track' };
+const BATCH_STATUS_TONE: Record<string, 'red' | 'amber' | 'green'> = { RED: 'red', YELLOW: 'amber', GREEN: 'green' };
+
 interface Metric { key: string; label: string; value: number; href: string; attention: boolean }
 interface Center {
   metrics: Metric[];
@@ -58,7 +61,7 @@ export default function AdminHome() {
                             {b.reasons.length > 0 && <p className="text-xs text-fg-muted">{b.reasons.join(' · ')}</p>}
                           </div>
                         }
-                        right={<Badge status={b.status === 'RED' ? 'RED' : b.status === 'YELLOW' ? 'AMBER' : 'GREEN'} text={b.status.toLowerCase()} />}
+                        right={<Badge status={b.status} tone={BATCH_STATUS_TONE[b.status] ?? 'slate'} text={BATCH_STATUS_LABEL[b.status] ?? b.status} />}
                       />
                     ))}
                   </SimpleList>

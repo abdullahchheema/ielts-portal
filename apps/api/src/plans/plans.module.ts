@@ -8,7 +8,7 @@ import { FreeTestAdminService } from './free-test-admin.service';
 import { FreeTestController } from './free-test.controller';
 import { FreeTestService } from './free-test.service';
 import {
-  AdminFreeTestLeadsController, AdminFreeTestPoolController, AdminPlansController, AdminStudentPlansController,
+  AdminFreeTestPoolController, AdminPlansController, AdminStudentPlansController,
   PublicPlansController, StudentPlanController,
 } from './plans.controller';
 import { PlansService } from './plans.service';
@@ -22,7 +22,7 @@ import { PremiumServicesService } from './premium-services.service';
   imports: [AssessmentsModule, SimulatorModule, WritingModule, SpeakingModule, QuestionBankModule],
   controllers: [
     PublicPlansController, StudentPlanController, AdminPlansController, AdminStudentPlansController,
-    FreeTestController, AdminFreeTestPoolController, AdminFreeTestLeadsController,
+    FreeTestController, AdminFreeTestPoolController,
     StudentPremiumServicesController, AdminPremiumServicesController,
   ],
   providers: [PlansService, FreeTestService, FreeTestAdminService, PremiumServicesService],

@@ -83,7 +83,6 @@ describe('students', () => {
     for (const skill of ['LISTENING', 'READING'] as const) {
       const set = (await as(admin)(http(app).post('/admin/question-sets')).send({ title: `Ghost test ${skill} ${uniq()}`, skill, difficulty: 3, studentFacing: false }).expect(201)).body;
       await as(admin)(http(app).post(`/admin/question-sets/${set.id}/questions`)).send({ ieltsType: 'TFNG', prompt: { text: `Q ${uniq()}` }, marks: 1, answerKey: { value: 'TRUE' } }).expect(201);
-      await as(admin)(http(app).post(`/admin/question-sets/${set.id}/status`)).send({ status: 'APPROVED' }).expect(200);
       await as(admin)(http(app).post(`/admin/question-sets/${set.id}/status`)).send({ status: 'PUBLISHED', studentFacing: true }).expect(200);
     }
 

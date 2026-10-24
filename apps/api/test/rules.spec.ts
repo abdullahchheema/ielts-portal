@@ -79,11 +79,11 @@ describe('question type rules', () => {
 });
 
 describe('question set status moves', () => {
-  it('a published set can only be archived, never edited back into draft', () => {
+  it('a published set can only be archived — there is no draft stage to fall back to', () => {
     expect(QUESTION_SET_TRANSITIONS.PUBLISHED).toEqual(['ARCHIVED']);
   });
-  it('an archived set cannot move at all', () => {
-    expect(QUESTION_SET_TRANSITIONS.ARCHIVED).toEqual([]);
+  it('an archived set can be republished, and that is the only move it has', () => {
+    expect(QUESTION_SET_TRANSITIONS.ARCHIVED).toEqual(['PUBLISHED']);
   });
 });
 

@@ -132,7 +132,6 @@ describe('mock composer and full simulator', () => {
     for (let i = 0; i < count; i++) {
       await post(admin, `/admin/question-sets/${set.id}/questions`, { ieltsType: 'TFNG', prompt: { text: `Item ${i}` }, marks: 1, answerKey: { value: 'TRUE' } }).expect(201);
     }
-    await post(admin, `/admin/question-sets/${set.id}/status`, { status: 'APPROVED' }).expect(200);
     await post(admin, `/admin/question-sets/${set.id}/status`, { status: 'PUBLISHED', studentFacing: true }).expect(200);
     return set.id as string;
   }

@@ -3,9 +3,11 @@
 import { useConfirm } from '@/components/ui';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Eye } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Alert, Badge, Button, ClickableRow, Empty, FilterBar, Loading, PageHeader, Pagination, SearchInput, Select, Table, Td } from '@/components/ui';
+import { Alert, Badge, Button, ClickableRow, DropdownMenu, Empty, FilterBar, Loading, PageHeader, Pagination, SearchInput, Select, Table, Td } from '@/components/ui';
 import { AdminResetPasswordDialog } from '@/components/AdminResetPasswordDialog';
 import { IeltsBadge, IeltsSummaryLike } from '@/components/IeltsSummary';
 import { StudentDetailDialog } from '@/components/StudentDetailDialog';
@@ -23,6 +25,7 @@ const PAGE = 25;
 
 export default function StudentsPage() {
   const confirm = useConfirm();
+  const router = useRouter();
   const qc = useQueryClient();
   const { data: me } = useMe();
   const [search, setSearch] = useState('');
@@ -60,27 +63,42 @@ export default function StudentsPage() {
       {data && (items.length === 0 ? <Empty title="No students match">Try a different search or clear the filters.</Empty> : (
         <>
           <Table head={['Student', 'IELTS', 'Exam', 'Enrollments', 'Joined', 'Status', '']} sticky>
-            {items.map((u) => (
-              <ClickableRow key={u.id} onClick={() => setOpenId(u.student.id)}>
-                <Td>
-                  <Link href={`/admin/students/${u.student.id}`} className="font-medium text-primary hover:underline" onClick={(e) => e.stopPropagation()}>{u.student.firstName} {u.student.lastName}</Link>
-                  <span className="block text-xs text-fg-muted">{u.email}</span>
-                </Td>
-                <Td><IeltsBadge ielts={u.student.ielts} /></Td>
-                <Td>{date(u.student.ieltsExamDate)}</Td>
-                <Td>{u.student._count.enrollments}</Td>
-                <Td>{date(u.createdAt)}</Td>
-                <Td><Badge status={u.status} /></Td>
-                <Td>
-                  <span className="flex justify-end gap-1">
-                    {can(me, 'admin.manage') && <Button variant="ghost" size="xs" onClick={(e) => { e.stopPropagation(); setResetPwUser(u); }}>Reset password</Button>}
-                    {can(me, 'student.edit') && (u.status === 'ACTIVE'
-                      ? <Button variant="ghost" tone="danger" size="xs" onClick={(e) => { e.stopPropagation(); confirm({ message: `Suspend ${u.email}? They will be signed out immediately.`, tone: 'danger', confirmLabel: 'Suspend' }).then((ok) => { if (ok) { setUserStatus(u.id, 'SUSPENDED'); } }); }}>Suspend</Button>
-                      : u.status === 'SUSPENDED' || u.status === 'BLOCKED' ? <Button variant="ghost" size="xs" onClick={(e) => { e.stopPropagation(); setUserStatus(u.id, 'ACTIVE'); }}>Reactivate</Button> : null)}
-                  </span>
-                </Td>
-              </ClickableRow>
-            ))}
+            {items.map((u) => {
+              const actionItems = [
+                ...(can(me, 'admin.manage') ? [{ key: 'reset', label: 'Reset password', onSelect: () => setResetPwUser(u) }] : []),
+                ...(can(me, 'student.edit')
+                  ? (u.status === 'ACTIVE'
+                    ? [{ key: 'suspend', label: 'Suspend', danger: true, onSelect: () => { confirm({ message: `Suspend ${u.email}? They will be signed out immediately.`, tone: 'danger', confirmLabel: 'Suspend' }).then((ok) => { if (ok) { setUserStatus(u.id, 'SUSPENDED'); } }); } }]
+                    : (u.status === 'SUSPENDED' || u.status === 'BLOCKED')
+                      ? [{ key: 'reactivate', label: 'Reactivate', onSelect: () => setUserStatus(u.id, 'ACTIVE') }]
+                      : [])
+                  : []),
+              ];
+              return (
+                <ClickableRow key={u.id} onClick={() => router.push(`/admin/students/${u.student.id}`)}>
+                  <Td>
+                    <Link href={`/admin/students/${u.student.id}`} className="font-medium text-primary hover:underline" onClick={(e) => e.stopPropagation()}>{u.student.firstName} {u.student.lastName}</Link>
+                    <span className="block text-xs text-fg-muted">{u.email}</span>
+                  </Td>
+                  <Td><IeltsBadge ielts={u.student.ielts} /></Td>
+                  <Td>{date(u.student.ieltsExamDate)}</Td>
+                  <Td>{u.student._count.enrollments}</Td>
+                  <Td>{date(u.createdAt)}</Td>
+                  <Td><Badge status={u.status} /></Td>
+                  <Td>
+                    <span className="flex justify-end gap-1">
+                      <Button variant="ghost" size="xs" aria-label="Quick view" onClick={(e) => { e.stopPropagation(); setOpenId(u.student.id); }}><Eye className="size-4" /></Button>
+                      {actionItems.length > 0 && (
+                        <DropdownMenu
+                          trigger={<Button variant="ghost" size="xs" onClick={(e) => e.stopPropagation()}>Action</Button>}
+                          items={actionItems}
+                        />
+                      )}
+                    </span>
+                  </Td>
+                </ClickableRow>
+              );
+            })}
           </Table>
           {ieltsFilter && <p className="mt-2 text-xs text-fg-subtle">The IELTS filter only narrows the students already on this page.</p>}
           <Pagination skip={skip} take={PAGE} total={data.total} onSkip={setSkip} />

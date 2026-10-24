@@ -500,14 +500,19 @@ function WritingStage({ leadId, onAdvance, busy: parentBusy }: { leadId: string;
   if (!data || text === null) return <Loading />;
   const editable = data.status === 'DRAFT';
 
-  async function save() {
+  /** Returns whether the save actually succeeded — callers that chain into a submit must check this
+   *  rather than assume it, since a failed autosave must never be followed by submitting stale text. */
+  async function save(): Promise<boolean> {
     setBusy(true); setError(null);
-    try { await api(`/free-test/${leadId}/writing`, { method: 'PUT', body: { revision: data!.revision, body: text } }); await refetch(); }
-    catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
+    try { await api(`/free-test/${leadId}/writing`, { method: 'PUT', body: { revision: data!.revision, body: text } }); await refetch(); return true; }
+    catch (e) { setError(errorMessage(e)); return false; }
+    finally { setBusy(false); }
   }
   async function submit() {
     setBusy(true); setError(null);
-    try { await save(); await api(`/free-test/${leadId}/writing/submit`, { method: 'POST' }); await refetch(); }
+    const saved = await save();
+    if (!saved) { setBusy(false); return; }
+    try { await api(`/free-test/${leadId}/writing/submit`, { method: 'POST' }); await refetch(); }
     catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
   }
 

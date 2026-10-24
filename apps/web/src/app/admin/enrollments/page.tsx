@@ -119,7 +119,7 @@ export default function EnrollmentsPage() {
               <Td>{e.course.title}<span className="block text-xs text-fg-muted">{e.batch.name}</span></Td>
               <Td>{label(e.planName)}</Td>
               <Td>{label(e.source)}</Td><Td>{date(e.enrolledAt)}</Td><Td>{date(e.accessEndsAt)}</Td>
-              <Td><div className="w-24"><ProgressBar value={Math.round(Number(e.progressPercent))} /></div></Td>
+              <Td><div className="w-28"><ProgressBar value={Math.round(Number(e.progressPercent))} compact /></div></Td>
               <Td><Badge status={e.status} /></Td>
               <Td>{can(me, 'enrollment.create') && <Button variant="ghost" size="xs" onClick={() => setManage(e)}>Manage</Button>}</Td>
             </tr>

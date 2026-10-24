@@ -72,14 +72,15 @@ describe('bulk question import', () => {
     expect(res.sets[0].duplicates[0].matchedPrompt).toBe(promptText);
   });
 
-  it('commit persists sets as DRAFT with graded questions, and refuses when any question is invalid', async () => {
+  it('commit persists sets as published-but-hidden with graded questions, and refuses when any question is invalid', async () => {
     const payload = validPayload();
     const res = (await post('/admin/question-sets/import/commit', payload).expect(201)).body;
     expect(res.created).toHaveLength(1);
     expect(res.created[0].questionCount).toBe(3);
 
     const set = (await as(admin)(http(app).get(`/admin/question-sets/${res.created[0].setId}`)).expect(200)).body;
-    expect(set.status).toBe('DRAFT');
+    expect(set.status).toBe('PUBLISHED');
+    expect(set.studentFacing).toBe(false);
     expect(set.questions).toHaveLength(3);
     const ordering = set.questions.find((q: { questionType: string }) => q.questionType === 'ORDERING');
     expect(ordering.versions[0].options).toHaveLength(3);
@@ -101,10 +102,18 @@ describe('bulk question import', () => {
     const res = (await post('/admin/question-sets/import/commit', payload).expect(201)).body;
     expect(res.created).toHaveLength(2);
   });
+
+  it('`publish: true` makes every imported set student-facing immediately, no separate toggle', async () => {
+    const payload = { ...validPayload(), publish: true };
+    const res = (await post('/admin/question-sets/import/commit', payload).expect(201)).body;
+    const set = (await as(admin)(http(app).get(`/admin/question-sets/${res.created[0].setId}`)).expect(200)).body;
+    expect(set.status).toBe('PUBLISHED');
+    expect(set.studentFacing).toBe(true);
+  });
 });
 
 describe('deleting a question set', () => {
-  it('permanently removes a DRAFT set and all of its questions', async () => {
+  it('permanently removes a freshly-imported set and all of its questions', async () => {
     const res = (await post('/admin/question-sets/import/commit', validPayload()).expect(201)).body;
     const setId = res.created[0].setId as string;
     const before = await prisma.question.count({ where: { questionSetId: setId } });
@@ -116,10 +125,10 @@ describe('deleting a question set', () => {
     expect(await prisma.question.count({ where: { questionSetId: setId } })).toBe(0);
   });
 
-  it('deletes an approved (or published) set too — status is not a restriction', async () => {
+  it('deletes a published set too — status is not a restriction', async () => {
     const res = (await post('/admin/question-sets/import/commit', validPayload()).expect(201)).body;
     const setId = res.created[0].setId as string;
-    await post(`/admin/question-sets/${setId}/status`, { status: 'APPROVED' }).expect(200);
+    await post(`/admin/question-sets/${setId}/status`, { status: 'PUBLISHED', studentFacing: true }).expect(200);
 
     await as(admin)(http(app).delete(`/admin/question-sets/${setId}`)).expect(200);
     expect(await prisma.questionSet.findUnique({ where: { id: setId } })).toBeNull();
@@ -128,7 +137,6 @@ describe('deleting a question set', () => {
   it('permanently removes an ARCHIVED set — archiving already took it out of circulation', async () => {
     const res = (await post('/admin/question-sets/import/commit', validPayload()).expect(201)).body;
     const setId = res.created[0].setId as string;
-    await post(`/admin/question-sets/${setId}/status`, { status: 'APPROVED' }).expect(200);
     await post(`/admin/question-sets/${setId}/status`, { status: 'ARCHIVED' }).expect(200);
 
     await as(admin)(http(app).delete(`/admin/question-sets/${setId}`)).expect(200);

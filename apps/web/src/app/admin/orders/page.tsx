@@ -82,7 +82,7 @@ export default function OrdersAdminPage() {
                 <Td className="font-mono text-xs">{o.reference}</Td>
                 <Td>{o.student.firstName} {o.student.lastName}<span className="block text-xs text-fg-muted">{o.student.user.email}</span></Td>
                 <Td>{o.items[0]?.batch.course.title}<span className="block text-xs text-fg-muted">{o.items[0]?.batch.name}</span></Td>
-                <Td>{money(o.total, o.currency)}{Number(o.discount) > 0 && <span className="block text-xs text-green-700">−{money(o.discount, o.currency)}</span>}</Td>
+                <Td>{money(o.total, o.currency)}{Number(o.discount) > 0 && <span className="mt-1 block"><Badge status="DISCOUNT" tone="green" text={`−${money(o.discount, o.currency)} discount`} /></span>}</Td>
                 <Td>{o.payments[0] ? <Badge status={o.payments[0].status} /> : '—'}</Td>
                 <Td><Badge status={o.status} /></Td><Td>{date(o.createdAt, true)}</Td>
               </ClickableRow>

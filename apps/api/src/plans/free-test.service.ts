@@ -175,11 +175,14 @@ export class FreeTestService {
 
   async submitWriting(leadId: string) {
     const lead = await this.loadLead(leadId);
-    return this.writing.submit(lead.ghostStudentId, this.activeWritingResponseId(lead));
+    // The free test is designed to let a visitor finish even with incomplete answers (missing
+    // sections are recorded, not blocked) — an essay under the normal 20-word minimum should grade
+    // as a weak answer, not hard-stop the whole test the way it does for an enrolled student.
+    return this.writing.submit(lead.ghostStudentId, this.activeWritingResponseId(lead), true);
   }
 
   async listSpeakingQuestions(part: 'PART1' | 'PART2' | 'PART3') {
-    return this.speaking.questions(part);
+    return this.speaking.questions(part, 20, true);
   }
 
   async addSpeakingResponse(leadId: string, body: AddSpeakingResponseInput) {

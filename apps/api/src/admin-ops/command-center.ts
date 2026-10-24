@@ -93,10 +93,11 @@ export class CommandCenterService {
   /** What needs an operator's attention right now. Each alert names the fix. */
   async alerts(now: Date) {
     const alerts: { level: 'RED' | 'YELLOW'; message: string }[] = [];
-    const [lifecycle, failedJobs, aiFailures] = await Promise.all([
+    const [lifecycle, failedJobs, aiFailures, stubbedEmails] = await Promise.all([
       this.prisma.scheduledTaskRun.findUnique({ where: { taskName: 'lifecycle.sweep' }, select: { lastRunAt: true } }),
       this.prisma.job.count({ where: { status: 'FAILED', updatedAt: { gte: new Date(now.getTime() - DAY) } } }),
       this.prisma.aiRequest.count({ where: { status: 'FAILED', createdAt: { gte: new Date(now.getTime() - DAY) } } }),
+      this.prisma.auditLog.count({ where: { action: 'EMAIL_STUBBED', createdAt: { gte: new Date(now.getTime() - DAY) } } }),
     ]);
     if (!lifecycle?.lastRunAt || now.getTime() - lifecycle.lastRunAt.getTime() > 30 * 60_000) {
       alerts.push({ level: 'RED', message: 'The scheduled tasks have not run in 30 minutes. Check the cron ping (see docs/DEPLOYMENT.md).' });
@@ -105,7 +106,11 @@ export class CommandCenterService {
     if (aiFailures > 0) alerts.push({ level: 'YELLOW', message: `${aiFailures} AI call${aiFailures === 1 ? ' has' : 's have'} failed in the last day. Submissions are kept and retried.` });
     if (this.config.AI_PROVIDER === 'openai' && !this.config.AI_API_KEY) alerts.push({ level: 'YELLOW', message: 'AI is set to OpenAI but no API key is configured.' });
     if (!this.config.S3_BUCKET) alerts.push({ level: 'YELLOW', message: 'File storage is local. Set S3 before going live so receipts and recordings survive a redeploy.' });
-    if (!this.config.RESEND_API_KEY) alerts.push({ level: 'YELLOW', message: 'Email is not configured, so emails are only logged.' });
+    // Reports actual recent impact (how many emails were only logged, last 24h), not just that the
+    // provider is unconfigured — a stale "not configured" banner is easy to tune out; a rising count
+    // of real emails nobody received is not.
+    if (stubbedEmails > 0) alerts.push({ level: 'YELLOW', message: `${stubbedEmails} email${stubbedEmails === 1 ? ' was' : 's were'} only logged (no provider configured), last 24h.` });
+    else if (!this.config.RESEND_API_KEY) alerts.push({ level: 'YELLOW', message: 'Email is not configured, so emails are only logged.' });
     return alerts;
   }
 }

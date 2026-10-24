@@ -36,7 +36,6 @@ const get = (path: string) => as(admin)(http(app).get(path));
 async function buildBankModule(skill: 'LISTENING' | 'READING') {
   const set = (await post('/admin/question-sets', { title: `Mock ${skill} ${uniq()}`, skill, difficulty: 3, topic: `mock-${uniq()}`, studentFacing: false }).expect(201)).body;
   await post(`/admin/question-sets/${set.id}/questions`, { ieltsType: 'TFNG', prompt: { text: 'Q1' }, marks: 1, answerKey: { value: 'TRUE' } }).expect(201);
-  await post(`/admin/question-sets/${set.id}/status`, { status: 'APPROVED' }).expect(200);
   await post(`/admin/question-sets/${set.id}/status`, { status: 'PUBLISHED', studentFacing: true }).expect(200);
   return set.id as string;
 }

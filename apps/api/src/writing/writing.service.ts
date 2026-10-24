@@ -85,12 +85,15 @@ export class WritingService implements OnModuleInit {
     });
   }
 
-  /** Locks the essay and queues an AI evaluation. The student sees the result when it is ready. */
-  async submit(studentId: string, id: string) {
+  /** Locks the essay and queues an AI evaluation. The student sees the result when it is ready.
+   *  `allowShort` is only set true by the free-test flow — a free test is meant to allow finishing
+   *  incomplete, so an unfinished essay there is a weak answer to grade, not a hard stop. The
+   *  regular enrolled-student flow keeps the minimum unconditionally. */
+  async submit(studentId: string, id: string, allowShort = false) {
     const r = await this.prisma.writingResponse.findFirst({ where: { id, studentId }, select: { id: true, status: true, revision: true, body: true, questionId: true } });
     if (!r) throw notFound('Writing');
     if (r.status === 'EVALUATED' || r.status === 'SUBMITTED') return { status: r.status };
-    if (wordCount(r.body) < 20) throw new AppError('VALIDATION_ERROR', 422, 'Write at least a short paragraph before submitting.');
+    if (!allowShort && wordCount(r.body) < 20) throw new AppError('VALIDATION_ERROR', 422, 'Write at least a short paragraph before submitting.');
     const claimed = await this.prisma.writingResponse.updateMany({ where: { id, studentId, status: EDITABLE }, data: { status: 'SUBMITTED', submittedAt: new Date() } });
     if (claimed.count === 0) return { status: 'SUBMITTED' };
     if (r.questionId) this.events.emit(STUDY_EVIDENCE, { studentId, refType: 'WRITING_TASK', refId: r.questionId } satisfies StudyEvidence);

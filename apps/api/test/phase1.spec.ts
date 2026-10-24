@@ -37,7 +37,6 @@ async function publishedSet(count: number) {
       ieltsType: 'TFNG', prompt: { text: `Statement ${i}` }, marks: 1, answerKey: { value: 'TRUE' },
     }).expect(201);
   }
-  await post(admin, `/admin/question-sets/${set.id}/status`, { status: 'APPROVED' }).expect(200);
   await post(admin, `/admin/question-sets/${set.id}/status`, { status: 'PUBLISHED', studentFacing: true }).expect(200);
   return set.id as string;
 }
@@ -64,7 +63,9 @@ describe('question bank access and publishing', () => {
     await post(admin, `/admin/question-sets/${id}/status`, { status: 'ARCHIVED' }).expect(200);
     await as(admin)(http(app).patch(`/admin/question-sets/${id}`)).send({ title: 'Too late' }).expect(409);
     const copy = (await post(admin, `/admin/question-sets/${id}/clone`).expect(200)).body;
-    expect(copy.status).toBe('DRAFT');
+    // Clones inherit the source's status (there's no draft stage to always land a copy in) — the
+    // source was just archived above, so the copy comes back archived too, not silently published.
+    expect(copy.status).toBe('ARCHIVED');
     expect(copy.studentFacing).toBe(false);
   });
 });

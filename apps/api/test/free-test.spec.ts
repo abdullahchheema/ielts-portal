@@ -44,7 +44,6 @@ interface PaperQ { id: string; prompt: { text: string }; options?: { id: string;
 async function buildBankModule(skill: 'LISTENING' | 'READING', correctValue: 'TRUE' | 'FALSE' = 'TRUE') {
   const set = (await post('/admin/question-sets', { title: `Free ${skill} ${uniq()}`, skill, difficulty: 3, topic: `free-${uniq()}`, studentFacing: false }).expect(201)).body;
   await post(`/admin/question-sets/${set.id}/questions`, { ieltsType: 'TFNG', prompt: { text: 'Q1' }, marks: 1, answerKey: { value: correctValue } }).expect(201);
-  await post(`/admin/question-sets/${set.id}/status`, { status: 'APPROVED' }).expect(200);
   await post(`/admin/question-sets/${set.id}/status`, { status: 'PUBLISHED', studentFacing: true }).expect(200);
   return set.id as string;
 }
@@ -53,7 +52,6 @@ async function buildBankModule(skill: 'LISTENING' | 'READING', correctValue: 'TR
 async function buildWritingPrompt() {
   const set = (await post('/admin/question-sets', { title: `Free writing ${uniq()}`, skill: 'WRITING', difficulty: 3, topic: `free-${uniq()}`, studentFacing: false }).expect(201)).body;
   await post(`/admin/question-sets/${set.id}/questions`, { ieltsType: 'WRITING_TASK2', prompt: { text: 'Some people think technology helps society. Discuss.' }, marks: 1 }).expect(201);
-  await post(`/admin/question-sets/${set.id}/status`, { status: 'APPROVED' }).expect(200);
   await post(`/admin/question-sets/${set.id}/status`, { status: 'PUBLISHED', studentFacing: true }).expect(200);
   return set.id as string;
 }
@@ -186,6 +184,15 @@ describe('free-test v2: conflict handling', () => {
     const stale = await http(app).post(`/free-test/${claim.leadId}/advance`).send({ expectedRevision: exam.stageRevision });
     expect(stale.status).toBe(409);
     expect(stale.body.error.code).toBe('CONFLICT');
+  });
+
+  it('submits a section with zero answers cleanly — an incomplete free test must still finish, not 500', async () => {
+    await buildBankModule('LISTENING'); await buildBankModule('READING');
+    const claim = (await http(app).post('/free-test/claim').expect(201)).body;
+    // No PUT /answers at all — submit straight away with nothing saved.
+    await http(app).post(`/free-test/${claim.leadId}/section/submit`).expect(200);
+    const exam = (await http(app).get(`/free-test/${claim.leadId}`).expect(200)).body;
+    expect(exam.sections.listening.status).toBe('AUTO_GRADED');
   });
 
   it('submitting the same section twice is idempotent, not an error — covers a retried request after a dropped response', async () => {

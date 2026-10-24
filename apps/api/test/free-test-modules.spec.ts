@@ -40,7 +40,6 @@ async function buildListeningSet() {
   const set = (await post('/admin/question-sets', { title, skill: 'LISTENING', difficulty: 3, topic: `free-${uniq()}`, studentFacing: false }).expect(201)).body;
   await post(`/admin/question-sets/${set.id}/questions`, { ieltsType: 'TFNG', prompt: { text: `Q1 ${uniq()}` }, marks: 1, answerKey: { value: 'TRUE' } }).expect(201);
   await as(admin)(http(app).post(`/admin/question-sets/${set.id}/audio`)).attach('file', MP3, { filename: 'audio.mp3', contentType: 'audio/mpeg' }).expect(200);
-  await post(`/admin/question-sets/${set.id}/status`, { status: 'APPROVED' }).expect(200);
   await post(`/admin/question-sets/${set.id}/status`, { status: 'PUBLISHED', studentFacing: true }).expect(200);
   return { setId: set.id as string, title };
 }
@@ -48,7 +47,6 @@ async function buildListeningSet() {
 async function buildReadingSet() {
   const set = (await post('/admin/question-sets', { title: `Free Reading ${uniq()}`, skill: 'READING', difficulty: 3, topic: `free-${uniq()}`, studentFacing: false }).expect(201)).body;
   await post(`/admin/question-sets/${set.id}/questions`, { ieltsType: 'TFNG', prompt: { text: `Q1 ${uniq()}` }, marks: 1, answerKey: { value: 'TRUE' } }).expect(201);
-  await post(`/admin/question-sets/${set.id}/status`, { status: 'APPROVED' }).expect(200);
   await post(`/admin/question-sets/${set.id}/status`, { status: 'PUBLISHED', studentFacing: true }).expect(200);
   return set.id as string;
 }
@@ -57,7 +55,6 @@ describe('free-test content lives only in the question bank', () => {
   it('publishing a Writing set (same process as Writing already used) makes it eligible with no Assessment involved', async () => {
     const set = (await post('/admin/question-sets', { title: `Free Writing ${uniq()}`, skill: 'WRITING', difficulty: 3, topic: `free-${uniq()}`, studentFacing: false }).expect(201)).body;
     await post(`/admin/question-sets/${set.id}/questions`, { ieltsType: 'WRITING_TASK2', prompt: { text: `Discuss. ${uniq()}` }, marks: 1 }).expect(201);
-    await post(`/admin/question-sets/${set.id}/status`, { status: 'APPROVED' }).expect(200);
     const before = (await get('/admin/free-test-pool').expect(200)).body.writing;
     await post(`/admin/question-sets/${set.id}/status`, { status: 'PUBLISHED', studentFacing: true }).expect(200);
     const after = (await get('/admin/free-test-pool').expect(200)).body.writing;
@@ -146,7 +143,6 @@ describe('free-test content lives only in the question bank', () => {
     const questions = await prisma.question.findMany({ where: { questionSetId: setId }, orderBy: { sequence: 'asc' } });
     expect(questions.map((q) => q.bankSectionIndex)).toEqual([0, 1]);
 
-    await post(`/admin/question-sets/${setId}/status`, { status: 'APPROVED' }).expect(200);
     await post(`/admin/question-sets/${setId}/status`, { status: 'PUBLISHED', studentFacing: true }).expect(200);
 
     let wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
@@ -209,7 +205,6 @@ describe('free-test content lives only in the question bank', () => {
 
     // Attached with no sectionIndex — the whole-module recording, not a per-part one.
     await as(admin)(http(app).post(`/admin/question-sets/${setId}/audio`)).attach('file', MP3, { filename: 'full.mp3', contentType: 'audio/mpeg' }).expect(200);
-    await post(`/admin/question-sets/${setId}/status`, { status: 'APPROVED' }).expect(200);
     await post(`/admin/question-sets/${setId}/status`, { status: 'PUBLISHED', studentFacing: true }).expect(200);
 
     let wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
@@ -253,7 +248,6 @@ describe('free-test content lives only in the question bank', () => {
     expect(storedSections[0].contentBlocks).toHaveLength(3);
 
     await as(admin)(http(app).post(`/admin/question-sets/${setId}/images?sectionIndex=0`)).attach('file', JPEG, { filename: 'castle.jpg', contentType: 'image/jpeg' }).expect(201);
-    await post(`/admin/question-sets/${setId}/status`, { status: 'APPROVED' }).expect(200);
     await post(`/admin/question-sets/${setId}/status`, { status: 'PUBLISHED', studentFacing: true }).expect(200);
 
     let wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });
@@ -286,7 +280,6 @@ describe('free-test content lives only in the question bank', () => {
     const bankQuestionId = (await prisma.question.findFirstOrThrow({ where: { questionSetId: setId } })).id;
 
     await as(admin)(http(app).post(`/admin/question-sets/questions/${bankQuestionId}/images`)).attach('file', JPEG, { filename: 'castle.jpg', contentType: 'image/jpeg' }).expect(201);
-    await post(`/admin/question-sets/${setId}/status`, { status: 'APPROVED' }).expect(200);
     await post(`/admin/question-sets/${setId}/status`, { status: 'PUBLISHED', studentFacing: true }).expect(200);
 
     let wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: setId } });

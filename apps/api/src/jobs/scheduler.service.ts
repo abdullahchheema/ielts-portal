@@ -1,11 +1,14 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { APP_CONFIG, AppConfig } from '../config/config.module';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { isDue } from './schedule';
 
 /** How long a claimed task is locked. A crashed run releases the lease after this, never sooner. */
 export const LEASE_MS = 10 * 60_000;
 const TICK_EVERY_MS = 60_000;
+/** Mirrors command-center.ts's own RED-alert threshold for lifecycle.sweep staleness. */
+const STALE_MS = 30 * 60_000;
 
 export type TaskOutcome =
   | { status: 'OK'; result?: unknown }
@@ -30,7 +33,11 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
   private readonly tasks = new Map<string, TaskDef>();
   private timer?: NodeJS.Timeout;
 
-  constructor(private readonly prisma: PrismaService, @Inject(APP_CONFIG) private readonly config: AppConfig) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(APP_CONFIG) private readonly config: AppConfig,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   onModuleInit() {
     if (this.config.DISABLE_SWEEPER === 'true' || this.config.NODE_ENV === 'test') return;
@@ -87,7 +94,46 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
         out[task.name] = { status: 'FAILED', error };
       }
     }
+    // Self-check, piggybacked on whatever actually triggered this tick (the external 5-minute ping
+    // when it's configured, or just the once-daily Vercel fallback when it isn't): if the cron
+    // pipeline has been failing — note this can only ever catch a *degraded* ping (still arriving,
+    // just not often enough), never a *fully stopped* one, since nothing here runs at all in that
+    // case — surface it in-app instead of leaving it as a dashboard banner nobody's looking at.
+    await this.notifyIfStale(now).catch((e) => this.logger.error(`cron-staleness self-check failed: ${(e as Error).message}`));
     return out;
+  }
+
+  private async notifyIfStale(now: Date) {
+    const lifecycle = await this.prisma.scheduledTaskRun.findUnique({ where: { taskName: 'lifecycle.sweep' }, select: { lastRunAt: true } });
+    const staleSince = lifecycle?.lastRunAt ?? null;
+    const isStale = !staleSince || now.getTime() - staleSince.getTime() > STALE_MS;
+
+    // "Restored" only fires on the actual stale -> healthy transition, not on every healthy tick:
+    // only send it when the most recent CRON_STALE notification is newer than the most recent
+    // CRON_RESTORED one (i.e. nobody's been told it recovered since the last time it was flagged).
+    let shouldNotifyRestored = false;
+    if (!isStale) {
+      const since = new Date(now.getTime() - 24 * 60 * 60_000);
+      const [lastStale, lastRestored] = await Promise.all([
+        this.prisma.notification.findFirst({ where: { type: 'CRON_STALE', createdAt: { gte: since } }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } }),
+        this.prisma.notification.findFirst({ where: { type: 'CRON_RESTORED', createdAt: { gte: since } }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } }),
+      ]);
+      shouldNotifyRestored = !!lastStale && (!lastRestored || lastRestored.createdAt < lastStale.createdAt);
+    }
+    if (!isStale && !shouldNotifyRestored) return;
+
+    const hourBucket = now.toISOString().slice(0, 13);
+    const staff = await this.prisma.user.findMany({
+      where: { deletedAt: null, status: 'ACTIVE', roles: { some: { role: { permissions: { some: { permission: { key: 'admin.manage' } } } } } } },
+      select: { id: true }, take: 50,
+    });
+    for (const u of staff) {
+      if (isStale) {
+        await this.notifications.notifyUser(u.id, 'CRON_STALE', 'Scheduled tasks are stale', 'The cron ping has not run lifecycle.sweep in over 30 minutes — check CRON_SECRET/CRON_URL (see docs/DEPLOYMENT.md).', { dedupeKey: `cron-stale:${hourBucket}`, link: '/admin' });
+      } else {
+        await this.notifications.notifyUser(u.id, 'CRON_RESTORED', 'Scheduled tasks are running again', undefined, { dedupeKey: `cron-restored:${hourBucket}`, link: '/admin' });
+      }
+    }
   }
 
   private async claim(task: TaskDef, now: Date): Promise<'RUN' | 'NOT_DUE' | 'LEASED'> {

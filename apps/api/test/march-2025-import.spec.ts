@@ -62,9 +62,7 @@ describe('March 2025 content import', () => {
     // the student-facing paper carries the real contentBlocks through the wrapper-assessment build —
     // not just that the bank storage shape is right. claim() needs a published Reading set to also
     // exist (it picks one of each), so this set is published too, even though only Listening is asserted.
-    await post(`/admin/question-sets/${listeningId}/status`, { status: 'APPROVED' }).expect(200);
     await post(`/admin/question-sets/${listeningId}/status`, { status: 'PUBLISHED', studentFacing: true }).expect(200);
-    await post(`/admin/question-sets/${readingId}/status`, { status: 'APPROVED' }).expect(200);
     await post(`/admin/question-sets/${readingId}/status`, { status: 'PUBLISHED', studentFacing: true }).expect(200);
 
     let wrapped = await prisma.questionSet.findUniqueOrThrow({ where: { id: listeningId } });

@@ -61,9 +61,11 @@ export class SpeakingService implements OnModuleInit {
     return { ...a, responses: a.responses.map(({ evaluations, ...r }) => ({ ...r, estimatedBand: evaluations[0]?.estimatedBand ?? null })) };
   }
 
-  /** Questions students may answer: published, student-facing speaking prompts for one part. */
-  async questions(part: 'PART1' | 'PART2' | 'PART3', take = 20) {
-    const cands = await this.bank.candidates({ skill: 'SPEAKING', ieltsTypes: [`SPEAKING_${part}`] }, true);
+  /** Questions students may answer: published, student-facing speaking prompts for one part.
+   *  `rotationEligibleOnly` is set only by the free-test path, so an admin's rotation-eligibility
+   *  toggle narrows what a free-test visitor is shown without touching the regular practice list. */
+  async questions(part: 'PART1' | 'PART2' | 'PART3', take = 20, rotationEligibleOnly = false) {
+    const cands = await this.bank.candidates({ skill: 'SPEAKING', ieltsTypes: [`SPEAKING_${part}`] }, true, rotationEligibleOnly);
     const ids = cands.slice(0, take).map((c) => c.id);
     if (ids.length === 0) return [];
     const rows = await this.prisma.question.findMany({ where: { id: { in: ids } }, include: { versions: { orderBy: { version: 'desc' }, take: 1 } } });

@@ -14,6 +14,7 @@ import { SchedulerService } from '../jobs/scheduler.service';
 import { MocksService } from '../mocks/mocks.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { QuestionBankService } from '../question-bank/question-bank.service';
+import { RotationService } from '../question-bank/rotation.service';
 import { SpeakingService } from '../speaking/speaking.service';
 import { WritingService } from '../writing/writing.service';
 import { AssessmentsModule } from '../assessments/assessments.module';
@@ -50,6 +51,7 @@ export class SimulatorService implements OnModuleInit {
     private readonly writing: WritingService,
     private readonly speaking: SpeakingService,
     private readonly bank: QuestionBankService,
+    private readonly rotation: RotationService,
     private readonly scheduler: SchedulerService,
     private readonly events: EventEmitter2,
     private readonly mocks: MocksService,
@@ -238,10 +240,15 @@ export class SimulatorService implements OnModuleInit {
     }
   }
 
-  /** Reading finished: move to writing with a Task 2 prompt from the bank, or skip writing if none is published. */
+  /** Reading finished: move to writing with a Task 2 prompt from the bank, or skip writing if none is published.
+   *  A free-test ghost student picks least-used-first among rotation-eligible sets only (so an admin's
+   *  eligibility toggle actually has an effect, and no one set gets shown disproportionately often);
+   *  a real, authenticated student keeps the existing random pick across every published set unchanged. */
   private async afterReading(e: { id: string; includeSpeaking: boolean; stageRevision: number }, studentId: string, claim: (d: Prisma.ExamAttemptUncheckedUpdateInput) => Promise<void>) {
-    const cands = await this.bank.candidates({ skill: 'WRITING', ieltsTypes: ['WRITING_TASK2'] }, true);
-    const pick = selectCandidates(cands, { count: 1, seed: `sim|${e.id}` })[0];
+    const student = await this.prisma.studentProfile.findUnique({ where: { id: studentId }, select: { isGhost: true } });
+    const pick = student?.isGhost
+      ? await this.rotation.pickLeastUsedBankQuestion('WRITING', ['WRITING_TASK2'])
+      : selectCandidates(await this.bank.candidates({ skill: 'WRITING', ieltsTypes: ['WRITING_TASK2'] }, true), { count: 1, seed: `sim|${e.id}` })[0];
     if (!pick) {
       // No Task 2 prompt is published. The skill is recorded as missing rather than estimated from nothing.
       return this.afterWritingSkipped(e, studentId, claim);

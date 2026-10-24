@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Alert, Badge, DefinitionList, DetailDialog, Empty, Loading, Section, Table, Td } from '@/components/ui';
+import { Alert, Badge, DefinitionList, DetailDialog, Empty, Loading, ProgressBar, Section, Table, Td } from '@/components/ui';
 import { IeltsSummary, IeltsSummaryLike } from '@/components/IeltsSummary';
 import { ReceiptViewer } from '@/components/ReceiptViewer';
 import { SurveyDoc, SurveySummary } from '@/components/survey/SurveySummary';
@@ -111,7 +111,7 @@ export function StudentDetailDialog({ studentId, onClose }: { studentId: string 
             <Section title="Enrollments">
               {s.enrollments.length === 0 ? <Empty>No enrollments yet.</Empty> : (
                 <Table head={['Course', 'Batch', 'Progress', 'Status']}>
-                  {s.enrollments.map((e) => <tr key={e.id}><Td>{e.course.title}</Td><Td>{e.batch.name}</Td><Td>{Math.round(Number(e.progressPercent))}%</Td><Td><Badge status={e.status} /></Td></tr>)}
+                  {s.enrollments.map((e) => <tr key={e.id}><Td>{e.course.title}</Td><Td>{e.batch.name}</Td><Td className="min-w-28"><ProgressBar value={Number(e.progressPercent)} compact /></Td><Td><Badge status={e.status} /></Td></tr>)}
                 </Table>
               )}
             </Section>

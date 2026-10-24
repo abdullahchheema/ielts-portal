@@ -19,11 +19,11 @@ const MAX_AUDIO_BYTES = 100 * 1024 * 1024;
 export type Actor = { userId?: string; ip?: string; userAgent?: string };
 type Tx = Prisma.TransactionClient;
 // PUBLISHED is intentionally editable: an admin fixing a typo or adding an image to a live module
-// shouldn't have to clone, re-approve and re-publish a whole new set just to change one word. What a
+// shouldn't have to clone, re-archive and re-publish a whole new set just to change one word. What a
 // published set must never do is silently desync from its already-built wrapper Assessment (the
 // actual copy free-test claims serve) — see invalidateWrapperIfPublished() below, called after every
 // mutation here. ARCHIVED stays immutable: that's the deliberate "done being used" signal.
-const EDITABLE: QuestionSetStatus[] = ['DRAFT', 'APPROVED', 'PUBLISHED'];
+const EDITABLE: QuestionSetStatus[] = ['PUBLISHED'];
 
 export const graderType = (t: IeltsItemType) => IELTS_ITEM_TYPES[t].grader;
 /** Graders whose correctness lives entirely in the answer key (no options table rows). */
@@ -211,7 +211,7 @@ export class QuestionBankService {
     const [rows, total] = await Promise.all([
       this.prisma.questionSet.findMany({
         where, orderBy: { updatedAt: 'desc' }, skip: q.skip, take: q.take,
-        select: { id: true, title: true, skill: true, module: true, topic: true, difficulty: true, bandTarget: true, status: true, studentFacing: true, updatedAt: true, questions: { where: { deletedAt: null }, select: { id: true } } },
+        select: { id: true, title: true, skill: true, module: true, topic: true, difficulty: true, bandTarget: true, status: true, studentFacing: true, createdAt: true, updatedAt: true, questions: { where: { deletedAt: null }, select: { id: true } } },
       }),
       this.prisma.questionSet.count({ where }),
     ]);
@@ -322,11 +322,38 @@ export class QuestionBankService {
     await this.audit.record({ ...actor, action: 'ADMIN_DELETED_QUESTION_SET', entityType: 'QuestionSet', entityId: id, before: { title: set.title, questionCount: questionIds.length } }, tx);
   }
 
-  /** Deletes several DRAFT/ARCHIVED sets in one all-or-nothing transaction: one invalid id (not
-   *  found, or not yet archived) aborts the whole batch rather than leaving a partial result. */
+  /** Deletes several sets in one all-or-nothing transaction: one invalid id aborts the whole batch
+   *  rather than leaving a partial result. Unlike deleteSetTx() (which does ~7 round trips per set,
+   *  fine for a single delete), this batches every independent query across the whole id list —
+   *  one findMany/updateMany/deleteMany per step instead of one per set — so a large batch stays
+   *  well under Prisma's interactive-transaction timeout (the same shape of fix already applied to
+   *  copyIntoSection() below for the same reason). */
   async bulkDelete(ids: string[], actor: Actor) {
     return this.prisma.$transaction(async (tx) => {
-      for (const id of ids) await this.deleteSetTx(tx, id, actor);
+      const sets = await tx.questionSet.findMany({ where: { id: { in: ids } }, include: { questions: { select: { id: true } } } });
+      const foundIds = new Set(sets.map((s) => s.id));
+      const missing = ids.find((id) => !foundIds.has(id));
+      if (missing) throw notFound('Question set');
+
+      const usedByMockExam = await tx.mockExam.findFirst({ where: { OR: [{ listeningSetId: { in: ids } }, { readingSetId: { in: ids } }] }, select: { id: true } });
+      if (usedByMockExam) throw conflict('CONFLICT', 'This set is used by a mock exam and cannot be deleted.');
+
+      const questionIds = sets.flatMap((s) => s.questions.map((q) => q.id));
+      await tx.question.updateMany({ where: { sourceQuestionId: { in: questionIds } }, data: { sourceQuestionId: null } });
+      await tx.writingResponse.updateMany({ where: { questionId: { in: questionIds } }, data: { questionId: null } });
+      await tx.speakingResponse.updateMany({ where: { questionId: { in: questionIds } }, data: { questionId: null } });
+      const versionIds = (await tx.questionVersion.findMany({ where: { questionId: { in: questionIds } }, select: { id: true } })).map((v) => v.id);
+      await tx.questionImage.deleteMany({ where: { OR: [{ questionSetId: { in: ids } }, { questionVersionId: { in: versionIds } }] } });
+      await tx.questionOption.deleteMany({ where: { questionVersionId: { in: versionIds } } });
+      await tx.questionVersion.deleteMany({ where: { id: { in: versionIds } } });
+      await tx.question.deleteMany({ where: { id: { in: questionIds } } });
+      await tx.questionSet.deleteMany({ where: { id: { in: ids } } });
+
+      // Audit rows stay one-per-set (cheap inserts, not the round-trip bottleneck the batching above
+      // targets) so each deleted set keeps its own before-state in the log.
+      for (const s of sets) {
+        await this.audit.record({ ...actor, action: 'ADMIN_DELETED_QUESTION_SET', entityType: 'QuestionSet', entityId: s.id, before: { title: s.title, questionCount: s.questions.length } }, tx);
+      }
       return { ok: true, count: ids.length };
     });
   }
@@ -345,7 +372,7 @@ export class QuestionBankService {
     });
   }
 
-  /** Moves a set through DRAFT → APPROVED → PUBLISHED → ARCHIVED. Publishing checks the content first. */
+  /** Toggles a set between PUBLISHED and ARCHIVED. Publishing checks the content first. */
   async setStatus(id: string, input: QuestionSetStatusInput, actor: Actor) {
     return this.prisma.$transaction((tx) => this.setStatusTx(tx, id, input, actor));
   }
@@ -356,8 +383,14 @@ export class QuestionBankService {
     const set = await tx.questionSet.findUnique({ where: { id }, include: { questions: { where: { deletedAt: null }, select: { id: true, questionType: true, ieltsType: true, versions: { select: { answerKey: true, options: { select: { isCorrect: true } } }, orderBy: { version: 'desc' }, take: 1 } } } } });
     if (!set) throw notFound('Question set');
     const from = set.status as QuestionSetStatus;
-    if (from === input.status) throw conflict('CONFLICT', 'The set already has that status.');
-    if (!QUESTION_SET_TRANSITIONS[from].includes(input.status)) {
+    // A same-status call is only a true no-op (and refused as one) when studentFacing isn't moving
+    // either. Every new set now lands PUBLISHED-but-hidden by default (no draft stage to build it
+    // in first), so "flip studentFacing on" for a brand-new set is a same-status PUBLISHED call —
+    // it still has to go through here, and through the completeness check below, not be rejected
+    // outright just because `status` itself isn't changing.
+    const studentFacingChanging = input.studentFacing !== undefined && input.studentFacing !== set.studentFacing;
+    if (from === input.status && !studentFacingChanging) throw conflict('CONFLICT', 'The set already has that status.');
+    if (from !== input.status && !QUESTION_SET_TRANSITIONS[from].includes(input.status)) {
       throw conflict('CONFLICT', `A ${from.toLowerCase()} set cannot become ${input.status.toLowerCase()}.`);
     }
     if (input.status === 'PUBLISHED') {
@@ -396,7 +429,12 @@ export class QuestionBankService {
     });
   }
 
-  /** A new draft copy of any set, with copied questions that remember where they came from. */
+  /** A new copy of any set, with copied questions that remember where they came from. The copy
+   *  inherits the source's status (a published set clones as published, ready to edit in place
+   *  per EDITABLE; an archived set clones as archived) rather than always landing in some
+   *  intermediate state — there's no more draft stage to land a fresh copy in. It's never
+   *  student-facing on arrival, even if the source was, so a clone never silently doubles up a
+   *  live module's rotation weight until an admin opts it in. */
   async cloneSet(id: string, actor: Actor) {
     return this.prisma.$transaction(async (tx) => {
       const src = await tx.questionSet.findUnique({ where: { id }, include: { questions: { where: { deletedAt: null }, orderBy: { sequence: 'asc' }, include: { versions: { orderBy: { version: 'desc' }, take: 1, include: { options: { orderBy: { sequence: 'asc' } } } } } } } });
@@ -405,7 +443,7 @@ export class QuestionBankService {
         data: {
           title: `${src.title} (copy)`, skill: src.skill, module: src.module, sectionNumber: src.sectionNumber, topic: src.topic,
           difficulty: src.difficulty, bandTarget: src.bandTarget, tags: src.tags, source: src.source, timeEstimateMin: src.timeEstimateMin,
-          stimulus: src.stimulus ?? Prisma.JsonNull, status: 'DRAFT', studentFacing: false, createdById: actor.userId ?? null,
+          stimulus: src.stimulus ?? Prisma.JsonNull, status: src.status, studentFacing: false, createdById: actor.userId ?? null,
         },
       });
       for (const q of src.questions) {
@@ -472,14 +510,18 @@ export class QuestionBankService {
   }
 
   // ───────── picking ─────────
-  /** Candidates from published, student-facing sets only. Admin pickers pass `studentFacing: false` to see everything published. */
-  async candidates(input: { skill: string; topic?: string; difficulty?: { min: number; max: number }; ieltsTypes?: string[] }, studentFacing: boolean): Promise<BankCandidate[]> {
+  /** Candidates from published, student-facing sets only. Admin pickers pass `studentFacing: false` to see everything published.
+   *  `rotationEligibleOnly` additionally restricts to sets an admin hasn't opted out of free-test
+   *  rotation — only the free-test path passes this; every other caller leaves it unset so the
+   *  authenticated practice/simulator pool is unaffected by that toggle. */
+  async candidates(input: { skill: string; topic?: string; difficulty?: { min: number; max: number }; ieltsTypes?: string[] }, studentFacing: boolean, rotationEligibleOnly = false): Promise<BankCandidate[]> {
     const rows = await this.prisma.question.findMany({
       where: {
         deletedAt: null,
         questionSet: {
           skill: input.skill, status: 'PUBLISHED',
           ...(studentFacing ? { studentFacing: true } : {}),
+          ...(rotationEligibleOnly ? { eligibleForFreeTestRotation: true } : {}),
           ...(input.topic ? { topic: input.topic } : {}),
           ...(input.difficulty ? { difficulty: { gte: input.difficulty.min, lte: input.difficulty.max } } : {}),
         },

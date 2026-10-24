@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
 import { useMemo } from 'react';
-import { Alert, Badge, Card, DefinitionList, Empty, PageHeader, Section, SkeletonCards, SkeletonTable, Table, Tabs, Td } from '@/components/ui';
+import { Alert, Badge, Card, DefinitionList, Empty, PageHeader, ProgressBar, Section, SkeletonCards, SkeletonTable, Table, Tabs, Td } from '@/components/ui';
 import { EstimatedBand } from '@/components/EstimatedBand';
 import { IeltsSummary, IeltsSummaryLike } from '@/components/IeltsSummary';
 import { InsightsPanels, Readiness, TargetPlan, Weakness } from '@/components/InsightsPanels';
@@ -221,7 +221,7 @@ export default function StudentDetailPage() {
             <Section title="Enrollments">
               {s.enrollments.length === 0 ? <Empty>No enrollments yet.</Empty> : (
                 <Table head={['Course', 'Batch', 'Progress', 'Status']} sticky>
-                  {s.enrollments.map((e) => <tr key={e.id}><Td>{e.course.title}</Td><Td>{e.batch.name}</Td><Td className="tabular-nums">{Math.round(Number(e.progressPercent))}%</Td><Td><Badge status={e.status} /></Td></tr>)}
+                  {s.enrollments.map((e) => <tr key={e.id}><Td>{e.course.title}</Td><Td>{e.batch.name}</Td><Td className="min-w-28"><ProgressBar value={Number(e.progressPercent)} compact /></Td><Td><Badge status={e.status} /></Td></tr>)}
                 </Table>
               )}
             </Section>

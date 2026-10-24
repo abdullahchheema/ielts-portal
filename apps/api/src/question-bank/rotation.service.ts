@@ -35,7 +35,7 @@ export class RotationService {
    *  "Used" is counted from every existing free-test exam and mock exam that picked a wrapper built
    *  from a given set, so free-test and mock-exam usage feed one shared rotation counter. */
   async pickLeastUsedBankSet(tx: Prisma.TransactionClient, skill: 'LISTENING' | 'READING') {
-    const eligible = await tx.questionSet.findMany({ where: { skill, status: 'PUBLISHED', studentFacing: true }, select: { id: true } });
+    const eligible = await tx.questionSet.findMany({ where: { skill, status: 'PUBLISHED', studentFacing: true, eligibleForFreeTestRotation: true }, select: { id: true } });
     if (eligible.length === 0) throw new AppError('ASSESSMENT_NOT_AVAILABLE', 404, `No ${skill.toLowerCase()} module is published yet. Please check back soon.`);
     const [usedByFreeTest, usedByMockExams, wrapped] = await Promise.all([
       tx.freeAssessmentLead.findMany({
@@ -54,6 +54,25 @@ export class RotationService {
     for (const u of usedByFreeTest) bump(skill === 'LISTENING' ? u.examAttempt?.listeningAssessmentId : u.examAttempt?.readingAssessmentId);
     for (const m of usedByMockExams) bump(skill === 'LISTENING' ? m.listeningAssessmentId : m.readingAssessmentId);
     return eligible.reduce((min, s) => ((countOf.get(s.id) ?? 0) < (countOf.get(min.id) ?? 0) ? s : min), eligible[0]).id;
+  }
+
+  /** Writing/Speaking's equivalent of pickLeastUsedBankSet() — there's no wrapper Assessment for
+   *  these two skills (SimulatorService picks a bank Question directly), so usage is counted
+   *  straight off WritingResponse.questionId/SpeakingResponse.questionId instead of through an
+   *  assessment indirection. Only called for the free-test path (see SimulatorService.afterReading's
+   *  ghost check) — the regular authenticated simulator keeps its existing random pick unchanged. */
+  async pickLeastUsedBankQuestion(skill: 'WRITING' | 'SPEAKING', ieltsTypes: string[]) {
+    const eligible = await this.prisma.question.findMany({
+      where: { deletedAt: null, ieltsType: { in: ieltsTypes }, questionSet: { skill, status: 'PUBLISHED', studentFacing: true, eligibleForFreeTestRotation: true } },
+      select: { id: true },
+    });
+    if (eligible.length === 0) return null;
+    const ids = eligible.map((q) => q.id);
+    const counts = skill === 'WRITING'
+      ? await this.prisma.writingResponse.groupBy({ by: ['questionId'], where: { questionId: { in: ids } }, _count: { _all: true } })
+      : await this.prisma.speakingResponse.groupBy({ by: ['questionId'], where: { questionId: { in: ids } }, _count: { _all: true } });
+    const countOf = new Map(counts.map((c) => [c.questionId, c._count._all]));
+    return eligible.reduce((min, q) => ((countOf.get(q.id) ?? 0) < (countOf.get(min.id) ?? 0) ? q : min), eligible[0]).id;
   }
 
   /** The bank set's own internal Assessment — built once, on first pick, then cached on the set so

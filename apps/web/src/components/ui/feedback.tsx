@@ -73,14 +73,27 @@ export function SkeletonCards({ count = 3 }: { count?: number }) {
   );
 }
 
-export function ProgressBar({ value, label: text }: { value: number; label?: string }) {
+/** `compact` shows just the bar with the % trailing inline — for narrow table columns where a
+ *  full label row above the bar would overflow. */
+export function ProgressBar({ value, label: text, compact }: { value: number; label?: string; compact?: boolean }) {
   const v = Math.max(0, Math.min(100, value));
+  const bar = (
+    <div role="progressbar" aria-valuenow={Math.round(v)} aria-valuemin={0} aria-valuemax={100} aria-label={text ?? 'Progress'} className="h-2 overflow-hidden rounded-full bg-surface-muted">
+      <div className="h-full rounded-full bg-primary transition-[width] duration-[var(--dur-slow)] ease-out-soft" style={{ width: `${v}%` }} />
+    </div>
+  );
+  if (compact) {
+    return (
+      <div className="flex items-center gap-2">
+        <div className="min-w-16 flex-1">{bar}</div>
+        <span className="shrink-0 tabular-nums text-xs text-fg-muted">{Math.round(v)}%</span>
+      </div>
+    );
+  }
   return (
     <div>
       {text && <div className="mb-1.5 flex justify-between text-xs text-fg-muted"><span>{text}</span><span className="tabular-nums">{Math.round(v)}%</span></div>}
-      <div role="progressbar" aria-valuenow={Math.round(v)} aria-valuemin={0} aria-valuemax={100} aria-label={text ?? 'Progress'} className="h-2 overflow-hidden rounded-full bg-surface-muted">
-        <div className="h-full rounded-full bg-primary transition-[width] duration-[var(--dur-slow)] ease-out-soft" style={{ width: `${v}%` }} />
-      </div>
+      {bar}
     </div>
   );
 }

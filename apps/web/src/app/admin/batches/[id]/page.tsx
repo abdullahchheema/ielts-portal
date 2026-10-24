@@ -122,9 +122,9 @@ function ClassesAndSchedule({ id }: { id: string }) {
               <Td className="font-medium">{s.topic}</Td>
               <Td>{date(s.startsAt, true)}</Td>
               <Td><Badge status={s.status} tone={s.status === 'COMPLETED' ? 'green' : s.status === 'CANCELLED' ? 'red' : s.status === 'IN_PROGRESS' ? 'blue' : 'slate'} /></Td>
-              <Td>{!s.meetingUrl ? <span className="text-xs text-danger">Missing</span> : joinable ? <a href={s.meetingUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">Join</a> : <span className="text-xs text-fg-subtle">Not joinable now</span>}</Td>
-              <Td>{s._count.attendance ? `${s._count.attendance} marked` : s.status === 'COMPLETED' ? <span className="text-xs text-amber-700">Missing</span> : '—'}</Td>
-              <Td>{s.recordingUrl ? <a href={s.recordingUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">View</a> : s.status === 'COMPLETED' ? <span className="text-xs text-amber-700">Missing</span> : '—'}</Td>
+              <Td>{!s.meetingUrl ? <Badge status="MISSING" tone="red" text="Missing" /> : joinable ? <a href={s.meetingUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">Join</a> : <span className="text-xs text-fg-subtle">Not joinable now</span>}</Td>
+              <Td>{s._count.attendance ? `${s._count.attendance} marked` : s.status === 'COMPLETED' ? <Badge status="MISSING" tone="amber" text="Missing" /> : '—'}</Td>
+              <Td>{s.recordingUrl ? <a href={s.recordingUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">View</a> : s.status === 'COMPLETED' ? <Badge status="MISSING" tone="amber" text="Missing" /> : '—'}</Td>
               <Td><Button variant="ghost" size="xs" onClick={() => setViewSessionId(s.id)}>Attendance roster</Button></Td>
             </tr>
           );
@@ -201,7 +201,7 @@ function Students({ id }: { id: string }) {
         <tr key={s.enrollmentId}>
           <Td>{s.student.firstName} {s.student.lastName}</Td>
           <Td>{s.student.currentBand ?? '—'} → {s.student.targetBand ?? '—'}</Td>
-          <Td className="min-w-32"><ProgressBar value={Number(s.progressPercent)} /></Td>
+          <Td className="min-w-32"><ProgressBar value={Number(s.progressPercent)} compact /></Td>
           <Td><Badge status={s.status} /></Td>
         </tr>
       ))}

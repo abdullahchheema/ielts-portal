@@ -292,12 +292,23 @@ export class AttemptsService implements OnModuleInit {
 
   async submit(user: { studentId: string }, attemptId: string) {
     let done = null as Finished | null;
-    await this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM assessment_attempts WHERE id = ${attemptId}::uuid FOR UPDATE`;
-      const attempt = await tx.assessmentAttempt.findFirst({ where: { id: attemptId, studentId: user.studentId } });
-      if (!attempt) throw notFound('Attempt');
-      if (attempt.status === 'IN_PROGRESS') done = await this.finish(tx, attemptId);
-    });
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM assessment_attempts WHERE id = ${attemptId}::uuid FOR UPDATE`;
+        const attempt = await tx.assessmentAttempt.findFirst({ where: { id: attemptId, studentId: user.studentId } });
+        if (!attempt) throw notFound('Attempt');
+        if (attempt.status === 'IN_PROGRESS') done = await this.finish(tx, attemptId);
+      });
+    } catch (e) {
+      if (e instanceof AppError) throw e;
+      // Grading is designed to handle zero or partial answers (a blank question is simply marked
+      // incorrect) — this is a defensive backstop for whatever edge case still slips past that, so a
+      // student never sees a raw exception. Logged with full context since the generic message
+      // tells support nothing on its own.
+      const answered = await this.prisma.attemptAnswer.count({ where: { attemptId } }).catch(() => -1);
+      this.logger.error(`submit() failed for attempt ${attemptId} (student ${user.studentId}, ${answered} answer(s) saved): ${(e as Error).message}`, (e as Error).stack);
+      throw new AppError('SUBMISSION_FAILED', 500, 'We could not finish grading this test. Please try again or contact support.');
+    }
     if (done) {
       await this.afterFinish(done);
       await this.emitPlanEvidence(user.studentId, attemptId);

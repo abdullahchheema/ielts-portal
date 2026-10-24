@@ -44,7 +44,7 @@ export class ReportsService {
   async academic(from: Date, to: Date) {
     const range = { gte: from, lt: to };
     const [registrations, buyers, active, completed, expired, progress, turnaround, pending, graded, attempts, attendance] = await Promise.all([
-      this.prisma.user.count({ where: { student: { isNot: null }, createdAt: range } }),
+      this.prisma.user.count({ where: { student: { is: { isGhost: false } }, createdAt: range } }),
       this.prisma.order.findMany({ where: { status: 'PAID', createdAt: range }, distinct: ['studentId'], select: { studentId: true } }),
       this.prisma.enrollment.count({ where: { status: 'ACTIVE', deletedAt: null } }),
       this.prisma.enrollment.count({ where: { status: 'COMPLETED', deletedAt: null } }),

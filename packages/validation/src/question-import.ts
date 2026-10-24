@@ -116,6 +116,9 @@ export const importSetSchema = z.object({
 
 export const bulkImportSchema = z.object({
   sets: z.array(importSetSchema).min(1).max(50),
+  /** commit() only (ignored by preview): every set in the batch lands student-facing immediately
+   *  instead of published-but-hidden. There's no separate draft stage to approve through first. */
+  publish: z.boolean().optional(),
 });
 
 export type ImportQuestionInput = z.infer<typeof importQuestionSchema>;

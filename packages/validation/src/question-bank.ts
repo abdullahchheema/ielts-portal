@@ -36,15 +36,14 @@ export const IELTS_ITEM_TYPES = {
 export type IeltsItemType = keyof typeof IELTS_ITEM_TYPES;
 export const ITEM_TYPE_KEYS = Object.keys(IELTS_ITEM_TYPES) as IeltsItemType[];
 
-export const QUESTION_SET_STATUSES = ['DRAFT', 'APPROVED', 'PUBLISHED', 'ARCHIVED'] as const;
+export const QUESTION_SET_STATUSES = ['PUBLISHED', 'ARCHIVED'] as const;
 export type QuestionSetStatus = (typeof QUESTION_SET_STATUSES)[number];
 
-/** Allowed status moves. Anything else is refused, so a published set cannot silently go back to draft. */
+/** Allowed status moves. A set is either live (PUBLISHED) or hidden (ARCHIVED) — no in-between
+ *  draft/approval stage, and either state can move to the other directly. */
 export const QUESTION_SET_TRANSITIONS: Record<QuestionSetStatus, QuestionSetStatus[]> = {
-  DRAFT: ['APPROVED', 'ARCHIVED'],
-  APPROVED: ['DRAFT', 'PUBLISHED', 'ARCHIVED'],
   PUBLISHED: ['ARCHIVED'],
-  ARCHIVED: [],
+  ARCHIVED: ['PUBLISHED'],
 };
 
 const halfBand = z.number().min(0).max(9).refine((n) => Number.isInteger(n * 2), 'Use steps of 0.5');

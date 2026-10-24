@@ -74,21 +74,14 @@ export default function ImportPage() {
     } catch (e) { setError(errorMessage(e)); } finally { setPreviewBusy(false); }
   }
 
-  /** Creates every set as DRAFT (`publish: false`), or creates them and immediately pushes each
-   *  through to PUBLISHED, student-facing (`publish: true`) — no separate Approve click either way,
-   *  the backend's required DRAFT -> APPROVED -> PUBLISHED transition just happens in one request. */
+  /** Every imported set lands PUBLISHED either way (there's no draft stage); `publish: true` also
+   *  makes each one student-facing immediately instead of needing a separate toggle afterward. */
   async function save(publish: boolean) {
     const body = parsed();
     if (!body) return;
     setSaveBusy(publish ? 'publish' : 'draft'); setError(null);
     try {
-      const result = await api<CommitResult>('/admin/question-sets/import/commit', { method: 'POST', body });
-      if (publish) {
-        await Promise.all(result.created.map(async (c) => {
-          await api(`/admin/question-sets/${c.setId}/status`, { method: 'POST', body: { status: 'APPROVED', studentFacing: false } });
-          await api(`/admin/question-sets/${c.setId}/status`, { method: 'POST', body: { status: 'PUBLISHED', studentFacing: true } });
-        }));
-      }
+      const result = await api<CommitResult>('/admin/question-sets/import/commit', { method: 'POST', body: { ...body, publish } });
       setCommitResult(result);
       setPreview(null);
     } catch (e) { setError(errorMessage(e)); } finally { setSaveBusy(null); }
@@ -101,7 +94,7 @@ export default function ImportPage() {
     <>
       <PageHeader
         title="Bulk import"
-        subtitle="Upload a JSON file of question sets, preview exactly what will be created, then save as a draft or publish it immediately."
+        subtitle="Upload a JSON file of question sets, preview exactly what will be created, then save it hidden from students or publish it immediately."
         breadcrumbs={[{ href: '/admin/question-bank', label: 'Question bank' }, { label: 'Bulk import' }]}
       />
 
@@ -164,7 +157,7 @@ export default function ImportPage() {
               </div>
               <div className="flex gap-2">
                 <Button variant="secondary" onClick={() => save(false)} busy={saveBusy === 'draft'} disabled={!!saveBusy}>
-                  Save as draft ({preview.totalQuestions} questions)
+                  Save, not student-facing yet ({preview.totalQuestions} questions)
                 </Button>
                 <Button onClick={() => save(true)} busy={saveBusy === 'publish'} disabled={!!saveBusy}>
                   Publish ({preview.totalQuestions} questions)

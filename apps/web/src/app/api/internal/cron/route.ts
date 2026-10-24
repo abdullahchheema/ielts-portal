@@ -13,8 +13,16 @@ const same = (a: string, b: string) => a.length === b.length && timingSafeEqual(
  * ping (see .github/workflows/cron.yml) makes the time-based tasks run on time. Each task is lease-guarded,
  * so repeated or overlapping calls never run the same task twice.
  */
+let warnedMissingSecret = false;
+
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET ?? '';
+  if (!secret && !warnedMissingSecret) {
+    // Once per warm instance, not once per request: loud enough to find in server logs without
+    // flooding them on every 5-minute ping while the secret stays unset.
+    warnedMissingSecret = true;
+    console.warn('[cron] CRON_SECRET is not set on this deployment — every cron ping will 401 until it is. See docs/DEPLOYMENT.md.');
+  }
   const given = (req.headers.get('authorization') ?? '').replace(/^Bearer /, '');
   if (!secret || !same(given, secret)) return new NextResponse('Unauthorized', { status: 401 });
 

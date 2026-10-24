@@ -11,8 +11,11 @@ import { Actor, graderType, usesKey } from './question-bank.service';
 /**
  * Bulk import of question sets + questions from a structured JSON payload. Two-step: `preview()`
  * validates and flags duplicates without touching the database; `commit()` persists everything
- * created as DRAFT sets inside one transaction, reusing the same writeVersion() that the direct
- * authoring API uses, so imported content is graded exactly like hand-authored content.
+ * inside one transaction, reusing the same writeVersion() that the direct authoring API uses, so
+ * imported content is graded exactly like hand-authored content. Every imported set lands
+ * PUBLISHED (commit() already blocks on the same per-question completeness problems setStatusTx's
+ * publish guard checks) but not studentFacing, so an admin still has to flip that on per set before
+ * it's actually eligible for rotation or any student-visible view.
  */
 @Injectable()
 export class QuestionImportService {
@@ -74,7 +77,7 @@ export class QuestionImportService {
         : (set.stimulus ?? Prisma.JsonNull);
       setRows.push({
         id: setId, title: set.title, skill: set.skill, module: set.module, topic: set.topic ?? null, difficulty: set.difficulty,
-        source: set.source ?? null, stimulus, status: 'DRAFT', studentFacing: false,
+        source: set.source ?? null, stimulus, status: 'PUBLISHED', studentFacing: input.publish ?? false,
         createdById: actor.userId ?? null,
       });
       let sequence = 0;

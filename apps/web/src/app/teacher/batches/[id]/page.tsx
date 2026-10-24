@@ -246,7 +246,7 @@ function Results({ batchId }: { batchId: string }) {
           <Td>{band(r.targetBand)}</Td>
           {SK.map((k) => <Td key={k}>{r.skills[k]?.latest === null || r.skills[k] === undefined ? '—' : <span title={`Best ${band(r.skills[k].best)}`}>{band(r.skills[k].latest)}</span>}</Td>)}
           <Td>{r.lastMock ? <span title={r.lastMock.title}>{r.lastMock.percent === null ? '—' : `${Math.round(r.lastMock.percent)}%`} <span className="text-xs text-fg-subtle">{date(r.lastMock.at)}</span></span> : '—'}</Td>
-          <Td className="min-w-32"><ProgressBar value={r.progressPercent} /></Td>
+          <Td className="min-w-32"><ProgressBar value={r.progressPercent} compact /></Td>
         </tr>
       ))}
     </Table>
@@ -320,7 +320,7 @@ export default function MentorBatchPage() {
             <tr key={s.enrollmentId}>
               <Td className="font-medium">{s.student.firstName} {s.student.lastName}</Td>
               <Td>{band(s.student.currentBand)} → {band(s.student.targetBand)}</Td>
-              <Td className="min-w-40"><ProgressBar value={Number(s.progressPercent)} /></Td>
+              <Td className="min-w-40"><ProgressBar value={Number(s.progressPercent)} compact /></Td>
               <Td>{date(s.enrolledAt)}</Td><Td><Badge status={s.status} /></Td>
             </tr>
           ))}

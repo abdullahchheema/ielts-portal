@@ -1794,8 +1794,12 @@ model QuestionSet {
   tags            String[]  @default([])
   source          String?
   timeEstimateMin Int?      @map("time_estimate_min")
-  status          String    @default("DRAFT")
+  status          String    @default("PUBLISHED")
   studentFacing   Boolean   @default(false) @map("student_facing")
+  // Per-set opt-out from automatic free-test rotation (RotationService), scoped per skill via the
+  // set's own `skill` field. Defaults true so existing sets keep rotating unchanged until an admin
+  // explicitly excludes one.
+  eligibleForFreeTestRotation Boolean @default(true) @map("eligible_for_free_test_rotation")
   stimulus        Json?
   createdById     String?   @map("created_by") @db.Uuid
   // A Listening/Reading set's one-time, lazily-built internal Assessment — the only thing the timed,
