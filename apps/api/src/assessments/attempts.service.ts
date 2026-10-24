@@ -186,7 +186,7 @@ export class AttemptsService implements OnModuleInit {
     if (!attempt) throw notFound('Attempt');
 
     if (attempt.status === 'IN_PROGRESS' && this.isPastDeadline(attempt.expiresAt)) {
-      const done = await this.prisma.$transaction((tx) => this.finish(tx, attemptId));
+      const done = await this.runFinishingTransaction('getAttempt() auto-finish', attemptId, user.studentId, (tx) => this.finish(tx, attemptId));
       if (done) await this.afterFinish(done);
       attempt = await this.prisma.assessmentAttempt.findFirstOrThrow({ where: { id: attemptId }, include: { assessment: true } });
     }
@@ -290,25 +290,33 @@ export class AttemptsService implements OnModuleInit {
     for (const refId of sets) this.events.emit(STUDY_EVIDENCE, { studentId, refType: 'QUESTION_SET', refId } satisfies StudyEvidence);
   }
 
-  async submit(user: { studentId: string }, attemptId: string) {
-    let done = null as Finished | null;
+  /** Runs a transaction whose callback may call finish() — the one multi-round-trip hot path that
+   *  showed up as a Prisma transaction timeout under production network latency (see PrismaService's
+   *  raised global default) — converting anything that isn't already a clean AppError into one, so a
+   *  student is never shown a raw exception from this path, from whichever caller reaches it (an
+   *  explicit submit, or the read-side auto-finish-on-expiry below). */
+  private async runFinishingTransaction<T>(label: string, attemptId: string, studentId: string, run: (tx: Tx) => Promise<T>): Promise<T> {
     try {
-      await this.prisma.$transaction(async (tx) => {
-        await tx.$queryRaw`SELECT id FROM assessment_attempts WHERE id = ${attemptId}::uuid FOR UPDATE`;
-        const attempt = await tx.assessmentAttempt.findFirst({ where: { id: attemptId, studentId: user.studentId } });
-        if (!attempt) throw notFound('Attempt');
-        if (attempt.status === 'IN_PROGRESS') done = await this.finish(tx, attemptId);
-      });
+      return await this.prisma.$transaction(run);
     } catch (e) {
       if (e instanceof AppError) throw e;
-      // Grading is designed to handle zero or partial answers (a blank question is simply marked
-      // incorrect) — this is a defensive backstop for whatever edge case still slips past that, so a
-      // student never sees a raw exception. Logged with full context since the generic message
-      // tells support nothing on its own.
       const answered = await this.prisma.attemptAnswer.count({ where: { attemptId } }).catch(() => -1);
-      this.logger.error(`submit() failed for attempt ${attemptId} (student ${user.studentId}, ${answered} answer(s) saved): ${(e as Error).message}`, (e as Error).stack);
+      this.logger.error(`${label} failed for attempt ${attemptId} (student ${studentId}, ${answered} answer(s) saved): ${(e as Error).message}`, (e as Error).stack);
       throw new AppError('SUBMISSION_FAILED', 500, 'We could not finish grading this test. Please try again or contact support.');
     }
+  }
+
+  async submit(user: { studentId: string }, attemptId: string) {
+    let done = null as Finished | null;
+    // Grading is designed to handle zero or partial answers (a blank question is simply marked
+    // incorrect) — runFinishingTransaction() is a defensive backstop for whatever edge case still
+    // slips past that, so a student never sees a raw exception.
+    await this.runFinishingTransaction('submit()', attemptId, user.studentId, async (tx) => {
+      await tx.$queryRaw`SELECT id FROM assessment_attempts WHERE id = ${attemptId}::uuid FOR UPDATE`;
+      const attempt = await tx.assessmentAttempt.findFirst({ where: { id: attemptId, studentId: user.studentId } });
+      if (!attempt) throw notFound('Attempt');
+      if (attempt.status === 'IN_PROGRESS') done = await this.finish(tx, attemptId);
+    });
     if (done) {
       await this.afterFinish(done);
       await this.emitPlanEvidence(user.studentId, attemptId);

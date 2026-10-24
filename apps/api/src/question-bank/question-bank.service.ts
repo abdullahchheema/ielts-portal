@@ -292,8 +292,8 @@ export class QuestionBankService {
     return { ok: true };
   }
 
-  /** Same guard and audit entry as deleteSet(), reused inside a shared transaction by bulkDelete()
-   *  so every item in a batch either all deletes or all rolls back together. */
+  /** Same guard and audit entry bulkDelete() applies per set (bulkDelete has its own batched
+   *  rewrite for the N-set case, not a loop over this). */
   private async deleteSetTx(tx: Tx, id: string, actor: Actor) {
     const set = await tx.questionSet.findUnique({ where: { id }, include: { questions: { select: { id: true } } } });
     if (!set) throw notFound('Question set');
@@ -349,11 +349,16 @@ export class QuestionBankService {
       await tx.question.deleteMany({ where: { id: { in: questionIds } } });
       await tx.questionSet.deleteMany({ where: { id: { in: ids } } });
 
-      // Audit rows stay one-per-set (cheap inserts, not the round-trip bottleneck the batching above
-      // targets) so each deleted set keeps its own before-state in the log.
-      for (const s of sets) {
-        await this.audit.record({ ...actor, action: 'ADMIN_DELETED_QUESTION_SET', entityType: 'QuestionSet', entityId: s.id, before: { title: s.title, questionCount: s.questions.length } }, tx);
-      }
+      // One batched insert instead of one round trip per set — each extra round trip costs real wall
+      // time against a pooled Postgres connection reached over the network (Vercel -> Supabase), and
+      // this is the step that was pushing the transaction past Prisma's timeout in production.
+      await tx.auditLog.createMany({
+        data: sets.map((s) => ({
+          userId: actor.userId ?? null, action: 'ADMIN_DELETED_QUESTION_SET', entityType: 'QuestionSet', entityId: s.id,
+          beforeJson: { title: s.title, questionCount: s.questions.length } as Prisma.InputJsonValue,
+          ipAddress: actor.ip, userAgent: actor.userAgent,
+        })),
+      });
       return { ok: true, count: ids.length };
     });
   }
