@@ -308,6 +308,11 @@ export class QuestionBankService {
     // it via sourceQuestionId (blocking FK) — drop that pointer so the copy (and the student
     // result it belongs to) is untouched, but no longer blocks deleting the original.
     await tx.question.updateMany({ where: { sourceQuestionId: { in: questionIds } }, data: { sourceQuestionId: null } });
+    // Writing/Speaking have no copy mechanism — SimulatorService picks a bank question directly,
+    // so a student's WritingResponse/SpeakingResponse references it by questionId (also a
+    // blocking FK). Clear that too; the student's actual essay/recording is untouched.
+    await tx.writingResponse.updateMany({ where: { questionId: { in: questionIds } }, data: { questionId: null } });
+    await tx.speakingResponse.updateMany({ where: { questionId: { in: questionIds } }, data: { questionId: null } });
     const versionIds = (await tx.questionVersion.findMany({ where: { questionId: { in: questionIds } }, select: { id: true } })).map((v) => v.id);
     await tx.questionImage.deleteMany({ where: { OR: [{ questionSetId: id }, { questionVersionId: { in: versionIds } }] } });
     await tx.questionOption.deleteMany({ where: { questionVersionId: { in: versionIds } } });

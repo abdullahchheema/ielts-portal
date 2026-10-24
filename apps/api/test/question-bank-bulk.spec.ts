@@ -2,7 +2,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PrismaClient } from '@ielts/db';
 import { createApp } from '../src/app';
-import { Session, as, http, loginAdmin, uniq } from './helpers';
+import { Session, as, createStudent, http, loginAdmin, uniq } from './helpers';
 
 /** Phase 4: bulk status-change and bulk-delete on question-bank sets, each applied inside one
  *  all-or-nothing transaction reusing the same guards as the single-item endpoints. */
@@ -130,6 +130,26 @@ describe('question-bank bulk delete', () => {
     expect(survivingCopies).toHaveLength(copies.length);
     expect(survivingCopies.every((c) => c.sourceQuestionId === null)).toBe(true);
   }, 60_000);
+
+  it('deletes a Writing set whose prompt a student already used, without a raw FK crash', async () => {
+    // Writing/Speaking have no copy mechanism — a student's WritingResponse references the bank
+    // Question directly via questionId (a blocking FK), unlike Listening/Reading's copies.
+    const set = (await post('/admin/question-sets', { title: `Writing ${uniq()}`, skill: 'WRITING', difficulty: 3, topic: `bulk-${uniq()}`, studentFacing: false }).expect(201)).body;
+    const q = (await post(`/admin/question-sets/${set.id}/questions`, { ieltsType: 'WRITING_TASK2', prompt: { text: 'Discuss technology in society.' }, marks: 1 }).expect(201)).body;
+    await post(`/admin/question-sets/${set.id}/status`, { status: 'APPROVED' }).expect(200);
+    await post(`/admin/question-sets/${set.id}/status`, { status: 'PUBLISHED', studentFacing: true }).expect(200);
+
+    const st = await createStudent(app, prisma);
+    const response = (await as(st.session)(http(app).post('/writing/responses')).send({ taskType: 'TASK2', questionId: q.id }).expect(201)).body;
+    expect((await prisma.writingResponse.findUniqueOrThrow({ where: { id: response.id } })).questionId).toBe(q.id);
+
+    await post(`/admin/question-sets/${set.id}/status`, { status: 'ARCHIVED', studentFacing: false }).expect(200);
+    await post('/admin/question-sets/bulk/delete', { ids: [set.id] }).expect(200);
+
+    // The student's essay survives; only the dangling prompt reference is cleared.
+    const survived = await prisma.writingResponse.findUniqueOrThrow({ where: { id: response.id } });
+    expect(survived.questionId).toBeNull();
+  });
 
   it('is all-or-nothing: a set still referenced by a mock exam aborts the whole delete, nothing partially applied', async () => {
     const deletable = await buildDraftSet();

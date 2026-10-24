@@ -132,60 +132,59 @@ export class TeacherAssessmentsService {
 }
 
 @Controller('mentor/assessments')
-@RequirePermission('assessment.author')
 export class TeacherAssessmentsController {
   constructor(private readonly svc: TeacherAssessmentsService) {}
 
-  @Get() list(@CurrentUser() u: AuthUser) { return this.svc.list(mentorId(u)); }
+  @RequirePermission('assessment.author') @Get() list(@CurrentUser() u: AuthUser) { return this.svc.list(mentorId(u)); }
 
-  @Get(':id') get(@Param('id', uuid) id: string, @CurrentUser() u: AuthUser) { return this.svc.get(mentorId(u), id); }
+  @RequirePermission('assessment.author') @Get(':id') get(@Param('id', uuid) id: string, @CurrentUser() u: AuthUser) { return this.svc.get(mentorId(u), id); }
 
-  @Post() create(@Body(new ZodPipe(teacherCreateAssessmentSchema)) body: TeacherCreateAssessmentInput, @CurrentUser() u: AuthUser, @Req() req: Request) {
+  @RequirePermission('assessment.author') @Post() create(@Body(new ZodPipe(teacherCreateAssessmentSchema)) body: TeacherCreateAssessmentInput, @CurrentUser() u: AuthUser, @Req() req: Request) {
     return this.svc.create(mentorId(u), body, actor(u, req));
   }
 
-  @Patch(':id') update(@Param('id', uuid) id: string, @Body(new ZodPipe(updateAssessmentSchema)) body: UpdateAssessmentInput, @CurrentUser() u: AuthUser, @Req() req: Request) {
+  @RequirePermission('assessment.author') @Patch(':id') update(@Param('id', uuid) id: string, @Body(new ZodPipe(updateAssessmentSchema)) body: UpdateAssessmentInput, @CurrentUser() u: AuthUser, @Req() req: Request) {
     return this.svc.update(mentorId(u), id, body, actor(u, req));
   }
 
-  @Post(':id/versions') newVersion(@Param('id', uuid) id: string, @CurrentUser() u: AuthUser, @Req() req: Request) {
+  @RequirePermission('assessment.author') @Post(':id/versions') newVersion(@Param('id', uuid) id: string, @CurrentUser() u: AuthUser, @Req() req: Request) {
     return this.svc.createVersion(mentorId(u), id, actor(u, req));
   }
 
-  @Get('versions/:id') version(@Param('id', uuid) id: string, @CurrentUser() u: AuthUser) { return this.svc.getVersion(mentorId(u), id); }
+  @RequirePermission('assessment.author') @Get('versions/:id') version(@Param('id', uuid) id: string, @CurrentUser() u: AuthUser) { return this.svc.getVersion(mentorId(u), id); }
 
-  @HttpCode(200) @Post('versions/:id/publish')
+  @RequirePermission('assessment.author') @HttpCode(200) @Post('versions/:id/publish')
   publish(@Param('id', uuid) id: string, @CurrentUser() u: AuthUser, @Req() req: Request) { return this.svc.publishVersion(mentorId(u), id, actor(u, req)); }
 
-  @Post('versions/:id/sections')
+  @RequirePermission('assessment.author') @Post('versions/:id/sections')
   addSection(@Param('id', uuid) id: string, @Body(new ZodPipe(assessmentSectionSchema)) body: AssessmentSectionInput, @CurrentUser() u: AuthUser, @Req() req: Request) {
     return this.svc.createSection(mentorId(u), id, body, actor(u, req));
   }
 
-  @Patch('sections/:id')
+  @RequirePermission('assessment.author') @Patch('sections/:id')
   editSection(@Param('id', uuid) id: string, @Body(new ZodPipe(updateAssessmentSectionSchema)) body: UpdateAssessmentSectionInput, @CurrentUser() u: AuthUser, @Req() req: Request) {
     return this.svc.updateSection(mentorId(u), id, body, actor(u, req));
   }
 
-  @HttpCode(204) @Delete('sections/:id')
+  @RequirePermission('assessment.author') @HttpCode(204) @Delete('sections/:id')
   async removeSection(@Param('id', uuid) id: string, @CurrentUser() u: AuthUser, @Req() req: Request) { await this.svc.deleteSection(mentorId(u), id, actor(u, req)); }
 
-  @HttpCode(201) @Post('sections/:id/audio') @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: 100 * 1024 * 1024, files: 1 } }))
+  @RequirePermission('assessment.author') @HttpCode(201) @Post('sections/:id/audio') @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: 100 * 1024 * 1024, files: 1 } }))
   audio(@Param('id', uuid) id: string, @UploadedFile() file: AudioFile, @CurrentUser() u: AuthUser, @Req() req: Request) {
     return this.svc.attachAudio(mentorId(u), id, file, actor(u, req));
   }
 
-  @Post('sections/:id/questions')
+  @RequirePermission('assessment.author') @Post('sections/:id/questions')
   addQuestion(@Param('id', uuid) id: string, @Body(new ZodPipe(questionSchema)) body: QuestionInput, @CurrentUser() u: AuthUser, @Req() req: Request) {
     return this.svc.createQuestion(mentorId(u), id, body, actor(u, req));
   }
 
-  @Patch('questions/:id')
+  @RequirePermission('assessment.author') @Patch('questions/:id')
   editQuestion(@Param('id', uuid) id: string, @Body(new ZodPipe(updateQuestionSchema)) body: UpdateQuestionInput, @CurrentUser() u: AuthUser, @Req() req: Request) {
     return this.svc.updateQuestion(mentorId(u), id, body, actor(u, req));
   }
 
-  @HttpCode(204) @Delete('questions/:id')
+  @RequirePermission('assessment.author') @HttpCode(204) @Delete('questions/:id')
   async removeQuestion(@Param('id', uuid) id: string, @CurrentUser() u: AuthUser, @Req() req: Request) { await this.svc.deleteQuestion(mentorId(u), id, actor(u, req)); }
 }
 

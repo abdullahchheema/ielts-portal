@@ -83,7 +83,11 @@ export default function FreeTestPage() {
       message: 'Leaving will stop your free test here. You can come back to this exact link within 7 days to pick up where you left off, but any section you\'ve already submitted can\'t be redone.',
       confirmLabel: 'Exit test', tone: 'danger',
     });
-    if (ok) router.push('/free-test');
+    if (!ok) return;
+    // The landing page auto-resumes whatever id is in localStorage — without clearing it first,
+    // navigating there would immediately redirect straight back into this same test.
+    try { localStorage.removeItem('freeTestLeadId'); } catch { /* private window etc. */ }
+    router.push('/free-test');
   }
 
   // The exam query only refetches every 15s, so its cached stageRevision can be stale by the time the
