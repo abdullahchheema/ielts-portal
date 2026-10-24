@@ -280,11 +280,13 @@ export class QuestionBankService {
   }
 
   /** Permanently removes a set and everything in it, at any status including PUBLISHED — a
-   *  free-test wrapper or a mock exam only ever holds its own independent copy of the questions
-   *  (QuestionBankService.copyIntoSection(), used by both), never a live reference to the bank
-   *  rows being deleted here, so this is safe even for a set actively in rotation. The one real
-   *  constraint is MockExam.listeningSetId/readingSetId, a direct (not copied) FK — guarded below
-   *  instead of left to surface as a raw foreign-key violation. */
+   *  free-test wrapper or a mock exam only ever holds its own independent *copy* of the content
+   *  (QuestionBankService.copyIntoSection(), used by both), so deleting the bank originals never
+   *  touches what's actually shown to students. Those copies do keep a provenance pointer back to
+   *  the bank question they were copied from (Question.sourceQuestionId, a blocking FK) — cleared
+   *  below before the originals are deleted, rather than left to surface as a raw foreign-key
+   *  violation. The one other real constraint is MockExam.listeningSetId/readingSetId, a direct
+   *  (not copied) FK to the set itself — guarded below too. */
   async deleteSet(id: string, actor: Actor) {
     await this.prisma.$transaction((tx) => this.deleteSetTx(tx, id, actor));
     return { ok: true };
@@ -302,6 +304,10 @@ export class QuestionBankService {
     const usedByMockExam = await tx.mockExam.findFirst({ where: { OR: [{ listeningSetId: id }, { readingSetId: id }] }, select: { id: true } });
     if (usedByMockExam) throw conflict('CONFLICT', 'This set is used by a mock exam and cannot be deleted.');
     const questionIds = set.questions.map((q) => q.id);
+    // Every free-test/mock-exam copy ever made from one of these questions still points back to
+    // it via sourceQuestionId (blocking FK) — drop that pointer so the copy (and the student
+    // result it belongs to) is untouched, but no longer blocks deleting the original.
+    await tx.question.updateMany({ where: { sourceQuestionId: { in: questionIds } }, data: { sourceQuestionId: null } });
     const versionIds = (await tx.questionVersion.findMany({ where: { questionId: { in: questionIds } }, select: { id: true } })).map((v) => v.id);
     await tx.questionImage.deleteMany({ where: { OR: [{ questionSetId: id }, { questionVersionId: { in: versionIds } }] } });
     await tx.questionOption.deleteMany({ where: { questionVersionId: { in: versionIds } } });

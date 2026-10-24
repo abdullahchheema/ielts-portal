@@ -93,6 +93,44 @@ describe('question-bank bulk delete', () => {
     expect(row).toBeNull();
   });
 
+  it('deletes a set whose questions were already copied into a free-test wrapper, without a raw FK crash', async () => {
+    // Copies made by the free-test wrapper builder (QuestionBankService.copyIntoSection) keep a
+    // sourceQuestionId pointer back to the bank question they came from (a blocking FK) — this is
+    // the exact shape that used to surface as a raw Postgres error instead of a clean response.
+    const listening = await buildDraftSet();
+    await prisma.questionSet.update({ where: { id: listening }, data: { skill: 'LISTENING', status: 'PUBLISHED', studentFacing: true } });
+    const reading = await buildDraftSet();
+    await prisma.questionSet.update({ where: { id: reading }, data: { status: 'PUBLISHED', studentFacing: true } });
+
+    let picked: string | null = null;
+    for (let i = 0; i < 8 && !picked; i++) {
+      const claim = (await http(app).post('/free-test/claim').expect(201)).body;
+      const lead = await prisma.freeAssessmentLead.findUniqueOrThrow({ where: { id: claim.leadId }, include: { examAttempt: true } });
+      const assessmentId = lead.examAttempt?.listeningAssessmentId;
+      if (assessmentId) {
+        const set = await prisma.questionSet.findFirst({ where: { wrapperAssessmentId: assessmentId }, select: { id: true } });
+        if (set && [listening, reading].includes(set.id)) picked = set.id;
+      }
+    }
+    expect(picked).not.toBeNull();
+
+    // Confirm a copy with a live sourceQuestionId pointer actually exists before deleting, so this
+    // test would have failed before the fix.
+    const originalQuestionIds = (await prisma.question.findMany({ where: { questionSetId: picked! }, select: { id: true } })).map((q) => q.id);
+    const copies = await prisma.question.findMany({ where: { sourceQuestionId: { in: originalQuestionIds } }, select: { id: true } });
+    expect(copies.length).toBeGreaterThan(0);
+
+    await post(`/admin/question-sets/${picked}/status`, { status: 'ARCHIVED', studentFacing: false }).expect(200);
+    await post('/admin/question-sets/bulk/delete', { ids: [picked!] }).expect(200);
+    expect(await prisma.questionSet.findUnique({ where: { id: picked! } })).toBeNull();
+
+    // The copy itself must survive (a past free-test result stays intact) — only its lineage
+    // pointer is cleared, not the row.
+    const survivingCopies = await prisma.question.findMany({ where: { id: { in: copies.map((c) => c.id) } } });
+    expect(survivingCopies).toHaveLength(copies.length);
+    expect(survivingCopies.every((c) => c.sourceQuestionId === null)).toBe(true);
+  }, 60_000);
+
   it('is all-or-nothing: a set still referenced by a mock exam aborts the whole delete, nothing partially applied', async () => {
     const deletable = await buildDraftSet();
     const listening = await buildDraftSet();
