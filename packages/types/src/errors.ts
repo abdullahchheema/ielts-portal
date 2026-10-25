@@ -77,6 +77,10 @@ export const ErrorCodes = {
   // plans, free test
   FREE_TEST_INVALID: 'FREE_TEST_INVALID',
   PLAN_UPGRADE_REQUIRED: 'PLAN_UPGRADE_REQUIRED',
+  // simulator
+  ALREADY_IN_PROGRESS: 'ALREADY_IN_PROGRESS',
+  // infrastructure
+  TRANSACTION_TIMEOUT: 'TRANSACTION_TIMEOUT',
 } as const;
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];

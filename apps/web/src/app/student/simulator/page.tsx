@@ -71,7 +71,7 @@ export default function SimulatorPage() {
       {noMocks && <Empty title="No mock tests are open yet">Your academy will open a listening and a reading mock here when they are ready.</Empty>}
 
       {hasInProgress && inProgressId && (
-        <Alert kind="info" className="mb-6">
+        <Alert kind="info">
           You have a simulator in progress.{' '}
           <Link href={`/student/simulator/${inProgressId}`} className="font-medium underline">Resume it →</Link>
         </Alert>

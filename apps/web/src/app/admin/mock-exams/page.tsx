@@ -175,7 +175,7 @@ export default function MockExamsPage() {
       </Section>
 
       <Section title="Mock tests"
-        action={
+        actions={
           <label className="flex cursor-pointer items-center gap-2 text-sm text-fg-muted">
             <input type="checkbox" checked={includeArchived} onChange={(e) => { setIncludeArchived(e.target.checked); setSkip(0); }} className="rounded" />
             Show archived

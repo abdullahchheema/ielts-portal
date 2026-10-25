@@ -325,11 +325,11 @@ export class SimulatorService implements OnModuleInit {
       ? await this.prisma.mockExam.findUnique({ where: { id: examRow.mockExamId }, select: { writingTask1QuestionId: true, writingTask2QuestionId: true } })
       : null;
 
-    let task1Pick: string | undefined;
-    let task2Pick: string | undefined;
+    let task1Pick: string | null | undefined;
+    let task2Pick: string | null | undefined;
 
     if (mockExam?.writingTask1QuestionId || mockExam?.writingTask2QuestionId) {
-      // Use pinned questions from the mock exam (nullish → auto-pick that slot)
+      // Use pinned questions from the mock exam (null/undefined → auto-pick that slot)
       task1Pick = mockExam.writingTask1QuestionId ?? undefined;
       task2Pick = mockExam.writingTask2QuestionId ?? undefined;
     } else {
