@@ -11,7 +11,7 @@ import type { BatchRow } from '../batches/page';
 
 interface Row {
   id: string; status: string; source: string; enrolledAt: string | null; accessEndsAt: string | null; progressPercent: string;
-  courseVersionId: string; student: { firstName: string; lastName: string; user: { email: string } }; course: { title: string }; batch: { id: string; name: string };
+  courseVersionId: string; student: { firstName: string; lastName: string; user: { email: string } }; course: { id: string; title: string }; batch: { id: string; name: string };
   planName: string;
 }
 const SOURCES = ['ADMIN', 'SCHOLARSHIP', 'CORPORATE', 'PROMOTION', 'MIGRATION'];
@@ -87,12 +87,31 @@ export default function EnrollmentsPage() {
   const [manage, setManage] = useState<Row | null>(null);
   const { data: me } = useMe();
   const [status, setStatus] = useState('');
+  const [courseId, setCourseId] = useState('');
+  const [batchId, setBatchId] = useState('');
   const [planFilter, setPlanFilter] = useState('');
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
-  const { data, isLoading, isError } = useQuery({ queryKey: ['admin-enrollments', status], queryFn: () => api<Row[]>(`/admin/enrollments${status ? `?status=${status}` : ''}`) });
-  const q = search.trim().toLowerCase();
-  const items = (data ?? []).filter((e) => (!q || `${e.student.firstName} ${e.student.lastName} ${e.student.user.email}`.toLowerCase().includes(q)) && (!planFilter || e.planName === planFilter));
+
+  const params = new URLSearchParams();
+  if (status) params.set('status', status);
+  if (courseId) params.set('courseId', courseId);
+  if (batchId) params.set('batchId', batchId);
+  if (search.trim()) params.set('search', search.trim());
+  const qs = params.toString();
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['admin-enrollments', status, courseId, batchId, search],
+    queryFn: () => api<Row[]>(`/admin/enrollments${qs ? `?${qs}` : ''}`),
+  });
+
+  // Build course/batch options from whatever the current result set contains so no extra API call is needed.
+  const courses = [...new Map((data ?? []).map((e) => [e.course.id, e.course.title])).entries()].map(([id, title]) => ({ id, title }));
+  // When a course is selected, only show its batches; otherwise show all batches seen in the data.
+  const batches = [...new Map((data ?? []).filter((e) => !courseId || e.course.id === courseId).map((e) => [e.batch.id, e.batch.name])).entries()].map(([id, name]) => ({ id, name }));
+
+  const items = (data ?? []).filter((e) => !planFilter || e.planName === planFilter);
+
   return (
     <>
       <PageHeader title="Enrollments" subtitle="Every student's access to a course, with where they stand." actions={can(me, 'enrollment.create') ? <Button onClick={() => setOpen(true)}>Manual enrollment</Button> : undefined} />
@@ -100,7 +119,17 @@ export default function EnrollmentsPage() {
         <SearchInput label="Search enrollments" placeholder="Search student name or email…" value={search} onDebounced={setSearch} />
         <div className="w-44">
           <Select aria-label="Filter by status" value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option value="">All</option>{['ACTIVE', 'COMPLETED', 'PAUSED', 'EXPIRED', 'CANCELLED', 'SUSPENDED'].map((s) => <option key={s} value={s}>{label(s)}</option>)}
+            <option value="">All statuses</option>{['ACTIVE', 'COMPLETED', 'PAUSED', 'EXPIRED', 'CANCELLED', 'SUSPENDED'].map((s) => <option key={s} value={s}>{label(s)}</option>)}
+          </Select>
+        </div>
+        <div className="w-44">
+          <Select aria-label="Filter by course" value={courseId} onChange={(e) => { setCourseId(e.target.value); setBatchId(''); }}>
+            <option value="">All courses</option>{courses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+          </Select>
+        </div>
+        <div className="w-44">
+          <Select aria-label="Filter by batch" value={batchId} onChange={(e) => setBatchId(e.target.value)}>
+            <option value="">All batches</option>{batches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
           </Select>
         </div>
         <div className="w-44">

@@ -108,8 +108,8 @@ export default function AttemptPage() {
     setAnswers(merged);
   }, [data, storageKey]);
 
-  const flush = useCallback(async () => {
-    if (inFlight.current || submitted.current || dirty.current.size === 0) return;
+  const flush = useCallback(async (): Promise<boolean> => {
+    if (inFlight.current || submitted.current || dirty.current.size === 0) return true;
     inFlight.current = true; setStatus('saving');
     const ids = [...dirty.current];
     const snapshot = ids.map((qid) => ({ questionVersionId: qid, answer: answersRef.current[qid] ?? null }));
@@ -118,10 +118,30 @@ export default function AttemptPage() {
       revision.current = res.revision;
       ids.forEach((qid) => { if (JSON.stringify(answersRef.current[qid] ?? null) === JSON.stringify(snapshot.find((s) => s.questionVersionId === qid)!.answer)) dirty.current.delete(qid); });
       setStatus(dirty.current.size ? 'saving' : 'saved');
+      return true;
     } catch (e) {
-      if (e instanceof ApiError && e.code === 'ANSWER_SAVE_CONFLICT') setStatus('conflict');
-      else if (e instanceof ApiError && (e.code === 'ATTEMPT_EXPIRED' || e.code === 'ATTEMPT_ALREADY_SUBMITTED')) { submitted.current = true; qc.removeQueries({ queryKey: ['attempt', id] }); window.location.reload(); }
-      else setStatus('offline'); // keep the local copy; the next tick retries
+      if (e instanceof ApiError && e.code === 'ANSWER_SAVE_CONFLICT') {
+        // The server returns the current revision and its view of the answers in details.
+        // Adopt the fresh revision so the next save attempt uses it, and merge the server answers
+        // back in as the baseline — any key the student already changed stays dirty and will
+        // be re-sent on the next flush with the corrected revision.
+        const details = (e as ApiError & { details?: { revision?: number; answers?: Answers } }).details;
+        if (details?.revision !== undefined) revision.current = details.revision;
+        if (details?.answers) {
+          setAnswers((prev) => {
+            const merged = { ...details.answers!, ...Object.fromEntries(Object.entries(prev).filter(([k]) => dirty.current.has(k))) };
+            return merged;
+          });
+          // Server-known ids are no longer dirty; keep only locally-modified keys.
+          for (const qid of ids) { if (!dirty.current.has(qid)) continue; }
+        }
+        setStatus('saving'); // will retry on the next tick
+      } else if (e instanceof ApiError && (e.code === 'ATTEMPT_EXPIRED' || e.code === 'ATTEMPT_ALREADY_SUBMITTED')) {
+        submitted.current = true; qc.removeQueries({ queryKey: ['attempt', id] }); window.location.reload();
+      } else {
+        setStatus('offline'); // genuine network failure — keep the local copy; the next tick retries
+      }
+      return false;
     } finally { inFlight.current = false; }
   }, [id, qc]);
 
@@ -143,11 +163,26 @@ export default function AttemptPage() {
     return () => window.removeEventListener('online', onOnline);
   }, [flush]);
 
+  // Flush any unsaved changes when the student navigates away or closes the tab —
+  // the 1.5 s debounce would otherwise silently discard the last keystroke.
+  useEffect(() => {
+    const onHide = () => { if (!submitted.current && dirty.current.size > 0) flush(); };
+    window.addEventListener('beforeunload', onHide);
+    document.addEventListener('visibilitychange', onHide);
+    return () => { window.removeEventListener('beforeunload', onHide); document.removeEventListener('visibilitychange', onHide); };
+  }, [flush]);
+
   const submit = useCallback(async (auto = false) => {
     if (submitted.current) return;
     setSubmitting(true); setMsg(null);
     try {
-      await flush();
+      const saved = await flush();
+      if (!saved) {
+        // A failed flush means the server doesn't have all the answers yet. Blocking submit
+        // protects against grading a stale set — let the student retry after the issue clears.
+        setMsg('Could not save your answers before submitting. Please wait and try again.');
+        return;
+      }
       const res = await api<Result>(`/attempts/${id}/submit`, { method: 'POST' });
       submitted.current = true;
       try { localStorage.removeItem(storageKey); } catch { /* ignore */ }

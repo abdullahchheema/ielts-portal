@@ -94,7 +94,19 @@ export class AdminCommerceController {
   orders(@Query(new ZodPipe(ordersQuery)) q: z.infer<typeof ordersQuery>) { return this.enrollments.listOrders(q.status); }
 
   @RequirePermission('enrollment.view') @Get('enrollments')
-  list2(@Query('status') status?: string) { return this.enrollments.list(status as never); }
+  list2(
+    @Query('status') status?: string,
+    @Query('courseId') courseId?: string,
+    @Query('batchId') batchId?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.enrollments.list({
+      status: status as never | undefined,
+      courseId: courseId || undefined,
+      batchId: batchId || undefined,
+      search: search?.trim() || undefined,
+    });
+  }
 
   @RequirePermission('enrollment.create') @Post('enrollments')
   manual(@Body(new ZodPipe(manualEnrollmentSchema)) body: ManualEnrollmentInput, @CurrentUser() u: AuthUser, @Req() req: Request) {

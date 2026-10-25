@@ -60,13 +60,18 @@ export class AttemptsService implements OnModuleInit {
       where: { assessmentVersionId: versionId }, orderBy: [{ sequence: 'asc' }, { title: 'asc' }],
       include: { questions: { where: { deletedAt: null }, orderBy: [{ sequence: 'asc' }, { createdAt: 'asc' }], include: { versions: { include: { options: { orderBy: { sequence: 'asc' } }, images: { orderBy: { sequence: 'asc' } } } } } } },
     });
-    const questions: FlatQuestion[] = sections.flatMap((s) => s.questions.map((q) => {
+    const questions: FlatQuestion[] = sections.flatMap((s) => s.questions.flatMap((q) => {
       const qv = q.versions[0];
-      return {
+      // A question without a version row is corrupt data — skip it rather than crashing.
+      if (!qv) {
+        this.logger.warn(`Question ${q.id} in assessment version ${versionId} has no version rows — skipping`);
+        return [];
+      }
+      return [{
         id: qv.id, sectionId: s.id, type: q.questionType as QuestionType, marks: Number(qv.marks), prompt: qv.prompt,
         answerKey: qv.answerKey as FlatQuestion['answerKey'], options: qv.options.map((o) => ({ id: o.id, label: o.label, isCorrect: o.isCorrect })),
         partialCredit: qv.partialCredit, images: qv.images.map((img) => ({ fileKey: img.fileKey, altText: img.altText })),
-      };
+      }];
     }));
     return { sections: sections.map((s) => ({ id: s.id, title: s.title, content: s.content })), questions };
   }
@@ -107,19 +112,14 @@ export class AttemptsService implements OnModuleInit {
       if (assessment.generatedForStudentId !== studentId) throw new AppError('ASSESSMENT_NOT_AVAILABLE', 404, 'This assessment is not available.');
       return { enrollmentId: null, itemId: null };
     }
-    // Library papers (mocks): an active enrolment is still required, but it is not the gate —
-    // the student also needs an approved individual request or an active batch activation,
-    // enforced here rather than left to the "Start" button. Self-serve plans (Starter/Advanced —
-    // mock.unlimited without a dedicated teacher) bypass that request/activation flow outright;
-    // Premium students still go through it, since their teacher curates batch mock pacing.
+    // Library papers (mocks): an active enrollment is required; mock.unlimited entitlement is
+    // required (Starter plan or above). The individual-request / batch-activation gate that
+    // previously existed here was removed — students can start any library mock freely.
     if (assessment.libraryVisible) {
       const active = await this.prisma.enrollment.findFirst({ where: { studentId, status: 'ACTIVE', deletedAt: null }, select: { id: true } });
       if (!active) throw new AppError('ASSESSMENT_NOT_AVAILABLE', 404, 'This assessment is not available.');
-      const [unlimitedMocks, hasTeacher] = await Promise.all([
-        this.entitlements.can(studentId, 'mock.unlimited'), this.entitlements.can(studentId, 'teacher.assignment'),
-      ]);
+      const unlimitedMocks = await this.entitlements.can(studentId, 'mock.unlimited');
       if (!unlimitedMocks) throw new AppError('PLAN_UPGRADE_REQUIRED', 403, 'Mock tests require the Starter plan or above.');
-      if (hasTeacher) await this.mocks.assertAttemptAllowed(studentId, assessment.id);
       return { enrollmentId: active.id, itemId: null };
     }
     const items = await this.prisma.contentItem.findMany({
@@ -147,7 +147,9 @@ export class AttemptsService implements OnModuleInit {
     });
     const version = assessment?.versions[0];
     if (!assessment || !version) throw new AppError('ASSESSMENT_NOT_AVAILABLE', 404, 'This assessment is not available.');
-    if (assessment.type === 'MOCK') await this.mocks.assertAttemptAllowed(user.studentId, assessment.id);
+    // NOTE: assertAttemptAllowed (individual-request / batch-activation gate) was removed here
+    // when mock access gating was dropped in the previous release. resolveAccess() enforces the
+    // remaining enrollment + plan check.
     const access = await this.resolveAccess(user.studentId, assessment);
 
     let lapsed = null as Finished | null;
@@ -348,8 +350,10 @@ export class AttemptsService implements OnModuleInit {
       data: { status: 'AUTO_GRADED', submittedAt: new Date(), rawScore: graded.raw, maxScore: graded.max, percent: graded.percent, bandScore: band },
     });
 
-    const link = attempt.enrollmentId
-      ? await tx.contentItem.findFirst({ where: { metadataJson: { path: ['assessmentId'], equals: attempt.assessmentId }, section: { courseVersionId: (await tx.enrollment.findUniqueOrThrow({ where: { id: attempt.enrollmentId } })).courseVersionId } }, select: { id: true } })
+    // Use findUnique (not findUniqueOrThrow) so a deleted enrollment doesn't abort the grading tx.
+    const enrollmentRow = attempt.enrollmentId ? await tx.enrollment.findUnique({ where: { id: attempt.enrollmentId } }) : null;
+    const link = enrollmentRow
+      ? await tx.contentItem.findFirst({ where: { metadataJson: { path: ['assessmentId'], equals: attempt.assessmentId }, section: { courseVersionId: enrollmentRow.courseVersionId } }, select: { id: true } })
       : null;
     return {
       attemptId, studentId: attempt.studentId, enrollmentId: attempt.enrollmentId, itemId: link?.id ?? null,

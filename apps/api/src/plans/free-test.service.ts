@@ -196,6 +196,49 @@ export class FreeTestService {
     return this.speaking.uploadLocal(lead.ghostStudentId, responseId, file);
   }
 
+  /** Hard-deletes the lead and all its associated ghost data in a single transaction.
+   *  Called on explicit exit/close so no ghost rows accumulate after the visitor leaves.
+   *  A sweeper for abandoned sessions (expiresAt elapsed, not yet purged) reuses this method.
+   *  Safe to call on an already-deleted lead — the deleteMany calls are all no-ops in that case. */
+  async purge(leadId: string) {
+    const lead = await this.prisma.freeAssessmentLead.findUnique({
+      where: { id: leadId },
+      select: {
+        id: true, ghostStudentId: true,
+        examAttempt: {
+          select: {
+            id: true, studentId: true,
+            listeningAttemptId: true, readingAttemptId: true,
+            writingTask1ResponseId: true, writingResponseId: true, speakingAttemptId: true,
+          },
+        },
+      },
+    });
+    if (!lead) return; // already gone
+
+    // Resolve the ghost User's id (ghostStudentId is the StudentProfile pk, not the User pk).
+    const ghostProfile = lead.ghostStudentId
+      ? await this.prisma.studentProfile.findUnique({ where: { id: lead.ghostStudentId }, select: { userId: true, isGhost: true } })
+      : null;
+    // Never delete a real (non-ghost) student — refuse silently and leave the rows for an admin to inspect.
+    if (ghostProfile && !ghostProfile.isGhost) return;
+
+    await this.prisma.$transaction(async (tx) => {
+      const e = lead.examAttempt;
+      if (e) {
+        if (e.speakingAttemptId) await tx.speakingAttempt.deleteMany({ where: { id: e.speakingAttemptId } });
+        if (e.writingResponseId) await tx.writingResponse.deleteMany({ where: { id: e.writingResponseId } });
+        if (e.writingTask1ResponseId) await tx.writingResponse.deleteMany({ where: { id: e.writingTask1ResponseId } });
+        if (e.readingAttemptId) await tx.assessmentAttempt.deleteMany({ where: { id: e.readingAttemptId } });
+        if (e.listeningAttemptId) await tx.assessmentAttempt.deleteMany({ where: { id: e.listeningAttemptId } });
+        await tx.examAttempt.deleteMany({ where: { id: e.id } });
+      }
+      await tx.freeAssessmentLead.deleteMany({ where: { id: leadId } });
+      if (lead.ghostStudentId) await tx.studentProfile.deleteMany({ where: { id: lead.ghostStudentId } });
+      if (ghostProfile?.userId) await tx.user.deleteMany({ where: { id: ghostProfile.userId } });
+    });
+  }
+
   /** Called when a visitor registers for real with the same email: links the lead's history to the
    *  new account without granting a second free entitlement. All 4 owned resources are reassigned so
    *  the real student can see their free-test history (listening/reading attempts, essay, speaking

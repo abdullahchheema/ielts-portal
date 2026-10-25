@@ -53,7 +53,7 @@ export class ReportsService {
       this.prisma.$queryRaw<{ hours: string | null }[]>`SELECT AVG(EXTRACT(EPOCH FROM (graded_at - submitted_at)) / 3600)::text AS hours FROM submissions WHERE status = 'GRADED' AND graded_at >= ${from} AND graded_at < ${to}`,
       this.prisma.submission.count({ where: { status: 'SUBMITTED' } }),
       this.prisma.submission.count({ where: { status: 'GRADED', gradedAt: range } }),
-      this.prisma.assessmentAttempt.aggregate({ where: { submittedAt: range }, _avg: { percent: true, bandScore: true }, _count: true }),
+      this.prisma.assessmentAttempt.aggregate({ where: { submittedAt: range, student: { isGhost: false } }, _avg: { percent: true, bandScore: true }, _count: true }),
       this.prisma.attendance.groupBy({ by: ['status'], where: { session: { startsAt: range } }, _count: true }),
     ]);
     const att = (s: string) => attendance.find((a) => a.status === s)?._count ?? 0;
@@ -62,8 +62,10 @@ export class ReportsService {
     const improvement = await this.prisma.$queryRaw<{ avg_gain: string | null; students: bigint }[]>`
       WITH bands AS (
         SELECT a.student_id, s.skill, a.band_score AS band, a.submitted_at AS at
-        FROM assessment_attempts a JOIN assessments s ON s.id = a.assessment_id
-        WHERE a.band_score IS NOT NULL AND s.skill IS NOT NULL
+        FROM assessment_attempts a
+        JOIN assessments s ON s.id = a.assessment_id
+        JOIN student_profiles sp ON sp.id = a.student_id
+        WHERE a.band_score IS NOT NULL AND s.skill IS NOT NULL AND sp.is_ghost = FALSE
       ), ranked AS (
         SELECT *, ROW_NUMBER() OVER (PARTITION BY student_id, skill ORDER BY at ASC) AS first_rn, ROW_NUMBER() OVER (PARTITION BY student_id, skill ORDER BY at DESC) AS last_rn FROM bands
       )

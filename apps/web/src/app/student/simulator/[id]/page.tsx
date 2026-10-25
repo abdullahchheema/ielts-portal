@@ -32,7 +32,7 @@ interface AttemptResult {
 interface WritingResult { taskType: string; status: string; wordCount: number; prompt: string; body: string; evaluation: { estimatedBand: string | null; criteria: unknown[]; feedback: unknown } | null }
 interface SpeakingResponse { id: string; part: string; prompt: string; transcript: string | null; durationSec: string | null; evaluation: { estimatedBand: string | null } | null }
 interface SpeakingResult { status: string; band: number | null; responses: SpeakingResponse[] }
-interface Results { overall: number | null; missingSkills: string[]; listening: AttemptResult | null; reading: AttemptResult | null; writing: WritingResult | null; speaking: SpeakingResult | null }
+interface Results { overall: number | null; missingSkills: string[]; listening: AttemptResult | null; reading: AttemptResult | null; writing: { task1: WritingResult | null; task2: WritingResult | null }; speaking: SpeakingResult | null }
 
 const ORDER = ['LISTENING', 'READING', 'WRITING', 'SPEAKING', 'DONE'] as const;
 
@@ -164,7 +164,7 @@ function SimulatorResults({ examId, overall, missingSkills, includeSpeaking }: {
 
         {data && tab === 'listening' && <AttemptResultPanel result={data.listening} skill="Listening" />}
         {data && tab === 'reading' && <AttemptResultPanel result={data.reading} skill="Reading" />}
-        {data && tab === 'writing' && <WritingResultPanel result={data.writing} />}
+        {data && tab === 'writing' && <WritingResultPanel task1={data.writing.task1} task2={data.writing.task2} />}
         {data && tab === 'speaking' && <SpeakingResultPanel result={data.speaking} />}
       </div>
     </div>
@@ -207,8 +207,24 @@ function AttemptResultPanel({ result, skill }: { result: AttemptResult | null; s
   );
 }
 
-function WritingResultPanel({ result }: { result: WritingResult | null }) {
-  if (!result) return <Empty title="No writing result">The writing section was not completed.</Empty>;
+function WritingResultPanel({ task1, task2 }: { task1: WritingResult | null; task2: WritingResult | null }) {
+  const [activeTask, setActiveTask] = useState<'TASK1' | 'TASK2'>(task1 ? 'TASK1' : 'TASK2');
+  if (!task1 && !task2) return <Empty title="No writing result">The writing section was not completed.</Empty>;
+  const result = activeTask === 'TASK1' ? task1 : task2;
+  return (
+    <div className="space-y-4">
+      {task1 && task2 && (
+        <div className="flex gap-2">
+          <button onClick={() => setActiveTask('TASK1')} className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${activeTask === 'TASK1' ? 'bg-primary text-white' : 'bg-surface-muted text-fg hover:bg-primary-soft hover:text-primary'}`}>Task 1</button>
+          <button onClick={() => setActiveTask('TASK2')} className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${activeTask === 'TASK2' ? 'bg-primary text-white' : 'bg-surface-muted text-fg hover:bg-primary-soft hover:text-primary'}`}>Task 2</button>
+        </div>
+      )}
+      {result ? <WritingTaskResult result={result} /> : <Empty title={`No ${activeTask === 'TASK1' ? 'Task 1' : 'Task 2'} result`}>This task was not completed.</Empty>}
+    </div>
+  );
+}
+
+function WritingTaskResult({ result }: { result: WritingResult }) {
   const eval_ = result.evaluation;
   return (
     <div className="space-y-4">

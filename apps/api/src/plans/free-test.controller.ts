@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Put, Query, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Put, Query, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import type { Request } from 'express';
@@ -30,6 +30,11 @@ export class FreeTestController {
 
   @Public() @Get(':leadId')
   get(@Param('leadId', uuid) leadId: string) { return this.freeTest.get(leadId); }
+
+  /** Permanently purges the lead and all its ghost data. Called on explicit exit or close so
+   *  ghost rows don't accumulate. Returns 204 even if the lead is already gone (idempotent). */
+  @Public() @HttpCode(204) @Delete(':leadId')
+  purge(@Param('leadId', uuid) leadId: string) { return this.freeTest.purge(leadId); }
 
   @Public() @Get(':leadId/section')
   getSection(@Param('leadId', uuid) leadId: string) { return this.freeTest.getSection(leadId); }

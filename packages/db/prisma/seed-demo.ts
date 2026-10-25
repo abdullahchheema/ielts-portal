@@ -50,6 +50,19 @@ async function main() {
   await seedReference();
 
   const passwordHash = await argon2.hash(DEMO_PASSWORD, { type: argon2.argon2id });
+
+  // If demo accounts already exist, just reset their passwords and exit — re-creating the full
+  // dataset would hit unique-constraint errors on batches, enrollments, etc.
+  const existingAdmin = await prisma.user.findUnique({ where: { email: 'admin@example.com' } });
+  if (existingAdmin) {
+    const demoEmails = [
+      'admin@example.com', 'ahmed.khan@example.com', 'sara.ahmed@example.com',
+      ...Array.from({ length: 30 }, (_, i) => `student${i + 1}@example.com`),
+    ];
+    await prisma.user.updateMany({ where: { email: { in: demoEmails } }, data: { passwordHash, status: 'ACTIVE' } });
+    console.log(`Demo data already present — passwords reset to "${DEMO_PASSWORD}" for ${demoEmails.length} accounts.`);
+    return;
+  }
   const role = async (name: string) => (await prisma.role.findUniqueOrThrow({ where: { name } })).id;
   const [superAdmin, mentorRole, studentRole] = [await role('SUPER_ADMIN'), await role('MENTOR'), await role('STUDENT')];
 
@@ -61,11 +74,17 @@ async function main() {
   await prisma.userRole.upsert({ where: { userId_roleId: { userId: admin.id, roleId: superAdmin } }, update: {}, create: { userId: admin.id, roleId: superAdmin } });
 
   const mkTeacher = async (email: string, displayName: string, bio: string, specializations: string[]) => {
-    const u = await prisma.user.create({
-      data: { email, passwordHash, status: 'ACTIVE', emailVerifiedAt: new Date(), roles: { create: { roleId: mentorRole } }, mentor: { create: { displayName, bio, specializations } } },
+    const u = await prisma.user.upsert({
+      where: { email },
+      update: { passwordHash, status: 'ACTIVE' },
+      create: { email, passwordHash, status: 'ACTIVE', emailVerifiedAt: new Date(), roles: { create: { roleId: mentorRole } }, mentor: { create: { displayName, bio, specializations } } },
       include: { mentor: true },
     });
-    return u.mentor!;
+    if (!u.mentor) {
+      await prisma.mentor.upsert({ where: { userId: u.id }, update: { displayName, bio, specializations }, create: { userId: u.id, displayName, bio, specializations } });
+    }
+    await prisma.userRole.upsert({ where: { userId_roleId: { userId: u.id, roleId: mentorRole } }, update: {}, create: { userId: u.id, roleId: mentorRole } });
+    return (await prisma.mentor.findUniqueOrThrow({ where: { userId: u.id } }));
   };
   const ahmed = await mkTeacher('ahmed.khan@example.com', 'Ahmed Khan', 'IELTS trainer with 8 years of classroom experience. Band 8.5 overall.', ['Listening', 'Reading', 'Speaking']);
   const sara = await mkTeacher('sara.ahmed@example.com', 'Sara Ahmed', 'Writing specialist and former IELTS examiner trainer.', ['Writing', 'Speaking']);
@@ -90,15 +109,23 @@ async function main() {
 
   // ── students ──
   const mkStudent = async (n: number, firstName: string, lastName: string, city: string, current: number | null, target: number, test: 'ACADEMIC' | 'GENERAL') => {
-    const u = await prisma.user.create({
-      data: {
-        email: `student${n}@example.com`, passwordHash, status: 'ACTIVE', emailVerifiedAt: n === 6 ? null : daysAgo(20), phone: `030${n}-55500${n}0`,
+    const email = `student${n}@example.com`;
+    const u = await prisma.user.upsert({
+      where: { email },
+      update: { passwordHash, status: 'ACTIVE' },
+      create: {
+        email, passwordHash, status: 'ACTIVE', emailVerifiedAt: n === 6 ? null : daysAgo(20), phone: `030${n}-55500${n}0`,
         roles: { create: { roleId: studentRole } },
         student: { create: { firstName, lastName, city, country: 'Pakistan', currentBand: current, targetBand: target, academicOrGeneral: test, ieltsExamDate: daysAhead(60 + n * 7) } },
       },
       include: { student: true },
     });
-    return { user: u, id: u.student!.id, name: `${firstName} ${lastName}` };
+    if (!u.student) {
+      await prisma.student.upsert({ where: { userId: u.id }, update: {}, create: { userId: u.id, firstName, lastName, city, country: 'Pakistan', currentBand: current, targetBand: target, academicOrGeneral: test, ieltsExamDate: daysAhead(60 + n * 7) } });
+    }
+    await prisma.userRole.upsert({ where: { userId_roleId: { userId: u.id, roleId: studentRole } }, update: {}, create: { userId: u.id, roleId: studentRole } });
+    const student = await prisma.student.findUniqueOrThrow({ where: { userId: u.id } });
+    return { user: u, id: student.id, name: `${firstName} ${lastName}` };
   };
   const s1 = await mkStudent(1, 'Ayesha', 'Malik', 'Lahore', 5.5, 7, 'ACADEMIC');
   const s2 = await mkStudent(2, 'Bilal', 'Hussain', 'Karachi', 5, 6.5, 'GENERAL');

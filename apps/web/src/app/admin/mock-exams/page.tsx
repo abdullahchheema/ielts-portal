@@ -18,6 +18,7 @@ export default function MockExamsPage() {
   const qc = useQueryClient();
   const confirm = useConfirm();
   const [skip, setSkip] = useState(0);
+  const [includeArchived, setIncludeArchived] = useState(false);
   const [mode, setMode] = useState<'auto' | 'manual'>('auto');
   const [title, setTitle] = useState('');
   const [listeningSetId, setListeningSetId] = useState('');
@@ -29,8 +30,8 @@ export default function MockExamsPage() {
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['admin-mock-exams', skip],
-    queryFn: () => api<{ items: MockExam[]; total: number }>(`/admin/mock-exams?skip=${skip}&take=${TAKE}`),
+    queryKey: ['admin-mock-exams', skip, includeArchived],
+    queryFn: () => api<{ items: MockExam[]; total: number }>(`/admin/mock-exams?skip=${skip}&take=${TAKE}&includeArchived=${includeArchived}`),
   });
 
   const modules = useQuery({
@@ -65,11 +66,9 @@ export default function MockExamsPage() {
 
   async function remove(m: MockExam) {
     const ok = await confirm({
-      title: 'Delete mock test',
-      message: m.attemptsCount > 0
-        ? `"${m.title}" has ${m.attemptsCount} attempt${m.attemptsCount === 1 ? '' : 's'}. It will be archived and hidden from the library (student history is kept).`
-        : `Delete "${m.title}" permanently? This cannot be undone.`,
-      confirmLabel: m.attemptsCount > 0 ? 'Archive' : 'Delete',
+      title: 'Archive mock test',
+      message: `Archive "${m.title}"? It will be hidden from the student library. In-progress attempts can still finish and past results stay viewable.${m.attemptsCount > 0 ? ` (${m.attemptsCount} attempt${m.attemptsCount === 1 ? '' : 's'} on record)` : ''}`,
+      confirmLabel: 'Archive',
       tone: 'danger',
     });
     if (!ok) return;
@@ -140,7 +139,14 @@ export default function MockExamsPage() {
         </Card>
       </Section>
 
-      <Section title="Mock tests">
+      <Section title="Mock tests"
+        action={
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-fg-muted">
+            <input type="checkbox" checked={includeArchived} onChange={(e) => { setIncludeArchived(e.target.checked); setSkip(0); }} className="rounded" />
+            Show archived
+          </label>
+        }
+      >
         {isLoading && <Loading />}
         {isError && <Alert>Could not load mock tests.</Alert>}
         {data && (data.items.length === 0 ? <Empty title="No mock tests yet">Compose one above.</Empty> : (
@@ -158,7 +164,7 @@ export default function MockExamsPage() {
                   <Td>
                     <div className="flex gap-2">
                       <Button variant="ghost" size="xs" busy={toggling === m.id} onClick={() => toggle(m)}>{m.libraryVisible ? 'Hide' : 'Show'}</Button>
-                      <Button variant="ghost" size="xs" tone="danger" busy={deleting === m.id} onClick={() => remove(m)}>Delete</Button>
+                      {m.status !== 'ARCHIVED' && <Button variant="ghost" size="xs" tone="danger" busy={deleting === m.id} onClick={() => remove(m)}>Archive</Button>}
                     </div>
                   </Td>
                 </tr>

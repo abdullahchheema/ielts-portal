@@ -51,7 +51,9 @@ export function DropdownMenu({ trigger, items, align = 'end' }: { trigger: React
               type="button"
               role="menuitem"
               disabled={it.disabled}
-              onClick={() => { setOpen(false); it.onSelect(); }}
+              // Items sit inside ClickableRow in several admin tables; without this the click
+              // bubbles to the row and navigates away before the item's dialog can mount.
+              onClick={(e) => { e.stopPropagation(); setOpen(false); it.onSelect(); }}
               className={cx(
                 'flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors duration-[var(--dur-fast)] ease-out-soft',
                 it.danger ? 'text-danger hover:bg-danger-soft' : 'text-fg hover:bg-surface-muted',

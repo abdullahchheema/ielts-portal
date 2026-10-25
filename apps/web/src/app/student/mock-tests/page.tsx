@@ -67,10 +67,13 @@ function MockCard({ mock }: { mock: MockExamEntry }) {
             className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-white hover:bg-primary-hover">
             Resume
           </Link>
-        ) : null}
-        <Button variant={mock.inProgressAttemptId ? 'secondary' : 'primary'} busy={busy} onClick={startNew}>
-          {completedAttempts.length > 0 ? 'Retake' : 'Start'}
-        </Button>
+        ) : (
+          // Hide Retake / Start while an attempt is open — starting a second one would hit the
+          // exam_attempts_one_open unique index and fail with a confusing error.
+          <Button variant="primary" busy={busy} onClick={startNew}>
+            {completedAttempts.length > 0 ? 'Retake' : 'Start'}
+          </Button>
+        )}
       </div>
       {completedAttempts.length > 0 && (
         <div className="border-t border-border pt-3">

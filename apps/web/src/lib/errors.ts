@@ -29,11 +29,13 @@ const MESSAGES: Record<string, string> = {
   MOCK_NOT_AVAILABLE: 'Your approved window for this mock test has not started yet or has ended.',
   MOCK_REQUEST_ALREADY_PENDING: 'You already have a pending request for this mock test.',
   FREE_TEST_INVALID: 'This free test link is no longer valid. Please start again.',
+  ALREADY_IN_PROGRESS: 'You already have a simulator in progress. Open the simulator page to resume or finish it.',
   SUBMISSION_FAILED: 'We could not finish grading this test. Please try again or contact support.',
   PLAN_UPGRADE_REQUIRED: 'This feature needs a higher plan. Upgrade to unlock it.',
-  // Shown only if an automatic retry-with-fresh-revision (see the free-test page's advance()) also
-  // fails — a genuinely unusual double-collision, not the normal staleness case that retry absorbs.
-  CONFLICT: 'This test has moved on and could not be reconciled automatically. Please reload the page.',
+  // NOTE: CONFLICT is intentionally absent here. The server returns a specific, human-readable
+  // message for each CONFLICT case (e.g. "Finish the listening section first.", "You already have
+  // a simulator in progress.", "The simulator has moved on. Reload to see where you are."), so we
+  // let errorMessage() fall through to e.message rather than clobbering all variants with one copy.
 };
 
 export function errorMessage(e: unknown): string {

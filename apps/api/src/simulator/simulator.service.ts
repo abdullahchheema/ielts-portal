@@ -121,16 +121,52 @@ export class SimulatorService implements OnModuleInit {
   }
 
   private async createExamAttempt(studentId: string, listeningAssessmentId: string, readingAssessmentId: string, includeSpeaking: boolean) {
-    const exam = await this.prisma.examAttempt.create({
-      data: { studentId, includeSpeaking, listeningAssessmentId, readingAssessmentId, stage: 'LISTENING' },
+    // ── Safety check: surface any already-bricked open attempt with a resume link ────────────────
+    // The partial unique index exam_attempts_one_open(student_id) allows exactly one IN_PROGRESS
+    // exam attempt per student.  If a previous attempt was created but then its startSection()
+    // failed (leaving listeningAttemptId null), it permanently blocks new attempts and there is no
+    // auto-recovery path.  Detect it here so the error message includes a usable link.
+    const stuck = await this.prisma.examAttempt.findFirst({
+      where: { studentId, status: 'IN_PROGRESS', listeningAttemptId: null },
       select: { id: true },
-    }).catch((e) => {
-      if ((e as { code?: string }).code === 'P2002') throw conflict('CONFLICT', 'You already have a simulator in progress. Finish or resume it first.');
-      throw e;
     });
-    const started = await this.startSection(studentId, listeningAssessmentId);
-    await this.prisma.examAttempt.update({ where: { id: exam.id }, data: { listeningAttemptId: started.id, stageDeadlineAt: started.expiresAt } });
-    return this.get(studentId, exam.id);
+    if (stuck) {
+      // Abandon the orphan — it has no listening attempt, no deadline, and is unresumable.
+      await this.prisma.examAttempt.updateMany({ where: { id: stuck.id, listeningAttemptId: null }, data: { status: 'ABANDONED' } });
+    }
+
+    // ── Attempt creation (P2002 = already has a valid in-progress one) ───────────────────────────
+    let examId: string;
+    try {
+      const exam = await this.prisma.examAttempt.create({
+        data: { studentId, includeSpeaking, listeningAssessmentId, readingAssessmentId, stage: 'LISTENING' },
+        select: { id: true },
+      });
+      examId = exam.id;
+    } catch (e) {
+      if ((e as { code?: string }).code === 'P2002') {
+        const existing = await this.prisma.examAttempt.findFirst({ where: { studentId, status: 'IN_PROGRESS' }, select: { id: true } });
+        throw conflict('ALREADY_IN_PROGRESS', existing
+          ? `You already have a simulator in progress. Resume it to continue.`
+          : 'You already have a simulator in progress. Finish or resume it first.');
+      }
+      throw e;
+    }
+
+    // ── Start the listening section; roll back the attempt row on failure ─────────────────────────
+    // Not wrapped in a single DB transaction because AttemptsService.start() opens its own
+    // transaction internally — nesting would violate the "no interactive tx nesting" rule.
+    // Instead, we simply delete the attempt row on any start failure so the student is never stuck.
+    let started: { id: string; expiresAt: Date | null };
+    try {
+      started = await this.startSection(studentId, listeningAssessmentId);
+    } catch (e) {
+      await this.prisma.examAttempt.deleteMany({ where: { id: examId } });
+      throw e;
+    }
+
+    await this.prisma.examAttempt.update({ where: { id: examId }, data: { listeningAttemptId: started.id, stageDeadlineAt: started.expiresAt } });
+    return this.get(studentId, examId);
   }
 
   async get(studentId: string, id: string) {
@@ -226,7 +262,9 @@ export class SimulatorService implements OnModuleInit {
         }
         const nextAssessment = e.stage === 'LISTENING' ? e.readingAssessmentId : null;
         if (e.stage === 'LISTENING') {
-          const started = await this.startSection(studentId, nextAssessment!);
+          // Guard: readingAssessmentId is nullable in the schema; if somehow null, skip reading.
+          if (!nextAssessment) return this.afterReading(e, studentId, claim);
+          const started = await this.startSection(studentId, nextAssessment);
           await claim({ stage: 'READING', readingAttemptId: started.id, stageDeadlineAt: started.expiresAt });
           return this.get(studentId, id);
         }
@@ -340,7 +378,7 @@ export class SimulatorService implements OnModuleInit {
   async results(studentId: string, id: string) {
     const e = await this.prisma.examAttempt.findFirst({
       where: { id, studentId },
-      select: { status: true, overallEstimate: true, missingSkills: true, listeningAttemptId: true, readingAttemptId: true, writingResponseId: true, speakingAttemptId: true },
+      select: { status: true, overallEstimate: true, missingSkills: true, listeningAttemptId: true, readingAttemptId: true, writingTask1ResponseId: true, writingResponseId: true, speakingAttemptId: true },
     });
     if (!e) throw notFound('Simulator');
 
@@ -350,15 +388,18 @@ export class SimulatorService implements OnModuleInit {
       e.readingAttemptId ? this.attempts.result(user, e.readingAttemptId).catch(() => null) : null,
     ]);
 
-    const writing = e.writingResponseId
-      ? await this.prisma.writingResponse.findUnique({
-          where: { id: e.writingResponseId },
-          select: {
-            id: true, status: true, taskType: true, body: true, wordCount: true, promptText: true,
-            evaluations: { orderBy: { createdAt: 'desc' }, take: 1, select: { estimatedBand: true, criteria: true, feedback: true } },
-          },
-        })
-      : null;
+    const writingSelect = {
+      id: true, status: true, taskType: true, body: true, wordCount: true, promptText: true,
+      evaluations: { orderBy: { createdAt: 'desc' as const }, take: 1, select: { estimatedBand: true, criteria: true, feedback: true } },
+    };
+    const [writingTask1, writingTask2] = await Promise.all([
+      e.writingTask1ResponseId ? this.prisma.writingResponse.findUnique({ where: { id: e.writingTask1ResponseId }, select: writingSelect }) : null,
+      e.writingResponseId ? this.prisma.writingResponse.findUnique({ where: { id: e.writingResponseId }, select: writingSelect }) : null,
+    ]);
+    const toWritingResult = (r: typeof writingTask1) => r ? {
+      taskType: r.taskType, status: r.status, wordCount: r.wordCount, prompt: r.promptText, body: r.body,
+      evaluation: r.evaluations[0] ?? null,
+    } : null;
 
     const speaking = e.speakingAttemptId
       ? await this.prisma.speakingAttempt.findUnique({
@@ -384,11 +425,7 @@ export class SimulatorService implements OnModuleInit {
       missingSkills: e.missingSkills,
       listening: listeningResult,
       reading: readingResult,
-      writing: writing ? {
-        taskType: writing.taskType, status: writing.status, wordCount: writing.wordCount,
-        prompt: writing.promptText, body: writing.body,
-        evaluation: writing.evaluations[0] ?? null,
-      } : null,
+      writing: { task1: toWritingResult(writingTask1), task2: toWritingResult(writingTask2) },
       speaking: speaking ? {
         status: speaking.status, band: speakingBand,
         responses: speaking.responses.map((r) => ({

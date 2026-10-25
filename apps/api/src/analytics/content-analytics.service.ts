@@ -78,7 +78,7 @@ export class ContentAnalyticsService {
     for (const v of all) if (!newest.has(v.questionId) || newest.get(v.questionId)!.version < v.version) newest.set(v.questionId, v);
     const questions = [...newest.values()];
     const answers = await this.prisma.attemptAnswer.findMany({
-      where: { questionVersionId: { in: questions.map((q) => q.id) }, isCorrect: { not: null }, attempt: { status: { in: ['AUTO_GRADED', 'GRADED'] } } },
+      where: { questionVersionId: { in: questions.map((q) => q.id) }, isCorrect: { not: null }, attempt: { status: { in: ['AUTO_GRADED', 'GRADED'] }, student: { isGhost: false } } },
       select: { questionVersionId: true, isCorrect: true, attempt: { select: { percent: true, id: true } } },
       take: 20000,
     });

@@ -19,8 +19,30 @@ export default function FreeTestLandingPage() {
     // student + exam for nothing. We only resume an id the browser already has.
     let existing: string | null = null;
     try { existing = localStorage.getItem(LEAD_STORAGE_KEY); } catch { /* private window etc. */ }
-    if (existing) router.replace(`/free-test/${existing}`);
-    else setCheckedStorage(true);
+    if (!existing) { setCheckedStorage(true); return; }
+
+    // Verify the stored lead is still in-progress before redirecting.  A completed or expired lead
+    // should show the start-a-new-test button rather than bouncing the student back to their
+    // finished results every time they return to this page.
+    api<{ status: string }>(`/free-test/${existing}`)
+      .then((exam) => {
+        if (exam.status === 'IN_PROGRESS') {
+          router.replace(`/free-test/${existing}`);
+        } else {
+          try { localStorage.removeItem(LEAD_STORAGE_KEY); } catch { /* private window etc. */ }
+          setCheckedStorage(true);
+        }
+      })
+      .catch((e) => {
+        if (e instanceof ApiError && (e.code === 'FREE_TEST_INVALID' || e.status === 404)) {
+          // Lead gone or expired — let them start fresh.
+          try { localStorage.removeItem(LEAD_STORAGE_KEY); } catch { /* private window etc. */ }
+        } else {
+          // Network error — redirect anyway; the detail page handles errors gracefully.
+          router.replace(`/free-test/${existing}`);
+        }
+        setCheckedStorage(true);
+      });
   }, [router]);
 
   async function claim() {

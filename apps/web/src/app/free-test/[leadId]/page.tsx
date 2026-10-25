@@ -74,19 +74,25 @@ export default function FreeTestPage() {
 
   // A direct/shared deep link (not the normal claim-then-redirect path) should still resume
   // correctly from the landing page on a later visit, so remember this id too.
+  // Once the test is COMPLETED, clear the key so the landing page offers a fresh start instead
+  // of bouncing the student back to their already-finished results.
   useEffect(() => {
-    try { localStorage.setItem('freeTestLeadId', leadId); } catch { /* private window etc. */ }
-  }, [leadId]);
+    try {
+      if (exam?.status === 'COMPLETED') localStorage.removeItem('freeTestLeadId');
+      else localStorage.setItem('freeTestLeadId', leadId);
+    } catch { /* private window etc. */ }
+  }, [leadId, exam?.status]);
 
   async function exitTest() {
     const ok = await confirm({
-      message: 'Leaving will stop your free test here. You can come back to this exact link within 7 days to pick up where you left off, but any section you\'ve already submitted can\'t be redone.',
+      message: 'Leaving will close your free test. Any sections you\'ve already submitted are saved, but unanswered sections will be lost.',
       confirmLabel: 'Exit test', tone: 'danger',
     });
     if (!ok) return;
-    // The landing page auto-resumes whatever id is in localStorage — without clearing it first,
-    // navigating there would immediately redirect straight back into this same test.
+    // Clear localStorage first so the landing page won't redirect back here.
     try { localStorage.removeItem('freeTestLeadId'); } catch { /* private window etc. */ }
+    // Best-effort purge of ghost data — don't block navigation on failure.
+    api(`/free-test/${leadId}`, { method: 'DELETE' }).catch(() => undefined);
     router.push('/free-test');
   }
 
@@ -154,7 +160,14 @@ export default function FreeTestPage() {
             </p>
           )}
           {exam.missingSkills.length > 0 && <p className="text-sm text-fg-muted">Not assessed on this plan: {exam.missingSkills.map((s) => s.toLowerCase()).join(', ')}.</p>}
-          <Link href="/pricing"><Button>See plans and register for full feedback</Button></Link>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/pricing"><Button>See plans and register for full feedback</Button></Link>
+            <Button variant="secondary" onClick={() => {
+              // Purge ghost rows now that the student is done and explicitly starting a new test.
+              api(`/free-test/${leadId}`, { method: 'DELETE' }).catch(() => undefined);
+              router.push('/free-test');
+            }}>Start another free test</Button>
+          </div>
           <p className="text-xs text-fg-subtle">These are practice estimates, not official IELTS results.</p>
         </Card>
       )}

@@ -76,7 +76,7 @@ export class CommandCenterService {
     const [enrolments, bands] = await Promise.all([
       this.prisma.enrollment.findMany({ where: { createdAt: { gte: since }, deletedAt: null }, select: { createdAt: true }, take: 5000 }),
       this.prisma.assessmentAttempt.groupBy({
-        by: ['assessmentId'], where: { submittedAt: { gte: new Date(now.getTime() - 30 * DAY) }, bandScore: { not: null } }, _avg: { bandScore: true }, _count: { _all: true },
+        by: ['assessmentId'], where: { submittedAt: { gte: new Date(now.getTime() - 30 * DAY) }, bandScore: { not: null }, student: { isGhost: false } }, _avg: { bandScore: true }, _count: { _all: true },
       }),
     ]);
     const weeks = new Map<string, number>();

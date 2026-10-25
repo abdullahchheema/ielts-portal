@@ -61,13 +61,25 @@ export class EnrollmentsService {
     return enrollment;
   }
 
-  async list(status?: EnrollmentStatus) {
-    const where: Prisma.EnrollmentWhereInput = { deletedAt: null, ...(status ? { status } : {}) };
+  async list(filters?: { status?: EnrollmentStatus; courseId?: string; batchId?: string; search?: string }) {
+    const where: Prisma.EnrollmentWhereInput = {
+      deletedAt: null,
+      ...(filters?.status ? { status: filters.status } : {}),
+      ...(filters?.courseId ? { courseId: filters.courseId } : {}),
+      ...(filters?.batchId ? { batchId: filters.batchId } : {}),
+      ...(filters?.search ? {
+        OR: [
+          { student: { firstName: { contains: filters.search, mode: 'insensitive' } } },
+          { student: { lastName: { contains: filters.search, mode: 'insensitive' } } },
+          { student: { user: { email: { contains: filters.search, mode: 'insensitive' } } } },
+        ],
+      } : {}),
+    };
     const rows = await this.prisma.enrollment.findMany({
-      where, orderBy: { createdAt: 'desc' }, take: 200,
+      where, orderBy: { createdAt: 'desc' }, take: 500,
       include: {
         student: { select: { id: true, firstName: true, lastName: true, user: { select: { email: true } } } },
-        course: { select: { title: true } },
+        course: { select: { id: true, title: true } },
         batch: { select: { id: true, name: true } },
         orderItem: { select: { planName: true } },
       },

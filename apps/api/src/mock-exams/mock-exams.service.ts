@@ -12,7 +12,11 @@ import { QuestionBankModule } from '../question-bank/question-bank.module';
 
 type Actor = { userId: string; ip?: string; userAgent?: string };
 const uuid = new ParseUUIDPipe();
-const listQuery = z.object({ skip: z.coerce.number().int().min(0).default(0), take: z.coerce.number().int().min(1).max(100).default(25) });
+const listQuery = z.object({
+  skip: z.coerce.number().int().min(0).default(0),
+  take: z.coerce.number().int().min(1).max(100).default(25),
+  includeArchived: z.coerce.boolean().optional().default(false),
+});
 
 /**
  * Composes a whole-module mock test: one click picks the least-used published Listening module and
@@ -62,20 +66,25 @@ export class MockExamsService {
   }
 
   /** The admin-facing list, enriched with each mock's module titles and how many simulator attempts
-   *  it has produced, so admins can see real usage before deciding what to hide or delete. */
-  async list(q: { skip: number; take: number }) {
+   *  it has produced, so admins can see real usage before deciding what to hide or archive.
+   *  Archived mocks are hidden by default; pass includeArchived=true to show them. */
+  async list(q: { skip: number; take: number; includeArchived: boolean }) {
+    const where = q.includeArchived ? {} : { status: { not: 'ARCHIVED' as const } };
     const [items, total] = await Promise.all([
       this.prisma.mockExam.findMany({
-        orderBy: { createdAt: 'desc' }, skip: q.skip, take: q.take,
+        where, orderBy: { createdAt: 'desc' }, skip: q.skip, take: q.take,
         select: {
           id: true, title: true, status: true, libraryVisible: true, createdAt: true,
           listeningSet: { select: { title: true } }, readingSet: { select: { title: true } },
           listeningAssessmentId: true, readingAssessmentId: true,
         },
       }),
-      this.prisma.mockExam.count(),
+      this.prisma.mockExam.count({ where }),
     ]);
-    const counts = await Promise.all(items.map((m) => this.prisma.examAttempt.count({ where: { listeningAssessmentId: m.listeningAssessmentId, readingAssessmentId: m.readingAssessmentId } })));
+    // Exclude ghost (free-test) students from attempt counts so they don't inflate admin numbers.
+    const counts = await Promise.all(items.map((m) => this.prisma.examAttempt.count({
+      where: { listeningAssessmentId: m.listeningAssessmentId, readingAssessmentId: m.readingAssessmentId, student: { isGhost: false } },
+    })));
     return {
       items: items.map((m, i) => ({
         id: m.id, title: m.title, status: m.status, libraryVisible: m.libraryVisible, createdAt: m.createdAt,
@@ -96,22 +105,17 @@ export class MockExamsService {
     });
   }
 
-  /** Deletes a mock from the library. If it already has simulator attempts against it, the
-   *  underlying assessments/attempts must stay intact for those students' history, so this only
-   *  archives and hides it; with no attempts at all, the MockExam row itself is removed. */
+  /** Archives a mock: it disappears from the student library but in-progress attempts can still
+   *  finish and past results remain viewable. Archiving is always safe — we never hard-delete a
+   *  MockExam because the underlying assessment rows are shared with student history. */
   async remove(id: string, actor: Actor) {
     return this.prisma.$transaction(async (tx) => {
       const m = await tx.mockExam.findUnique({ where: { id } });
       if (!m) throw notFound('Mock exam');
-      const attempts = await tx.examAttempt.count({ where: { listeningAssessmentId: m.listeningAssessmentId, readingAssessmentId: m.readingAssessmentId } });
-      if (attempts > 0) {
-        await tx.mockExam.update({ where: { id }, data: { status: 'ARCHIVED', libraryVisible: false } });
-        await this.audit.record({ ...actor, action: 'ADMIN_ARCHIVED_MOCK_EXAM', entityType: 'MockExam', entityId: id, before: { status: m.status }, after: { status: 'ARCHIVED' } }, tx);
-        return { id, archived: true };
-      }
-      await tx.mockExam.delete({ where: { id } });
-      await this.audit.record({ ...actor, action: 'ADMIN_DELETED_MOCK_EXAM', entityType: 'MockExam', entityId: id, before: { title: m.title } }, tx);
-      return { id, deleted: true };
+      if (m.status === 'ARCHIVED') return { id, archived: true }; // already done
+      await tx.mockExam.update({ where: { id }, data: { status: 'ARCHIVED', libraryVisible: false } });
+      await this.audit.record({ ...actor, action: 'ADMIN_ARCHIVED_MOCK_EXAM', entityType: 'MockExam', entityId: id, before: { status: m.status }, after: { status: 'ARCHIVED' } }, tx);
+      return { id, archived: true };
     });
   }
 }
