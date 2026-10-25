@@ -59,13 +59,20 @@ export const simulatorAdvanceSchema = z.object({
 });
 
 // Composition defaults to automatic rotation (RotationService picks the least-used published module
-// per skill) — the admin supplies only a title. Either set id, if given, pins that module instead of
-// rotating; both must be given together or neither (a mock always needs exactly one of each skill).
+// per skill) — the admin supplies only a title.  Each skill can be independently pinned or left on
+// auto; L/R pin a whole QuestionSet (resolved to its wrapper Assessment); W/S pin a single Question.
 export const composeMockSchema = z.object({
   title: z.string().trim().min(3).max(160),
+  // Listening / Reading — pin a QuestionSet or auto-rotate.
   listeningSetId: z.string().uuid().optional(),
-  readingSetId: z.string().uuid().optional(),
-}).refine((v) => !!v.listeningSetId === !!v.readingSetId, 'Choose both modules manually, or leave both on auto-pick.');
+  readingSetId:   z.string().uuid().optional(),
+  // Writing / Speaking — pin specific Questions or auto-pick per attempt.
+  writingTask1QuestionId:  z.string().uuid().optional(),
+  writingTask2QuestionId:  z.string().uuid().optional(),
+  speakingPart1QuestionId: z.string().uuid().optional(),
+  speakingPart2QuestionId: z.string().uuid().optional(),
+  speakingPart3QuestionId: z.string().uuid().optional(),
+}).refine((v) => !!v.listeningSetId === !!v.readingSetId, 'Choose both Listening and Reading modules manually, or leave both on auto-pick.');
 
 export const libraryVisibilitySchema = z.object({
   visible: z.boolean(),

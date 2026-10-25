@@ -12,7 +12,12 @@ interface MockExam {
   listeningModuleTitle: string; readingModuleTitle: string; attemptsCount: number;
 }
 interface ModuleSummary { id: string; title: string; skill: string; module: string | null; usageCount: number; usedByMocks: { id: string; title: string }[] }
+interface WsCandidate { id: string; ieltsType: string | null; excerpt: string }
 const TAKE = 25;
+const WS_LABELS: Record<string, string> = {
+  WRITING_TASK1: 'Writing Task 1', WRITING_TASK2: 'Writing Task 2',
+  SPEAKING_PART1: 'Speaking Part 1', SPEAKING_PART2: 'Speaking Part 2', SPEAKING_PART3: 'Speaking Part 3',
+};
 
 export default function MockExamsPage() {
   const qc = useQueryClient();
@@ -23,6 +28,7 @@ export default function MockExamsPage() {
   const [title, setTitle] = useState('');
   const [listeningSetId, setListeningSetId] = useState('');
   const [readingSetId, setReadingSetId] = useState('');
+  const [wsPins, setWsPins] = useState({ writingTask1QuestionId: '', writingTask2QuestionId: '', speakingPart1QuestionId: '', speakingPart2QuestionId: '', speakingPart3QuestionId: '' });
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -39,6 +45,11 @@ export default function MockExamsPage() {
     queryFn: () => api<ModuleSummary[]>('/admin/question-sets/published-summary'),
     enabled: mode === 'manual',
   });
+  const wsCandidates = useQuery({
+    queryKey: ['admin-ws-candidates'],
+    queryFn: () => api<WsCandidate[]>('/admin/mock-exams/writing-speaking-candidates'),
+    enabled: mode === 'manual',
+  });
 
   const listeningModules = modules.data?.filter((m) => m.skill === 'LISTENING') ?? [];
   const readingModules = modules.data?.filter((m) => m.skill === 'READING') ?? [];
@@ -47,10 +58,14 @@ export default function MockExamsPage() {
     setBusy(true); setError(null); setNotice(null);
     try {
       const body: Record<string, unknown> = { title };
-      if (mode === 'manual') { body.listeningSetId = listeningSetId; body.readingSetId = readingSetId; }
+      if (mode === 'manual') {
+        body.listeningSetId = listeningSetId; body.readingSetId = readingSetId;
+        Object.entries(wsPins).forEach(([k, v]) => { if (v) body[k] = v; });
+      }
       await api('/admin/mock-exams/compose', { method: 'POST', body });
       setNotice('Mock test composed and published to the library.');
       setTitle(''); setListeningSetId(''); setReadingSetId('');
+      setWsPins({ writingTask1QuestionId: '', writingTask2QuestionId: '', speakingPart1QuestionId: '', speakingPart2QuestionId: '', speakingPart3QuestionId: '' });
       await qc.invalidateQueries({ queryKey: ['admin-mock-exams'] });
       await qc.invalidateQueries({ queryKey: ['admin-question-sets-published-summary'] });
     } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
@@ -85,7 +100,7 @@ export default function MockExamsPage() {
 
   return (
     <>
-      <PageHeader title="Mock tests" subtitle="Each mock bundles a Listening and a Reading module. Choose auto-pick to rotate the least-used modules, or select manually." />
+      <PageHeader title="Mock tests" subtitle="Each mock bundles a Listening and a Reading module. Writing and Speaking questions are auto-picked per attempt, or you can pin specific prompts in manual mode." />
       {error && <Alert>{error}</Alert>}
       {notice && <Alert kind="success">{notice}</Alert>}
 
@@ -128,6 +143,26 @@ export default function MockExamsPage() {
                       </Select>
                     )}
                   </Field>
+                  {/* Writing / Speaking pinned questions — optional; leave on auto-pick if not set */}
+                  <p className="text-xs text-fg-muted pt-1">Writing &amp; Speaking questions (optional — leave blank for per-attempt auto-pick)</p>
+                  {(['writingTask1QuestionId', 'writingTask2QuestionId', 'speakingPart1QuestionId', 'speakingPart2QuestionId', 'speakingPart3QuestionId'] as const).map((key) => {
+                    const type = key.replace('QuestionId', '').replace(/([A-Z])/g, '_$1').toUpperCase().replace('WRITING_TASK', 'WRITING_TASK').replace('SPEAKING_PART', 'SPEAKING_PART');
+                    const ieltsType = key === 'writingTask1QuestionId' ? 'WRITING_TASK1' : key === 'writingTask2QuestionId' ? 'WRITING_TASK2' : key === 'speakingPart1QuestionId' ? 'SPEAKING_PART1' : key === 'speakingPart2QuestionId' ? 'SPEAKING_PART2' : 'SPEAKING_PART3';
+                    void type;
+                    const candidates = wsCandidates.data?.filter((c) => c.ieltsType === ieltsType) ?? [];
+                    return (
+                      <Field key={key} label={WS_LABELS[ieltsType]}>
+                        {(p) => (
+                          <Select {...p} value={wsPins[key]} onChange={(e) => setWsPins({ ...wsPins, [key]: e.target.value })}>
+                            <option value="">Auto-pick</option>
+                            {candidates.map((c) => (
+                              <option key={c.id} value={c.id}>{c.excerpt || c.id.slice(0, 8)}</option>
+                            ))}
+                          </Select>
+                        )}
+                      </Field>
+                    );
+                  })}
                 </>
               )}
             </>

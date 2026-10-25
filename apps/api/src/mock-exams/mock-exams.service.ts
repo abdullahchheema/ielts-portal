@@ -45,10 +45,25 @@ export class MockExamsService {
       this.rotation.resolveWrapperAssessment(listeningSetId, 'LISTENING'),
       this.rotation.resolveWrapperAssessment(readingSetId, 'READING'),
     ]);
+
+    // Validate any pinned Writing / Speaking questions.
+    const wsIds = {
+      writingTask1QuestionId: input.writingTask1QuestionId,
+      writingTask2QuestionId: input.writingTask2QuestionId,
+      speakingPart1QuestionId: input.speakingPart1QuestionId,
+      speakingPart2QuestionId: input.speakingPart2QuestionId,
+      speakingPart3QuestionId: input.speakingPart3QuestionId,
+    };
+    const wsEntries = Object.entries(wsIds).filter((e): e is [string, string] => !!e[1]);
+    if (wsEntries.length) await this.assertWritingSpeakingQuestions(wsEntries);
+
     const mockExam = await this.prisma.mockExam.create({
-      data: { title: input.title, listeningSetId, readingSetId, listeningAssessmentId, readingAssessmentId, status: 'PUBLISHED', libraryVisible: true },
+      data: {
+        title: input.title, listeningSetId, readingSetId, listeningAssessmentId, readingAssessmentId,
+        status: 'PUBLISHED', libraryVisible: true, ...Object.fromEntries(wsEntries),
+      },
     });
-    await this.audit.record({ ...actor, action: 'ADMIN_COMPOSED_MOCK_EXAM', entityType: 'MockExam', entityId: mockExam.id, after: { listeningSetId, readingSetId } });
+    await this.audit.record({ ...actor, action: 'ADMIN_COMPOSED_MOCK_EXAM', entityType: 'MockExam', entityId: mockExam.id, after: { listeningSetId, readingSetId, ...Object.fromEntries(wsEntries) } });
     return mockExam;
   }
 
@@ -63,6 +78,50 @@ export class MockExamsService {
     if (!ok(listening, 'LISTENING')) throw notFound('Listening module');
     if (!ok(reading, 'READING')) throw notFound('Reading module');
     return [listeningSetId, readingSetId];
+  }
+
+  /** Validates pinned Writing / Speaking questions — must exist, not be deleted, and have the
+   *  expected ieltsType for their slot. */
+  private async assertWritingSpeakingQuestions(entries: [string, string][]) {
+    const EXPECTED_TYPES: Record<string, string[]> = {
+      writingTask1QuestionId:  ['WRITING_TASK1'],
+      writingTask2QuestionId:  ['WRITING_TASK2'],
+      speakingPart1QuestionId: ['SPEAKING_PART1'],
+      speakingPart2QuestionId: ['SPEAKING_PART2'],
+      speakingPart3QuestionId: ['SPEAKING_PART3'],
+    };
+    await Promise.all(entries.map(async ([field, id]) => {
+      const q = await this.prisma.question.findUnique({ where: { id }, select: { ieltsType: true, deletedAt: true } });
+      if (!q || q.deletedAt) throw notFound(`${field.replace('QuestionId', '')} question`);
+      const allowed = EXPECTED_TYPES[field];
+      if (allowed && q.ieltsType && !allowed.includes(q.ieltsType)) {
+        throw notFound(`${field.replace('QuestionId', '')} question (wrong type: ${q.ieltsType})`);
+      }
+    }));
+  }
+
+  /** Returns selectable Writing and Speaking questions for the manual compose form.
+   *  Returns id, ieltsType, and a short prompt excerpt for display. */
+  async writingSpeakingCandidates() {
+    const questions = await this.prisma.question.findMany({
+      where: {
+        deletedAt: null,
+        ieltsType: { in: ['WRITING_TASK1', 'WRITING_TASK2', 'SPEAKING_PART1', 'SPEAKING_PART2', 'SPEAKING_PART3'] },
+      },
+      select: { id: true, ieltsType: true, versions: { orderBy: { version: 'desc' }, take: 1, select: { prompt: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+    });
+    return questions.map((q) => {
+      const prompt = q.versions[0]?.prompt;
+      // Extract a short text excerpt from the prompt JSON (best-effort).
+      let excerpt = '';
+      if (prompt && typeof prompt === 'object') {
+        const text = (prompt as Record<string, unknown>).text ?? (prompt as Record<string, unknown>).body;
+        if (typeof text === 'string') excerpt = text.slice(0, 120).trim();
+      }
+      return { id: q.id, ieltsType: q.ieltsType, excerpt };
+    });
   }
 
   /** The admin-facing list, enriched with each mock's module titles and how many simulator attempts
@@ -128,6 +187,10 @@ export class MockExamsController {
 
   @RequirePermission('assessment.manage') @Get()
   list(@Query(new ZodPipe(listQuery)) q: z.infer<typeof listQuery>) { return this.mocks.list(q); }
+
+  /** Selectable Writing and Speaking questions for the manual compose form. */
+  @RequirePermission('assessment.manage') @Get('writing-speaking-candidates')
+  writingSpeakingCandidates() { return this.mocks.writingSpeakingCandidates(); }
 
   @RequirePermission('assessment.manage') @Post('compose')
   compose(@Body(new ZodPipe(composeMockSchema)) body: ComposeMockInput, @CurrentUser() u: AuthUser, @Req() req: Request) {

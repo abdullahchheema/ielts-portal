@@ -1164,6 +1164,13 @@ model Question {
   speakingResponses SpeakingResponse[]
   versions QuestionVersion[]
 
+  // Back-relations for pinned mock exam W/S questions
+  mockExamWritingTask1  MockExam[] @relation("MockExamWritingTask1")
+  mockExamWritingTask2  MockExam[] @relation("MockExamWritingTask2")
+  mockExamSpeakingPart1 MockExam[] @relation("MockExamSpeakingPart1")
+  mockExamSpeakingPart2 MockExam[] @relation("MockExamSpeakingPart2")
+  mockExamSpeakingPart3 MockExam[] @relation("MockExamSpeakingPart3")
+
   @@index([questionSetId], map: "questions_set_idx")
   @@index([module, ieltsQuestionType, difficulty])
   @@map("questions")
@@ -1340,13 +1347,27 @@ model MockExam {
   libraryVisible        Boolean  @default(true) @map("library_visible")
   createdAt             DateTime @default(now()) @map("created_at")
 
+  // Optional pinned Writing / Speaking questions. When set, afterReading() uses these instead of
+  // the per-attempt random pick. Null means auto-pick (original behaviour preserved).
+  writingTask1QuestionId  String? @map("writing_task1_question_id") @db.Uuid
+  writingTask2QuestionId  String? @map("writing_task2_question_id") @db.Uuid
+  speakingPart1QuestionId String? @map("speaking_part1_question_id") @db.Uuid
+  speakingPart2QuestionId String? @map("speaking_part2_question_id") @db.Uuid
+  speakingPart3QuestionId String? @map("speaking_part3_question_id") @db.Uuid
+
   listeningSet        QuestionSet @relation("MockExamListeningSet", fields: [listeningSetId], references: [id])
   readingSet           QuestionSet @relation("MockExamReadingSet", fields: [readingSetId], references: [id])
   listeningAssessment Assessment  @relation("MockExamListeningAssessment", fields: [listeningAssessmentId], references: [id])
   readingAssessment   Assessment  @relation("MockExamReadingAssessment", fields: [readingAssessmentId], references: [id])
+  writingTask1Question Question?  @relation("MockExamWritingTask1", fields: [writingTask1QuestionId], references: [id])
+  writingTask2Question Question?  @relation("MockExamWritingTask2", fields: [writingTask2QuestionId], references: [id])
+  speakingPart1Question Question? @relation("MockExamSpeakingPart1", fields: [speakingPart1QuestionId], references: [id])
+  speakingPart2Question Question? @relation("MockExamSpeakingPart2", fields: [speakingPart2QuestionId], references: [id])
+  speakingPart3Question Question? @relation("MockExamSpeakingPart3", fields: [speakingPart3QuestionId], references: [id])
 
   accessRequests MockAccessRequest[]
   activations    MockActivation[]
+  examAttempts   ExamAttempt[]
 
   @@map("mock_exams")
 }
@@ -2177,7 +2198,10 @@ model ExamAttempt {
   createdAt              DateTime  @default(now()) @map("created_at")
   updatedAt              DateTime  @default(now()) @updatedAt @map("updated_at")
 
+  mockExamId             String?   @map("mock_exam_id") @db.Uuid
+
   student          StudentProfile    @relation(fields: [studentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  mockExam         MockExam?         @relation(fields: [mockExamId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   listeningAssessment Assessment?    @relation("SimListening", fields: [listeningAssessmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   readingAssessment   Assessment?    @relation("SimReading", fields: [readingAssessmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   listeningAttempt AssessmentAttempt? @relation("SimListeningAttempt", fields: [listeningAttemptId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -2188,6 +2212,7 @@ model ExamAttempt {
   freeLead         FreeAssessmentLead?
 
   @@index([studentId, createdAt], map: "exam_attempts_student_created_idx")
+  @@index([mockExamId], map: "exam_attempts_mock_exam_idx")
   @@map("exam_attempts")
 }
 

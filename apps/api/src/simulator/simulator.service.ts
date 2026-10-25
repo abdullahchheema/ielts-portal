@@ -118,10 +118,10 @@ export class SimulatorService implements OnModuleInit {
   async startFromMockExam(studentId: string, mockExamId: string, includeSpeaking: boolean) {
     const m = await this.prisma.mockExam.findUnique({ where: { id: mockExamId }, select: { libraryVisible: true, status: true, listeningAssessmentId: true, readingAssessmentId: true } });
     if (!m || !m.libraryVisible || m.status === 'ARCHIVED') throw notFound('Mock exam');
-    return this.createExamAttempt(studentId, m.listeningAssessmentId, m.readingAssessmentId, includeSpeaking);
+    return this.createExamAttempt(studentId, m.listeningAssessmentId, m.readingAssessmentId, includeSpeaking, mockExamId);
   }
 
-  private async createExamAttempt(studentId: string, listeningAssessmentId: string, readingAssessmentId: string, includeSpeaking: boolean) {
+  private async createExamAttempt(studentId: string, listeningAssessmentId: string, readingAssessmentId: string, includeSpeaking: boolean, mockExamId?: string) {
     // ── Safety check: surface any already-bricked open attempt with a resume link ────────────────
     // The partial unique index exam_attempts_one_open(student_id) allows exactly one IN_PROGRESS
     // exam attempt per student.  If a previous attempt was created but then its startSection()
@@ -140,7 +140,7 @@ export class SimulatorService implements OnModuleInit {
     let examId: string;
     try {
       const exam = await this.prisma.examAttempt.create({
-        data: { studentId, includeSpeaking, listeningAssessmentId, readingAssessmentId, stage: 'LISTENING' },
+        data: { studentId, includeSpeaking, listeningAssessmentId, readingAssessmentId, stage: 'LISTENING', ...(mockExamId ? { mockExamId } : {}) },
         select: { id: true },
       });
       examId = exam.id;
@@ -314,21 +314,36 @@ export class SimulatorService implements OnModuleInit {
     }
   }
 
-  /** Reading finished: move to writing with a Task 2 prompt from the bank, or skip writing if none is published.
-   *  A free-test ghost student picks least-used-first among rotation-eligible sets only (so an admin's
-   *  eligibility toggle actually has an effect, and no one set gets shown disproportionately often);
-   *  a real, authenticated student keeps the existing random pick across every published set unchanged. */
+  /** Reading finished: move to writing with prompts from the bank (or the mock's pinned questions if set),
+   *  or skip writing if none are available.
+   *  A free-test ghost student picks least-used-first among rotation-eligible sets only;
+   *  a real, authenticated student uses a seeded random pick across every published set. */
   private async afterReading(e: { id: string; includeSpeaking: boolean; stageRevision: number }, studentId: string, claim: (d: Prisma.ExamAttemptUncheckedUpdateInput) => Promise<void>) {
-    const student = await this.prisma.studentProfile.findUnique({ where: { id: studentId }, select: { isGhost: true } });
-    const [task1Pick, task2Pick] = await (student?.isGhost
-      ? Promise.all([
-          this.rotation.pickLeastUsedBankQuestion('WRITING', ['WRITING_TASK1']),
-          this.rotation.pickLeastUsedBankQuestion('WRITING', ['WRITING_TASK2']),
-        ])
-      : Promise.all([
-          selectCandidates(await this.bank.candidates({ skill: 'WRITING', ieltsTypes: ['WRITING_TASK1'] }, true), { count: 1, seed: `sim1|${e.id}` }),
-          selectCandidates(await this.bank.candidates({ skill: 'WRITING', ieltsTypes: ['WRITING_TASK2'] }, true), { count: 1, seed: `sim2|${e.id}` }),
-        ]).then(([a, b]) => [a[0], b[0]] as [string | undefined, string | undefined]));
+    // Check for a mock-exam with pinned W questions first (Phase 3.2).
+    const examRow = await this.prisma.examAttempt.findUnique({ where: { id: e.id }, select: { mockExamId: true } });
+    const mockExam = examRow?.mockExamId
+      ? await this.prisma.mockExam.findUnique({ where: { id: examRow.mockExamId }, select: { writingTask1QuestionId: true, writingTask2QuestionId: true } })
+      : null;
+
+    let task1Pick: string | undefined;
+    let task2Pick: string | undefined;
+
+    if (mockExam?.writingTask1QuestionId || mockExam?.writingTask2QuestionId) {
+      // Use pinned questions from the mock exam (nullish → auto-pick that slot)
+      task1Pick = mockExam.writingTask1QuestionId ?? undefined;
+      task2Pick = mockExam.writingTask2QuestionId ?? undefined;
+    } else {
+      const student = await this.prisma.studentProfile.findUnique({ where: { id: studentId }, select: { isGhost: true } });
+      [task1Pick, task2Pick] = await (student?.isGhost
+        ? Promise.all([
+            this.rotation.pickLeastUsedBankQuestion('WRITING', ['WRITING_TASK1']),
+            this.rotation.pickLeastUsedBankQuestion('WRITING', ['WRITING_TASK2']),
+          ])
+        : Promise.all([
+            selectCandidates(await this.bank.candidates({ skill: 'WRITING', ieltsTypes: ['WRITING_TASK1'] }, true), { count: 1, seed: `sim1|${e.id}` }),
+            selectCandidates(await this.bank.candidates({ skill: 'WRITING', ieltsTypes: ['WRITING_TASK2'] }, true), { count: 1, seed: `sim2|${e.id}` }),
+          ]).then(([a, b]) => [a[0], b[0]] as [string | undefined, string | undefined]));
+    }
     if (!task1Pick && !task2Pick) {
       return this.afterWritingSkipped(e, studentId, claim);
     }
