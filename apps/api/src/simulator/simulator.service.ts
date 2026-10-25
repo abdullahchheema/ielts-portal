@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Injectable, Module, OnModuleInit, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Injectable, Logger, Module, OnModuleInit, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import { Prisma } from '@ielts/db';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SIMULATOR_COMPLETED, SimulatorCompleted } from './events';
@@ -45,6 +45,7 @@ export function overallFrom(skills: Record<'LISTENING' | 'READING' | 'WRITING' |
 
 @Injectable()
 export class SimulatorService implements OnModuleInit {
+  private readonly logger = new Logger(SimulatorService.name);
   constructor(
     private readonly prisma: PrismaService,
     private readonly attempts: AttemptsService,
@@ -233,8 +234,11 @@ export class SimulatorService implements OnModuleInit {
       try {
         await this.progress(d.id, d.studentId, d.stageRevision, true);
         moved++;
-      } catch {
-        // Already moved, or the section is still being finished. Try again on the next run.
+      } catch (err) {
+        // Suppress revision-race errors (already advanced by the student or a concurrent cron tick).
+        // Log everything else so stuck attempts are visible.
+        const code = (err as { code?: string; response?: { code?: string } })?.code ?? (err as { response?: { code?: string } })?.response?.code;
+        if (code !== 'CONFLICT') this.logger.warn({ examAttemptId: d.id, err }, 'advanceDue: failed to advance exam attempt');
       }
     }
     return { moved };
@@ -265,7 +269,14 @@ export class SimulatorService implements OnModuleInit {
           // Guard: readingAssessmentId is nullable in the schema; if somehow null, skip reading.
           if (!nextAssessment) return this.afterReading(e, studentId, claim);
           const started = await this.startSection(studentId, nextAssessment);
-          await claim({ stage: 'READING', readingAttemptId: started.id, stageDeadlineAt: started.expiresAt });
+          try {
+            await claim({ stage: 'READING', readingAttemptId: started.id, stageDeadlineAt: started.expiresAt });
+          } catch (claimErr) {
+            // Race lost: another concurrent advance already moved us on. Roll back the assessment
+            // attempt we just created so it doesn't orphan under the one_in_progress index.
+            await this.prisma.assessmentAttempt.deleteMany({ where: { id: started.id, status: 'IN_PROGRESS' } }).catch(() => undefined);
+            throw claimErr;
+          }
           return this.get(studentId, id);
         }
         return this.afterReading(e, studentId, claim);
@@ -282,7 +293,13 @@ export class SimulatorService implements OnModuleInit {
         }
         if (e.includeSpeaking) {
           const speaking = await this.prisma.speakingAttempt.create({ data: { studentId, mode: 'FULL' }, select: { id: true } });
-          await claim({ stage: 'SPEAKING', speakingAttemptId: speaking.id, stageDeadlineAt: new Date(Date.now() + SPEAKING_MINUTES * 60_000) });
+          try {
+            await claim({ stage: 'SPEAKING', speakingAttemptId: speaking.id, stageDeadlineAt: new Date(Date.now() + SPEAKING_MINUTES * 60_000) });
+          } catch (claimErr) {
+            // Race lost: clean up the speaking attempt we just created.
+            await this.prisma.speakingAttempt.deleteMany({ where: { id: speaking.id } }).catch(() => undefined);
+            throw claimErr;
+          }
           return this.get(studentId, id);
         }
         return this.finish(e, claim, studentId);
@@ -319,12 +336,21 @@ export class SimulatorService implements OnModuleInit {
       task1Pick ? this.writing.create(studentId, { taskType: 'TASK1', questionId: task1Pick }) : null,
       task2Pick ? this.writing.create(studentId, { taskType: 'TASK2', questionId: task2Pick }) : null,
     ]);
-    await claim({
-      stage: 'WRITING',
-      writingTask1ResponseId: task1?.id ?? null,
-      writingResponseId: task2?.id ?? null,
-      stageDeadlineAt: new Date(Date.now() + WRITING_MINUTES * 60_000),
-    });
+    try {
+      await claim({
+        stage: 'WRITING',
+        writingTask1ResponseId: task1?.id ?? null,
+        writingResponseId: task2?.id ?? null,
+        stageDeadlineAt: new Date(Date.now() + WRITING_MINUTES * 60_000),
+      });
+    } catch (claimErr) {
+      // Race lost: delete the writing responses we just created before re-throwing.
+      await Promise.all([
+        task1 ? this.prisma.writingResponse.deleteMany({ where: { id: task1.id, status: 'DRAFT' } }) : null,
+        task2 ? this.prisma.writingResponse.deleteMany({ where: { id: task2.id, status: 'DRAFT' } }) : null,
+      ]).catch(() => undefined);
+      throw claimErr;
+    }
     return this.get(studentId, e.id);
   }
 
