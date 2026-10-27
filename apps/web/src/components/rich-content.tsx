@@ -10,7 +10,8 @@ export type ContentBlock =
   | { type: 'text'; value: string }
   | { type: 'table'; rows: string[][] }
   | { type: 'image'; index: number; alt?: string }
-  | { type: 'questions'; from: number; to: number };
+  | { type: 'questions'; from: number; to: number }
+  | { type: 'svg'; value: string; alt?: string };
 
 export interface RichImage { url: string; alt?: string }
 
@@ -82,6 +83,16 @@ export function RichContent({ blocks, questions, offset, answers, onChange, imag
           if (!img) return <p key={i} className="text-xs text-fg-muted">Image unavailable.</p>;
           // eslint-disable-next-line @next/next/no-img-element
           return <img key={i} src={img.url} alt={b.alt ?? img.alt ?? ''} className="mx-auto max-h-[70vh] w-full rounded-lg object-contain ring-1 ring-border" />;
+        }
+        if (b.type === 'svg') {
+          return (
+            <div key={i} role="img" aria-label={b.alt ?? 'Diagram'}
+              className="mx-auto max-w-full overflow-x-auto rounded-lg ring-1 ring-border p-3 [&_svg]:max-h-[70vh] [&_svg]:w-full"
+              // SVG content originates from admin-imported files; only admins can import content.
+              // eslint-disable-next-line react/no-danger
+              dangerouslySetInnerHTML={{ __html: b.value }}
+            />
+          );
         }
         // 'questions': standard interactive cards for MCQ/TFNG/etc. ranges not suited to inline rendering.
         return (

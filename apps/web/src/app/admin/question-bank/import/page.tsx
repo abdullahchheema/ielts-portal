@@ -10,7 +10,7 @@ import { errorMessage } from '@/lib/errors';
 interface ImportOption { label: string; isCorrect: boolean }
 interface ImportAnswerKey { value?: string; accepted?: string[]; correctOrder?: string[]; numericValue?: number }
 interface ImportQuestion { ieltsType: string; prompt: { text: string }; options?: ImportOption[]; answerKey?: ImportAnswerKey }
-interface ImportContentBlock { type: string }
+interface ImportContentBlock { type: string; value?: string; alt?: string }
 interface ImportSection { title: string; instructions?: string; passage?: string; questions: ImportQuestion[]; contentBlocks?: ImportContentBlock[] }
 interface ImportSet { title: string; skill: string; questions?: ImportQuestion[]; sections?: ImportSection[] }
 interface ImportPayload { sets: ImportSet[] }
@@ -204,6 +204,13 @@ function SetContentPreview({ set }: { set: ImportSet }) {
             {sections.length > 1 && <p className="text-sm font-semibold text-fg">{sec.title}</p>}
             {sec.instructions && <p className="text-xs text-fg-muted">{sec.instructions}</p>}
             {sec.passage && <p className="max-h-32 overflow-auto rounded bg-surface p-2 text-xs whitespace-pre-wrap text-fg-muted">{sec.passage}</p>}
+            {sec.contentBlocks?.filter((b) => b.type === 'svg').map((b, bi) => (
+              <div key={bi} role="img" aria-label={b.alt ?? 'Diagram'}
+                className="max-h-56 overflow-auto rounded bg-surface p-2 [&_svg]:max-w-full [&_svg]:h-auto"
+                // eslint-disable-next-line react/no-danger
+                dangerouslySetInnerHTML={{ __html: b.value ?? '' }}
+              />
+            ))}
             <ol className="space-y-1.5">
               {sec.questions.map((q, qi) => (
                 <li key={qi} className="rounded bg-surface px-2.5 py-1.5 text-sm">

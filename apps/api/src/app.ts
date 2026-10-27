@@ -13,6 +13,8 @@ export async function createApp(logger: false | ('log' | 'warn' | 'error')[] = [
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { logger });
   app.set('trust proxy', 1);
   app.use(requestId);
+  // Bulk import JSON files can reach ~600 KB; raise the limit to 2 MB.
+  app.useBodyParser('json', { limit: '2mb' });
   app.use(helmet());
   app.use(compression());
   app.use(cookieParser());

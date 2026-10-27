@@ -27,6 +27,8 @@ export const contentBlockSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('image'), index: z.number().int().min(0).max(10), alt: z.string().max(300).optional() }),
   /** 1-based, inclusive — renders questions[from-1..to-1] as standard interactive cards. */
   z.object({ type: z.literal('questions'), from: z.number().int().min(1), to: z.number().int().min(1) }),
+  /** Inline SVG diagram embedded directly in the import file (apparatus schematics, maps, diagrams). */
+  z.object({ type: z.literal('svg'), value: z.string().max(50_000), alt: z.string().max(300).optional() }),
 ]);
 export type ImportContentBlock = z.infer<typeof contentBlockSchema>;
 
