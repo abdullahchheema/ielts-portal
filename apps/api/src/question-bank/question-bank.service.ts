@@ -442,13 +442,69 @@ export class QuestionBankService {
     return after;
   }
 
-  /** Applies the same status change to several sets in one all-or-nothing transaction: one bad id
-   *  aborts the whole batch (with that id's own error) rather than leaving a partial result. */
+  /** Applies the same status change to several sets in one all-or-nothing transaction.
+   *  Uses a single batched findMany instead of N serial round-trips so large batches don't
+   *  time out in the Prisma interactive-transaction window (same fix as bulkDelete). */
   async bulkSetStatus(ids: string[], input: QuestionSetStatusInput, actor: Actor) {
     return this.prisma.$transaction(async (tx) => {
-      const results = [];
-      for (const id of ids) results.push(await this.setStatusTx(tx, id, input, actor));
-      return { ok: true, count: results.length };
+      const sets = await tx.questionSet.findMany({
+        where: { id: { in: ids } },
+        include: {
+          questions: {
+            where: { deletedAt: null },
+            select: {
+              id: true, questionType: true, ieltsType: true,
+              versions: { select: { answerKey: true, options: { select: { isCorrect: true } } }, orderBy: { version: 'desc' }, take: 1 },
+            },
+          },
+        },
+      });
+
+      // Validate every set before writing anything — one bad id aborts the whole batch.
+      const foundIds = new Set(sets.map((s) => s.id));
+      const missing = ids.find((id) => !foundIds.has(id));
+      if (missing) throw notFound('Question set');
+
+      for (const set of sets) {
+        const from = set.status as QuestionSetStatus;
+        const studentFacingChanging = input.studentFacing !== undefined && input.studentFacing !== set.studentFacing;
+        if (from === input.status && !studentFacingChanging) throw conflict('CONFLICT', 'The set already has that status.');
+        if (from !== input.status && !QUESTION_SET_TRANSITIONS[from].includes(input.status)) {
+          throw conflict('CONFLICT', `A ${from.toLowerCase()} set cannot become ${input.status.toLowerCase()}.`);
+        }
+        if (input.status === 'PUBLISHED') {
+          if (set.questions.length === 0) throw new AppError('VALIDATION_ERROR', 422, 'Add at least one question before publishing.');
+          const incomplete = set.questions.filter((q) => {
+            const v = q.versions[0];
+            if (!v) return true;
+            const grader = q.ieltsType ? graderType(q.ieltsType as IeltsItemType) : q.questionType;
+            if (grader === 'NONE') return false;
+            if (grader === 'MATCHING' && v.answerKey) return false;
+            if (usesKey(grader) || grader === 'ORDERING') return !v.answerKey;
+            return v.options.length < 2 || !v.options.some((o) => o.isCorrect);
+          });
+          if (incomplete.length > 0) throw new AppError('VALIDATION_ERROR', 422, `${incomplete.length} question(s) in "${set.title}" are missing an answer key or correct option.`);
+        }
+      }
+
+      // One updateMany + one createMany instead of N individual updates — keeps the total round-trips
+      // to 3 (findMany + updateMany + createMany) regardless of batch size.
+      const studentFacing = input.status === 'PUBLISHED' ? (input.studentFacing ?? false) : false;
+      await tx.questionSet.updateMany({
+        where: { id: { in: ids } },
+        data: { status: input.status, studentFacing, publishedAt: input.status === 'PUBLISHED' ? new Date() : undefined },
+      });
+
+      await tx.auditLog.createMany({
+        data: sets.map((s) => ({
+          userId: actor.userId ?? null, action: 'ADMIN_CHANGED_QUESTION_SET_STATUS', entityType: 'QuestionSet', entityId: s.id,
+          beforeJson: { status: s.status, studentFacing: s.studentFacing } as Prisma.InputJsonValue,
+          afterJson: { status: input.status, studentFacing, note: input.note ?? null } as Prisma.InputJsonValue,
+          ipAddress: actor.ip, userAgent: actor.userAgent,
+        })),
+      });
+
+      return { ok: true, count: ids.length };
     });
   }
 
